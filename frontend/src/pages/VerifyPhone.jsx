@@ -47,14 +47,14 @@ export default function VerifyPhone() {
   }
 
   return (
-    <div className="min-h-screen bg-navy-50 flex items-center justify-center px-4">
-      <Card className="w-full max-w-sm">
-        <h1 className="text-xl font-bold text-navy-900 mb-1">Verify your phone</h1>
-        <p className="text-sm text-navy-500 mb-4">Enter the 6-digit code sent to your phone.</p>
+    <div className="min-h-screen bg-bg flex items-center justify-center px-4">
+      <Card variant="elevated" className="w-full max-w-sm">
+        <h1 className="text-page-title text-primary mb-1">Verify your phone</h1>
+        <p className="text-body text-muted mb-6">Enter the 6-digit code sent to your phone.</p>
 
         <Alert type="info">{info}</Alert>
 
-        <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+        <form onSubmit={handleSubmit} className="space-y-6 mt-6">
           <Input
             label="OTP code"
             required
@@ -68,7 +68,7 @@ export default function VerifyPhone() {
           </Button>
         </form>
 
-        <button onClick={handleResend} className="text-sm text-navy-600 mt-4 underline">
+        <button onClick={handleResend} className="text-body text-primary mt-6 underline">
           Resend code
         </button>
       </Card>

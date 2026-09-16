@@ -30,18 +30,18 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-navy-50 flex items-center justify-center px-4">
-      <Card className="w-full max-w-sm">
-        <h1 className="text-2xl font-bold text-navy-900">Welcome back</h1>
-        <p className="text-sm text-navy-500 mt-1 mb-6">Log in to your GigConnect account.</p>
+    <div className="min-h-screen bg-bg flex items-center justify-center px-4">
+      <Card variant="elevated" className="w-full max-w-sm">
+        <h1 className="text-page-title text-primary">Welcome back</h1>
+        <p className="text-body text-muted mt-1 mb-8">Log in to your GigConnect account.</p>
 
         {location.state?.registered && (
-          <div className="mb-4">
+          <div className="mb-6">
             <Alert type="success">Account created. Check your email to verify before you can post or apply to gigs.</Alert>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-6">
           <Input label="Email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
           <Input
             label="Password"
@@ -56,9 +56,9 @@ export default function Login() {
           </Button>
         </form>
 
-        <p className="text-sm text-navy-500 mt-4 text-center">
+        <p className="text-body text-muted mt-6 text-center">
           Don't have an account?{' '}
-          <Link to="/register" className="text-navy-700 font-medium">
+          <Link to="/register" className="text-primary font-medium">
             Sign up
           </Link>
         </p>

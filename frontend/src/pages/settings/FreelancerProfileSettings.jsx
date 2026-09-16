@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext'
 import Alert from '../../components/Alert'
 import Button from '../../components/Button'
 import Card from '../../components/Card'
+import Label from '../../components/Label'
 import PortfolioManager from '../../components/PortfolioManager'
 
 export default function FreelancerProfileSettings() {
@@ -42,55 +43,58 @@ export default function FreelancerProfileSettings() {
   }
 
   return (
-    <div className="space-y-6 max-w-md">
-      <Card>
-        <h2 className="text-lg font-semibold text-navy-900 mb-4">Profile & Portfolio</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <label className="block">
-            <span className="block text-sm font-medium text-navy-700 mb-1">Bio (max 300 characters)</span>
-            <textarea
-              maxLength={300}
-              rows={4}
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-              className="w-full px-3 py-2 border border-navy-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-navy-500"
-            />
-          </label>
-          <label className="block">
-            <span className="block text-sm font-medium text-navy-700 mb-1">Profile photo</span>
-            <input type="file" accept="image/*" onChange={(e) => setPhoto(e.target.files[0])} />
-          </label>
-          <div>
-            <span className="block text-sm font-medium text-navy-700 mb-2">Skills</span>
-            <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto border border-navy-100 rounded-lg p-3">
-              {allSkills.map((skill) => (
-                <button
-                  type="button"
-                  key={skill.id}
-                  onClick={() => toggleSkill(skill.id)}
-                  className={`text-xs px-3 py-1.5 rounded-full border ${
-                    selectedSkills.includes(skill.id)
-                      ? 'bg-navy-600 text-white border-navy-600'
-                      : 'bg-white text-navy-600 border-navy-200'
-                  }`}
-                >
-                  {skill.name}
-                </button>
-              ))}
+    <div>
+      <h1 className="text-page-title text-primary mb-6">Profile & Portfolio</h1>
+      <div className="space-y-6 max-w-xl">
+        <Card variant="elevated">
+          <h2 className="text-section-title text-ink mb-6">About You</h2>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <label className="block">
+              <Label>Bio (max 300 characters)</Label>
+              <textarea
+                maxLength={300}
+                rows={4}
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+                className="w-full px-4 py-3 border border-border rounded-lg text-body text-ink focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
+              />
+            </label>
+            <label className="block">
+              <Label>Profile photo</Label>
+              <input type="file" accept="image/*" onChange={(e) => setPhoto(e.target.files[0])} />
+            </label>
+            <div>
+              <Label>Skills</Label>
+              <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto border border-border rounded-lg p-4">
+                {allSkills.map((skill) => (
+                  <button
+                    type="button"
+                    key={skill.id}
+                    onClick={() => toggleSkill(skill.id)}
+                    className={`text-caption font-medium px-3 py-1.5 rounded-full border transition-colors ${
+                      selectedSkills.includes(skill.id)
+                        ? 'bg-primary text-white border-primary'
+                        : 'bg-surface text-ink border-border hover:bg-bg'
+                    }`}
+                  >
+                    {skill.name}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-          <Alert type="success">{message}</Alert>
-          <Alert type="error">{error}</Alert>
-          <Button type="submit" disabled={submitting}>
-            {submitting ? 'Saving…' : 'Save changes'}
-          </Button>
-        </form>
-      </Card>
+            <Alert type="success">{message}</Alert>
+            <Alert type="error">{error}</Alert>
+            <Button type="submit" disabled={submitting}>
+              {submitting ? 'Saving…' : 'Save changes'}
+            </Button>
+          </form>
+        </Card>
 
-      <Card>
-        <h2 className="text-lg font-semibold text-navy-900 mb-4">Portfolio</h2>
-        <PortfolioManager />
-      </Card>
+        <Card>
+          <h2 className="text-section-title text-ink mb-6">Portfolio</h2>
+          <PortfolioManager />
+        </Card>
+      </div>
     </div>
   )
 }

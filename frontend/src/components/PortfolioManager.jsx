@@ -33,23 +33,23 @@ export default function PortfolioManager({ limit }) {
   const visibleItems = limit ? items.slice(0, limit) : items
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-5">
       <ul className="space-y-2">
         {visibleItems.map((item) => (
           <li
             key={item.id}
-            className="flex items-center justify-between text-sm border border-navy-100 rounded-lg px-3 py-2"
+            className="flex items-center justify-between text-body border border-border rounded-lg px-4 py-3"
           >
-            <span className="text-navy-700">{item.title}</span>
-            <button onClick={() => handleDelete(item.id)} className="text-red-600 text-xs font-medium">
+            <span className="text-ink">{item.title}</span>
+            <button onClick={() => handleDelete(item.id)} className="text-red-600 text-caption font-medium">
               Remove
             </button>
           </li>
         ))}
-        {items.length === 0 && <p className="text-sm text-navy-400">No portfolio items yet.</p>}
+        {items.length === 0 && <p className="text-caption text-muted">No portfolio items yet.</p>}
       </ul>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Input
           label="Title"
           value={form.title}
@@ -61,7 +61,7 @@ export default function PortfolioManager({ limit }) {
           onChange={(e) => setForm((f) => ({ ...f, link: e.target.value }))}
         />
       </div>
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && <p className="text-caption text-red-600">{error}</p>}
       <Button type="button" variant="secondary" onClick={handleAdd}>
         Add item
       </Button>

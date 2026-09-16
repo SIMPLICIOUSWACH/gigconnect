@@ -5,6 +5,7 @@ import Alert from '../components/Alert'
 import Button from '../components/Button'
 import Card from '../components/Card'
 import Input from '../components/Input'
+import Label from '../components/Label'
 import Select from '../components/Select'
 
 const INDUSTRIES = [
@@ -86,21 +87,21 @@ export default function Register() {
   }
 
   return (
-    <div className="min-h-screen bg-navy-50 flex items-center justify-center px-4 py-10">
-      <Card className="w-full max-w-lg">
-        <h1 className="text-2xl font-bold text-navy-900">Join GigConnect</h1>
-        <p className="text-sm text-navy-500 mt-1 mb-6">Kenya's gig marketplace for clients and freelancers.</p>
+    <div className="min-h-screen bg-bg flex items-center justify-center px-4 py-10">
+      <Card variant="elevated" className="w-full max-w-lg">
+        <h1 className="text-page-title text-primary">Join GigConnect</h1>
+        <p className="text-body text-muted mt-1 mb-8">Kenya's gig marketplace for clients and freelancers.</p>
 
-        <div className="flex gap-2 mb-6">
+        <div className="flex gap-2 mb-8">
           {['freelancer', 'client'].map((role) => (
             <button
               key={role}
               type="button"
               onClick={() => setForm((f) => ({ ...f, role }))}
-              className={`flex-1 py-2 rounded-lg text-sm font-medium border ${
+              className={`flex-1 py-3 rounded-lg text-nav border transition-colors duration-150 ${
                 form.role === role
-                  ? 'bg-navy-600 text-white border-navy-600'
-                  : 'bg-white text-navy-700 border-navy-200'
+                  ? 'bg-primary text-white border-primary'
+                  : 'bg-surface text-ink border-border hover:bg-bg'
               }`}
             >
               {role === 'freelancer' ? "I'm a Freelancer" : "I'm a Client"}
@@ -108,7 +109,7 @@ export default function Register() {
           ))}
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-6">
           <Input label="Full name" required value={form.full_name} onChange={update('full_name')} />
           <Input label="Email" type="email" required value={form.email} onChange={update('email')} />
           <Input label="Phone" required placeholder="2547XXXXXXXX" value={form.phone} onChange={update('phone')} />
@@ -132,19 +133,17 @@ export default function Register() {
             </>
           ) : (
             <div>
-              <span className="block text-sm font-medium text-navy-700 mb-2">
-                Skills <span className="text-red-500">*</span> (select at least one)
-              </span>
-              <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto border border-navy-100 rounded-lg p-3">
+              <Label required>Skills (select at least one)</Label>
+              <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto border border-border rounded-lg p-4">
                 {skills.map((skill) => (
                   <button
                     type="button"
                     key={skill.id}
                     onClick={() => toggleSkill(skill.id)}
-                    className={`text-xs px-3 py-1.5 rounded-full border ${
+                    className={`text-caption font-medium px-3 py-1.5 rounded-full border transition-colors ${
                       form.skills.includes(skill.id)
-                        ? 'bg-navy-600 text-white border-navy-600'
-                        : 'bg-white text-navy-600 border-navy-200'
+                        ? 'bg-primary text-white border-primary'
+                        : 'bg-surface text-ink border-border hover:bg-bg'
                     }`}
                   >
                     {skill.name}
@@ -161,9 +160,9 @@ export default function Register() {
           </Button>
         </form>
 
-        <p className="text-sm text-navy-500 mt-4 text-center">
+        <p className="text-body text-muted mt-6 text-center">
           Already have an account?{' '}
-          <Link to="/login" className="text-navy-700 font-medium">
+          <Link to="/login" className="text-primary font-medium">
             Log in
           </Link>
         </p>

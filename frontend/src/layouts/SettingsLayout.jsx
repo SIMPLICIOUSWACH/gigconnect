@@ -1,11 +1,13 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { Outlet } from 'react-router-dom'
+import { BadgeCheck, Bell, Briefcase, Building2, Lock, Shield, User } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import SidebarItem from '../components/SidebarItem'
 
 const SHARED_NAV = [
-  { to: '/settings/account', label: 'Account' },
-  { to: '/settings/security', label: 'Security' },
-  { to: '/settings/notifications', label: 'Notifications' },
-  { to: '/settings/privacy', label: 'Privacy & Data' },
+  { to: '/settings/account', label: 'Account', icon: User },
+  { to: '/settings/security', label: 'Security', icon: Shield },
+  { to: '/settings/notifications', label: 'Notifications', icon: Bell },
+  { to: '/settings/privacy', label: 'Privacy & Data', icon: Lock },
 ]
 
 export default function SettingsLayout() {
@@ -13,33 +15,26 @@ export default function SettingsLayout() {
 
   const roleNav =
     user?.role === 'client'
-      ? [{ to: '/settings/company-profile', label: 'Company Profile' }]
+      ? [{ to: '/settings/company-profile', label: 'Company Profile', icon: Building2 }]
       : user?.role === 'freelancer'
         ? [
-            { to: '/settings/freelancer-profile', label: 'Profile & Portfolio' },
-            { to: '/settings/verification', label: 'Verification' },
+            { to: '/settings/freelancer-profile', label: 'Profile & Portfolio', icon: Briefcase },
+            { to: '/settings/verification', label: 'Verification', icon: BadgeCheck },
           ]
         : []
 
-  const linkClass = ({ isActive }) =>
-    `block px-3 py-2 rounded-lg text-sm ${isActive ? 'bg-navy-600 text-white' : 'text-navy-700 hover:bg-navy-100'}`
-
   return (
-    <div className="flex gap-8">
-      <aside className="w-48 shrink-0 space-y-1">
+    <div className="flex gap-8 items-start">
+      <aside className="w-60 shrink-0 space-y-1">
         {SHARED_NAV.map((item) => (
-          <NavLink key={item.to} to={item.to} className={linkClass}>
-            {item.label}
-          </NavLink>
+          <SidebarItem key={item.to} {...item} />
         ))}
-        {roleNav.length > 0 && <div className="border-t border-navy-100 my-2" />}
+        {roleNav.length > 0 && <div className="border-t border-border my-3" />}
         {roleNav.map((item) => (
-          <NavLink key={item.to} to={item.to} className={linkClass}>
-            {item.label}
-          </NavLink>
+          <SidebarItem key={item.to} {...item} />
         ))}
       </aside>
-      <div className="flex-1">
+      <div className="flex-1 max-w-[960px]">
         <Outlet />
       </div>
     </div>

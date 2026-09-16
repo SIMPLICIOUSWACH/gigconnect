@@ -6,6 +6,7 @@ import Alert from '../components/Alert'
 import Button from '../components/Button'
 import Card from '../components/Card'
 import Input from '../components/Input'
+import Label from '../components/Label'
 
 function FreelancerWizard({ onDone }) {
   const [step, setStep] = useState(1)
@@ -43,22 +44,20 @@ function FreelancerWizard({ onDone }) {
 
   if (step === 1) {
     return (
-      <form onSubmit={saveBio} className="space-y-4">
+      <form onSubmit={saveBio} className="space-y-6">
         <label className="block">
-          <span className="block text-sm font-medium text-navy-700 mb-1">
-            Bio <span className="text-red-500">*</span> (max 300 characters)
-          </span>
+          <Label required>Bio (max 300 characters)</Label>
           <textarea
             required
             maxLength={300}
             rows={4}
             value={bio}
             onChange={(e) => setBio(e.target.value)}
-            className="w-full px-3 py-2 border border-navy-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-navy-500"
+            className="w-full px-4 py-3 border border-border rounded-lg text-body text-ink focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
           />
         </label>
         <label className="block">
-          <span className="block text-sm font-medium text-navy-700 mb-1">Profile photo (optional)</span>
+          <Label>Profile photo (optional)</Label>
           <input type="file" accept="image/*" onChange={(e) => setPhoto(e.target.files[0])} />
         </label>
         <Alert type="error">{error}</Alert>
@@ -70,9 +69,9 @@ function FreelancerWizard({ onDone }) {
   }
 
   return (
-    <div className="space-y-4">
-      <p className="text-sm text-navy-500">Add a few portfolio pieces (optional). Up to 6 will show on your public profile.</p>
-      <div className="space-y-2">
+    <div className="space-y-6">
+      <p className="text-body text-muted">Add a few portfolio pieces (optional). Up to 6 will show on your public profile.</p>
+      <div className="space-y-4">
         <Input
           label="Title"
           value={portfolio.title}
@@ -89,7 +88,7 @@ function FreelancerWizard({ onDone }) {
       </div>
 
       {items.length > 0 && (
-        <ul className="text-sm text-navy-700 list-disc list-inside">
+        <ul className="text-body text-ink list-disc list-inside">
           {items.map((item) => (
             <li key={item.id}>{item.title}</li>
           ))}
@@ -124,9 +123,9 @@ function ClientForm({ onDone }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-6">
       <label className="block">
-        <span className="block text-sm font-medium text-navy-700 mb-1">Company logo (optional)</span>
+        <Label>Company logo (optional)</Label>
         <input type="file" accept="image/*" onChange={(e) => setLogo(e.target.files[0])} />
       </label>
       <Alert type="error">{error}</Alert>
@@ -147,10 +146,10 @@ export default function ProfileSetup() {
   }
 
   return (
-    <div className="min-h-screen bg-navy-50 flex items-center justify-center px-4 py-10">
-      <Card className="w-full max-w-md">
-        <h1 className="text-xl font-bold text-navy-900 mb-1">Set up your profile</h1>
-        <p className="text-sm text-navy-500 mb-6">
+    <div className="min-h-screen bg-bg flex items-center justify-center px-4 py-10">
+      <Card variant="elevated" className="w-full max-w-md">
+        <h1 className="text-page-title text-primary mb-1">Set up your profile</h1>
+        <p className="text-body text-muted mb-8">
           {user?.role === 'freelancer'
             ? 'Tell clients a bit about yourself.'
             : 'Add your company details.'}

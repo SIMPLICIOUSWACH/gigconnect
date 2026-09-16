@@ -1,10 +1,13 @@
-export default function Select({ label, error, options, className = '', ...props }) {
+import Label from './Label'
+
+export default function Select({ label, required, error, options, className = '', ...props }) {
   return (
     <label className="block">
-      {label && <span className="block text-sm font-medium text-navy-700 mb-1">{label}</span>}
+      <Label required={required}>{label}</Label>
       <select
-        className={`w-full px-3 py-2 border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-navy-500 ${
-          error ? 'border-red-400' : 'border-navy-200'
+        required={required}
+        className={`w-full px-4 py-3 border rounded-lg text-body text-ink bg-surface focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors ${
+          error ? 'border-red-400' : 'border-border'
         } ${className}`}
         {...props}
       >
@@ -14,7 +17,7 @@ export default function Select({ label, error, options, className = '', ...props
           </option>
         ))}
       </select>
-      {error && <span className="block text-xs text-red-600 mt-1">{error}</span>}
+      {error && <span className="block text-caption text-red-600 mt-1.5">{error}</span>}
     </label>
   )
 }
