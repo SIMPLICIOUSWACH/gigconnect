@@ -6,8 +6,8 @@ import { useAuth } from '../../context/AuthContext'
 import Alert from '../../components/Alert'
 import Button from '../../components/Button'
 import Card from '../../components/Card'
+import ImageUpload from '../../components/ImageUpload'
 import Input from '../../components/Input'
-import Label from '../../components/Label'
 import Select from '../../components/Select'
 
 const INDUSTRIES = [{ value: '', label: 'Select industry' }, ...INDUSTRY_OPTIONS]
@@ -50,10 +50,7 @@ export default function CompanyProfileSettings() {
         <form onSubmit={handleSubmit} className="space-y-6">
           <Input label="Company name" value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
           <Select label="Industry" options={INDUSTRIES} value={industry} onChange={(e) => setIndustry(e.target.value)} />
-          <label className="block">
-            <Label>Company logo</Label>
-            <input type="file" accept="image/*" onChange={(e) => setLogo(e.target.files[0])} />
-          </label>
+          <ImageUpload label="Company logo" currentUrl={profile.company_logo} onChange={setLogo} />
           <Alert type="success">{message}</Alert>
           <Alert type="error">{error}</Alert>
           <Button type="submit" disabled={submitting}>

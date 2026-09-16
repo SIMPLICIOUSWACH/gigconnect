@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import Alert from '../components/Alert'
 import Button from '../components/Button'
 import Card from '../components/Card'
+import ImageUpload from '../components/ImageUpload'
 import Input from '../components/Input'
 import Label from '../components/Label'
 
@@ -64,10 +65,7 @@ function FreelancerWizard({ onDone }) {
             className="w-full px-4 py-3 border border-border rounded-lg text-body text-ink focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
           />
         </label>
-        <label className="block">
-          <Label>Profile photo (optional)</Label>
-          <input type="file" accept="image/*" onChange={(e) => setPhoto(e.target.files[0])} />
-        </label>
+        <ImageUpload label="Profile photo (optional)" onChange={setPhoto} round />
         <Alert type="error">{error}</Alert>
         <Button type="submit" className="w-full" disabled={submitting}>
           {submitting ? 'Saving…' : 'Continue'}
@@ -133,10 +131,7 @@ function ClientForm({ onDone }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      <label className="block">
-        <Label>Company logo (optional)</Label>
-        <input type="file" accept="image/*" onChange={(e) => setLogo(e.target.files[0])} />
-      </label>
+      <ImageUpload label="Company logo (optional)" onChange={setLogo} />
       <Alert type="error">{error}</Alert>
       <Button type="submit" className="w-full" disabled={submitting}>
         {submitting ? 'Saving…' : 'Finish'}
