@@ -6,6 +6,7 @@ import { useAuth } from '../../context/AuthContext'
 import Alert from '../../components/Alert'
 import Button from '../../components/Button'
 import Card from '../../components/Card'
+import ImageUpload from '../../components/ImageUpload'
 import Label from '../../components/Label'
 import PortfolioManager from '../../components/PortfolioManager'
 
@@ -65,10 +66,7 @@ export default function FreelancerProfileSettings() {
                 className="w-full px-4 py-3 border border-border rounded-lg text-body text-ink focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
               />
             </label>
-            <label className="block">
-              <Label>Profile photo</Label>
-              <input type="file" accept="image/*" onChange={(e) => setPhoto(e.target.files[0])} />
-            </label>
+            <ImageUpload label="Profile photo" currentUrl={profile.profile_photo} onChange={setPhoto} round />
             <div>
               <Label>Skills</Label>
               <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto border border-border rounded-lg p-4">

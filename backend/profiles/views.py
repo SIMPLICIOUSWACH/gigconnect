@@ -34,7 +34,9 @@ class ProfileCompleteView(APIView):
 
         if user.role == User.Role.FREELANCER:
             profile = user.freelancer_profile
-            serializer = FreelancerProfileCompleteSerializer(profile, data=request.data, partial=True)
+            serializer = FreelancerProfileCompleteSerializer(
+                profile, data=request.data, partial=True, context={'request': request}
+            )
             serializer.is_valid(raise_exception=True)
             serializer.save()
             if profile.bio:
@@ -44,7 +46,9 @@ class ProfileCompleteView(APIView):
 
         if user.role == User.Role.CLIENT:
             profile = user.client_profile
-            serializer = ClientProfileCompleteSerializer(profile, data=request.data, partial=True)
+            serializer = ClientProfileCompleteSerializer(
+                profile, data=request.data, partial=True, context={'request': request}
+            )
             serializer.is_valid(raise_exception=True)
             serializer.save()
             user.is_profile_complete = True

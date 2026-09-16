@@ -85,7 +85,7 @@ class UserSerializer(serializers.ModelSerializer):
 
     def get_profile(self, obj):
         if obj.role == User.Role.CLIENT:
-            return ClientProfileSerializer(obj.client_profile).data
+            return ClientProfileSerializer(obj.client_profile, context=self.context).data
         if obj.role == User.Role.FREELANCER:
-            return FreelancerProfileSerializer(obj.freelancer_profile).data
+            return FreelancerProfileSerializer(obj.freelancer_profile, context=self.context).data
         return None
