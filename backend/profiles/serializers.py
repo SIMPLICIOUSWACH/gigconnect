@@ -23,15 +23,21 @@ class ClientProfileSerializer(serializers.ModelSerializer):
 
 
 class ClientProfileCompleteSerializer(serializers.ModelSerializer):
+    """Used both by the Part 4 profile-completion step and the Settings > Company Profile page."""
+
     class Meta:
         model = ClientProfile
-        fields = ['company_logo']
+        fields = ['company_name', 'industry', 'company_logo']
 
 
 class FreelancerProfileCompleteSerializer(serializers.ModelSerializer):
+    """Used both by the Part 4 profile-completion step and the Settings > Profile & Portfolio page."""
+
+    skills = serializers.PrimaryKeyRelatedField(queryset=Skill.objects.all(), many=True, required=False)
+
     class Meta:
         model = FreelancerProfile
-        fields = ['bio', 'profile_photo']
+        fields = ['bio', 'profile_photo', 'skills']
 
 
 class FreelancerProfileSerializer(serializers.ModelSerializer):
