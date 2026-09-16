@@ -23,6 +23,7 @@ export default {
         },
       },
       fontSize: {
+        hero: ['44px', { lineHeight: '52px', fontWeight: '600' }],
         'page-title': ['28px', { lineHeight: '36px', fontWeight: '600' }],
         'section-title': ['18px', { lineHeight: '26px', fontWeight: '600' }],
         body: ['16px', { lineHeight: '24px', fontWeight: '400' }],
