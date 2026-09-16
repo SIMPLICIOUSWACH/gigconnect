@@ -8,3 +8,19 @@ class IsEmailVerified(BasePermission):
 
     def has_permission(self, request, view):
         return bool(request.user and request.user.is_authenticated and request.user.is_email_verified)
+
+
+class IsFreelancer(BasePermission):
+    def has_permission(self, request, view):
+        return bool(
+            request.user and request.user.is_authenticated
+            and request.user.role == request.user.Role.FREELANCER
+        )
+
+
+class IsClientRole(BasePermission):
+    def has_permission(self, request, view):
+        return bool(
+            request.user and request.user.is_authenticated
+            and request.user.role == request.user.Role.CLIENT
+        )
