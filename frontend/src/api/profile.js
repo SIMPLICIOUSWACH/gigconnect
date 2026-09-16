@@ -36,3 +36,5 @@ export const submitVerification = (idNumber, idDocument) =>
   api.post('/profile/submit-verification/', toFormData({ id_number: idNumber, id_document: idDocument }), {
     headers: { 'Content-Type': 'multipart/form-data' },
   }).then((r) => r.data)
+
+export const fetchPublicProfile = (userId) => api.get(`/profiles/${userId}/`).then((r) => r.data)

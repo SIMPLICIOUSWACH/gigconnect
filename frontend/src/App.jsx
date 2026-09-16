@@ -10,6 +10,7 @@ import Register from './pages/Register'
 import VerifyEmail from './pages/VerifyEmail'
 import VerifyPhone from './pages/VerifyPhone'
 import ProfileSetup from './pages/ProfileSetup'
+import PublicProfile from './pages/PublicProfile'
 import Dashboard from './pages/Dashboard'
 import AccountSettings from './pages/settings/AccountSettings'
 import SecuritySettings from './pages/settings/SecuritySettings'
@@ -34,6 +35,7 @@ function App() {
 
           <Route element={<Layout />}>
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/profile/:id" element={<PublicProfile />} />
 
             <Route path="/settings" element={<SettingsLayout />}>
               <Route index element={<Navigate to="account" replace />} />

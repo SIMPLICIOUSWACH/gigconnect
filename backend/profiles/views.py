@@ -13,6 +13,7 @@ from .serializers import (
     ClientProfileCompleteSerializer,
     FreelancerProfileCompleteSerializer,
     PortfolioItemSerializer,
+    PublicProfileSerializer,
     SkillSerializer,
     SubmitVerificationSerializer,
 )
@@ -72,6 +73,14 @@ class PortfolioItemDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         return PortfolioItem.objects.filter(freelancer=self.request.user.freelancer_profile)
+
+
+class PublicProfileView(generics.RetrieveAPIView):
+    queryset = User.objects.filter(is_active=True)
+    serializer_class = PublicProfileSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    lookup_field = 'id'
+    lookup_url_kwarg = 'user_id'
 
 
 class SubmitVerificationView(APIView):

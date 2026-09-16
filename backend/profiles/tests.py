@@ -159,3 +159,45 @@ class IdentityVerificationTests(APITestCase):
         profile.refresh_from_db()
         self.assertEqual(profile.verification_status, FreelancerProfile.VerificationStatus.REJECTED)
         self.assertFalse(profile.verified)
+
+
+class PublicProfileViewTests(APITestCase):
+    def setUp(self):
+        self.skill = Skill.objects.create(name='Test Skill', category='Technology')
+        self.freelancer = User.objects.create_user(
+            email='freelancer@example.com', password='StrongPass123!',
+            full_name='Freelancer', phone='254700000001', role='freelancer',
+        )
+        self.freelancer.freelancer_profile.skills.set([self.skill])
+        self.freelancer.freelancer_profile.bio = 'A bio.'
+        self.freelancer.freelancer_profile.id_number = '12345678'
+        self.freelancer.freelancer_profile.save()
+        self.client_user = User.objects.create_user(
+            email='client@example.com', password='StrongPass123!',
+            full_name='Client', phone='254700000002', role='client',
+        )
+
+    def test_requires_authentication(self):
+        response = self.client.get(f'/api/profiles/{self.freelancer.id}/')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_any_authenticated_user_can_view_another_users_public_profile(self):
+        self.client.force_authenticate(user=self.client_user)
+        response = self.client.get(f'/api/profiles/{self.freelancer.id}/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['full_name'], 'Freelancer')
+        self.assertEqual(response.data['profile']['bio'], 'A bio.')
+
+    def test_public_profile_never_includes_id_number_email_or_phone(self):
+        self.client.force_authenticate(user=self.client_user)
+        response = self.client.get(f'/api/profiles/{self.freelancer.id}/')
+        self.assertNotIn('id_number', response.data['profile'])
+        self.assertNotIn('id_document', response.data['profile'])
+        self.assertNotIn('email', response.data)
+        self.assertNotIn('phone', response.data)
+
+    def test_public_profile_for_client_role(self):
+        self.client.force_authenticate(user=self.freelancer)
+        response = self.client.get(f'/api/profiles/{self.client_user.id}/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('company_name', response.data['profile'])

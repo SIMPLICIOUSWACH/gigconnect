@@ -54,6 +54,24 @@ class FreelancerProfileSerializer(serializers.ModelSerializer):
         ]
 
 
+class PublicProfileSerializer(serializers.Serializer):
+    """Public-safe view of a user's profile — no email, phone, or verification flags."""
+
+    id = serializers.UUIDField(read_only=True)
+    full_name = serializers.CharField(read_only=True)
+    role = serializers.CharField(read_only=True)
+    profile = serializers.SerializerMethodField()
+
+    def get_profile(self, obj):
+        from accounts.models import User
+
+        if obj.role == User.Role.CLIENT:
+            return ClientProfileSerializer(obj.client_profile).data
+        if obj.role == User.Role.FREELANCER:
+            return FreelancerProfileSerializer(obj.freelancer_profile).data
+        return None
+
+
 class SubmitVerificationSerializer(serializers.ModelSerializer):
     id_number = serializers.CharField(required=True)
     id_document = serializers.FileField(required=True)
