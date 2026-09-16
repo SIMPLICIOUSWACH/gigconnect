@@ -46,3 +46,34 @@ class FreelancerProfileSerializer(serializers.ModelSerializer):
             'bio', 'profile_photo', 'skills', 'portfolio_items',
             'verification_status', 'verified',
         ]
+
+
+class SubmitVerificationSerializer(serializers.ModelSerializer):
+    id_number = serializers.CharField(required=True)
+    id_document = serializers.FileField(required=True)
+
+    class Meta:
+        model = FreelancerProfile
+        fields = ['id_number', 'id_document']
+
+
+class AdminVerificationListSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField(source='user.email', read_only=True)
+    full_name = serializers.CharField(source='user.full_name', read_only=True)
+
+    class Meta:
+        model = FreelancerProfile
+        fields = ['id', 'email', 'full_name', 'verification_status']
+
+
+class AdminVerificationUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FreelancerProfile
+        fields = ['id', 'verification_status']
+        read_only_fields = ['id']
+
+    def validate_verification_status(self, value):
+        allowed = (FreelancerProfile.VerificationStatus.VERIFIED, FreelancerProfile.VerificationStatus.REJECTED)
+        if value not in allowed:
+            raise serializers.ValidationError('Status must be either "verified" or "rejected".')
+        return value
