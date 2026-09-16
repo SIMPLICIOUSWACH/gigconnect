@@ -1,19 +1,13 @@
-import random
-from datetime import timedelta
-
 from django.core import signing
-from django.utils import timezone
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .email import send_verification_email
 from .models import OTP, User
+from .otp import issue_otp
 from .serializers import RegisterSerializer, UserSerializer
-from .sms import SMSProvider
 from .tokens import read_email_verification_token
-
-OTP_LIFETIME = timedelta(minutes=5)
 
 
 class RegisterView(generics.CreateAPIView):
@@ -54,14 +48,7 @@ class SendOTPView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        OTP.objects.filter(user=request.user, is_used=False).update(is_used=True)
-        code = f'{random.randint(0, 999999):06d}'
-        OTP.objects.create(
-            user=request.user,
-            code=code,
-            expires_at=timezone.now() + OTP_LIFETIME,
-        )
-        SMSProvider.send(request.user.phone, f'Your GigConnect verification code is {code}')
+        issue_otp(request.user)
         return Response({'detail': 'OTP sent.'})
 
 
