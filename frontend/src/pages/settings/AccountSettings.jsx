@@ -31,34 +31,36 @@ export default function AccountSettings() {
   }
 
   return (
-    <Card className="max-w-md">
-      <h2 className="text-lg font-semibold text-navy-900 mb-4">Account Settings</h2>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <Input
-          label="Full name"
-          value={form.full_name}
-          onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))}
-        />
-        <Input
-          label="Email"
-          type="email"
-          value={form.email}
-          onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-        />
-        <Input
-          label="Phone"
-          value={form.phone}
-          onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-        />
-        <p className="text-xs text-navy-400">
-          Changing your email or phone will require re-verification.
-        </p>
-        <Alert type="success">{message}</Alert>
-        <Alert type="error">{error}</Alert>
-        <Button type="submit" disabled={submitting}>
-          {submitting ? 'Saving…' : 'Save changes'}
-        </Button>
-      </form>
-    </Card>
+    <div>
+      <h1 className="text-page-title text-primary mb-6">Account Settings</h1>
+      <Card variant="elevated" className="max-w-xl">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <Input
+            label="Full name"
+            value={form.full_name}
+            onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))}
+          />
+          <Input
+            label="Email"
+            type="email"
+            value={form.email}
+            onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+          />
+          <Input
+            label="Phone"
+            value={form.phone}
+            onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+          />
+          <p className="text-caption text-muted">
+            Changing your email or phone will require re-verification.
+          </p>
+          <Alert type="success">{message}</Alert>
+          <Alert type="error">{error}</Alert>
+          <Button type="submit" disabled={submitting}>
+            {submitting ? 'Saving…' : 'Save changes'}
+          </Button>
+        </form>
+      </Card>
+    </div>
   )
 }

@@ -1,6 +1,13 @@
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import Button from './Button'
+
+const navLinkClass = ({ isActive }) =>
+  `h-full flex items-center px-4 text-nav border-b-2 transition-colors duration-150 ${
+    isActive
+      ? 'border-primary text-primary'
+      : 'border-transparent text-muted hover:text-ink hover:bg-bg rounded-t-md'
+  }`
 
 export default function Navbar() {
   const { user, logout } = useAuth()
@@ -12,25 +19,27 @@ export default function Navbar() {
   }
 
   return (
-    <nav className="bg-white border-b border-navy-100 px-6 py-3 flex items-center justify-between">
-      <Link to="/dashboard" className="flex items-center gap-2 font-bold text-navy-900">
-        <span className="w-2.5 h-2.5 rounded-full bg-navy-600 inline-block" />
-        GigConnect
-      </Link>
-      {user && (
-        <div className="flex items-center gap-4 text-sm">
-          <Link to="/dashboard" className="text-navy-600 hover:text-navy-900">
-            Dashboard
-          </Link>
-          <Link to="/settings/account" className="text-navy-600 hover:text-navy-900">
-            Settings
-          </Link>
-          <span className="text-navy-400">{user.full_name}</span>
-          <Button variant="secondary" onClick={handleLogout}>
-            Log out
-          </Button>
-        </div>
-      )}
+    <nav className="bg-surface border-b border-border">
+      <div className="h-16 px-8 flex items-center justify-between">
+        <Link to="/dashboard" className="flex items-center gap-2 text-[17px] font-semibold text-primary">
+          <span className="w-2.5 h-2.5 rounded-full bg-primary inline-block" />
+          GigConnect
+        </Link>
+        {user && (
+          <div className="h-full flex items-center gap-2">
+            <NavLink to="/dashboard" end className={navLinkClass}>
+              Dashboard
+            </NavLink>
+            <NavLink to="/settings/account" className={navLinkClass}>
+              Settings
+            </NavLink>
+            <span className="text-nav text-muted ml-2">{user.full_name}</span>
+            <Button variant="secondary" onClick={handleLogout} className="ml-2 py-2 px-4">
+              Log out
+            </Button>
+          </div>
+        )}
+      </div>
     </nav>
   )
 }

@@ -36,7 +36,7 @@ function ChangePasswordForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-6">
       <Input
         label="Current password"
         type="password"
@@ -81,21 +81,21 @@ function SessionList() {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <Alert type="error">{error}</Alert>
       <ul className="space-y-2">
         {sessions.map((session) => (
           <li
             key={session.id}
-            className="flex items-center justify-between text-sm border border-navy-100 rounded-lg px-3 py-2"
+            className="flex items-center justify-between text-body border border-border rounded-lg px-4 py-3"
           >
-            <span className="text-navy-600 truncate max-w-xs">{session.user_agent || 'Unknown device'}</span>
-            <button onClick={() => handleRevoke(session.id)} className="text-red-600 text-xs font-medium">
+            <span className="text-ink truncate max-w-xs">{session.user_agent || 'Unknown device'}</span>
+            <button onClick={() => handleRevoke(session.id)} className="text-red-600 text-caption font-medium">
               Revoke
             </button>
           </li>
         ))}
-        {sessions.length === 0 && <p className="text-sm text-navy-400">No active sessions.</p>}
+        {sessions.length === 0 && <p className="text-caption text-muted">No active sessions.</p>}
       </ul>
       <Button variant="danger" onClick={handleLogoutAll}>
         Log out of all devices
@@ -106,15 +106,18 @@ function SessionList() {
 
 export default function SecuritySettings() {
   return (
-    <div className="space-y-6 max-w-md">
-      <Card>
-        <h2 className="text-lg font-semibold text-navy-900 mb-4">Change Password</h2>
-        <ChangePasswordForm />
-      </Card>
-      <Card>
-        <h2 className="text-lg font-semibold text-navy-900 mb-4">Active Sessions</h2>
-        <SessionList />
-      </Card>
+    <div>
+      <h1 className="text-page-title text-primary mb-6">Security</h1>
+      <div className="space-y-6 max-w-xl">
+        <Card variant="elevated">
+          <h2 className="text-section-title text-ink mb-6">Change Password</h2>
+          <ChangePasswordForm />
+        </Card>
+        <Card>
+          <h2 className="text-section-title text-ink mb-6">Active Sessions</h2>
+          <SessionList />
+        </Card>
+      </div>
     </div>
   )
 }

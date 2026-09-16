@@ -28,42 +28,48 @@ export default function NotificationSettings() {
     }
   }
 
-  if (!prefs) return <Alert type="error">{error}</Alert>
-
   return (
-    <Card className="max-w-md">
-      <h2 className="text-lg font-semibold text-navy-900 mb-4">Notification Preferences</h2>
-      <Alert type="error">{error}</Alert>
-      <table className="w-full text-sm mt-2">
-        <thead>
-          <tr className="text-left text-navy-400 text-xs uppercase">
-            <th className="py-2">Event</th>
-            <th className="py-2 text-center">Email</th>
-            <th className="py-2 text-center">In-app</th>
-          </tr>
-        </thead>
-        <tbody>
-          {EVENTS.map(({ key, label }) => (
-            <tr key={key} className="border-t border-navy-100">
-              <td className="py-2 text-navy-700">{label}</td>
-              <td className="py-2 text-center">
-                <input
-                  type="checkbox"
-                  checked={prefs[`${key}_email`]}
-                  onChange={() => toggle(`${key}_email`)}
-                />
-              </td>
-              <td className="py-2 text-center">
-                <input
-                  type="checkbox"
-                  checked={prefs[`${key}_inapp`]}
-                  onChange={() => toggle(`${key}_inapp`)}
-                />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </Card>
+    <div>
+      <h1 className="text-page-title text-primary mb-6">Notification Preferences</h1>
+      <Card variant="elevated" className="max-w-xl">
+        <Alert type="error">{error}</Alert>
+        {!prefs ? (
+          <p className="text-body text-muted">Loading…</p>
+        ) : (
+          <table className="w-full">
+            <thead>
+              <tr className="text-left text-label text-muted">
+                <th className="py-2 font-medium">Event</th>
+                <th className="py-2 font-medium text-center">Email</th>
+                <th className="py-2 font-medium text-center">In-app</th>
+              </tr>
+            </thead>
+            <tbody>
+              {EVENTS.map(({ key, label }) => (
+                <tr key={key} className="border-t border-border">
+                  <td className="py-4 text-body text-ink">{label}</td>
+                  <td className="py-4 text-center">
+                    <input
+                      type="checkbox"
+                      className="w-4 h-4 accent-primary"
+                      checked={prefs[`${key}_email`]}
+                      onChange={() => toggle(`${key}_email`)}
+                    />
+                  </td>
+                  <td className="py-4 text-center">
+                    <input
+                      type="checkbox"
+                      className="w-4 h-4 accent-primary"
+                      checked={prefs[`${key}_inapp`]}
+                      onChange={() => toggle(`${key}_inapp`)}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Card>
+    </div>
   )
 }

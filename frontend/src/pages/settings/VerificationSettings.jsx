@@ -5,6 +5,7 @@ import Alert from '../../components/Alert'
 import Button from '../../components/Button'
 import Card from '../../components/Card'
 import Input from '../../components/Input'
+import Label from '../../components/Label'
 
 const STATUS_COPY = {
   unverified: { type: 'info', text: 'You are not verified yet. Submit your ID to get verified.' },
@@ -38,28 +39,30 @@ export default function VerificationSettings() {
   }
 
   return (
-    <Card className="max-w-md">
-      <h2 className="text-lg font-semibold text-navy-900 mb-4">Identity Verification</h2>
-      <Alert type={STATUS_COPY[status].type}>{STATUS_COPY[status].text}</Alert>
+    <div>
+      <h1 className="text-page-title text-primary mb-6">Identity Verification</h1>
+      <Card variant="elevated" className="max-w-xl">
+        <Alert type={STATUS_COPY[status].type}>{STATUS_COPY[status].text}</Alert>
 
-      {canSubmit && (
-        <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-          <Input label="ID number" required value={idNumber} onChange={(e) => setIdNumber(e.target.value)} />
-          <label className="block">
-            <span className="block text-sm font-medium text-navy-700 mb-1">ID document</span>
-            <input
-              type="file"
-              accept="image/*,.pdf"
-              required
-              onChange={(e) => setIdDocument(e.target.files[0])}
-            />
-          </label>
-          <Alert type="error">{error}</Alert>
-          <Button type="submit" disabled={submitting}>
-            {submitting ? 'Submitting…' : 'Submit for verification'}
-          </Button>
-        </form>
-      )}
-    </Card>
+        {canSubmit && (
+          <form onSubmit={handleSubmit} className="space-y-6 mt-6">
+            <Input label="ID number" required value={idNumber} onChange={(e) => setIdNumber(e.target.value)} />
+            <label className="block">
+              <Label>ID document</Label>
+              <input
+                type="file"
+                accept="image/*,.pdf"
+                required
+                onChange={(e) => setIdDocument(e.target.files[0])}
+              />
+            </label>
+            <Alert type="error">{error}</Alert>
+            <Button type="submit" disabled={submitting}>
+              {submitting ? 'Submitting…' : 'Submit for verification'}
+            </Button>
+          </form>
+        )}
+      </Card>
+    </div>
   )
 }
