@@ -16,6 +16,7 @@ function FreelancerWizard({ onDone }) {
   const [submitting, setSubmitting] = useState(false)
   const [portfolio, setPortfolio] = useState({ title: '', description: '', link: '' })
   const [items, setItems] = useState([])
+  const [addingItem, setAddingItem] = useState(false)
 
   const saveBio = async (e) => {
     e.preventDefault()
@@ -37,12 +38,15 @@ function FreelancerWizard({ onDone }) {
       setError('Title is required to add a portfolio item.')
       return
     }
+    setAddingItem(true)
     try {
       const created = await createPortfolioItem(portfolio)
       setItems((prev) => [...prev, created])
       setPortfolio({ title: '', description: '', link: '' })
     } catch {
-      setError('Could not add portfolio item.')
+      setError('Could not add portfolio item. Please try again.')
+    } finally {
+      setAddingItem(false)
     }
   }
 
@@ -87,8 +91,8 @@ function FreelancerWizard({ onDone }) {
           value={portfolio.link}
           onChange={(e) => setPortfolio((p) => ({ ...p, link: e.target.value }))}
         />
-        <Button type="button" variant="secondary" onClick={addPortfolioItem}>
-          Add item
+        <Button type="button" variant="secondary" onClick={addPortfolioItem} loading={addingItem}>
+          {addingItem ? 'Adding…' : 'Add item'}
         </Button>
       </div>
 
