@@ -15,7 +15,11 @@ export default function PortfolioManager({ limit }) {
   }, [])
 
   const handleAdd = async () => {
-    if (!form.title) return
+    setError('')
+    if (!form.title) {
+      setError('Title is required to add a portfolio item.')
+      return
+    }
     try {
       await createPortfolioItem(form)
       setForm({ title: '', description: '', link: '' })
@@ -52,6 +56,7 @@ export default function PortfolioManager({ limit }) {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Input
           label="Title"
+          required
           value={form.title}
           onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
         />

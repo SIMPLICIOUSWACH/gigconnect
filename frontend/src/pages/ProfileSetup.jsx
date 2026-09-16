@@ -32,7 +32,11 @@ function FreelancerWizard({ onDone }) {
   }
 
   const addPortfolioItem = async () => {
-    if (!portfolio.title) return
+    setError('')
+    if (!portfolio.title) {
+      setError('Title is required to add a portfolio item.')
+      return
+    }
     try {
       const created = await createPortfolioItem(portfolio)
       setItems((prev) => [...prev, created])
@@ -74,6 +78,7 @@ function FreelancerWizard({ onDone }) {
       <div className="space-y-4">
         <Input
           label="Title"
+          required
           value={portfolio.title}
           onChange={(e) => setPortfolio((p) => ({ ...p, title: e.target.value }))}
         />
