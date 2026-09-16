@@ -1,11 +1,61 @@
+import { Navigate, Route, Routes } from 'react-router-dom'
+import { AuthProvider } from './context/AuthContext'
+import Layout from './components/Layout'
+import ProtectedRoute from './components/ProtectedRoute'
+import RoleRoute from './components/RoleRoute'
+import SettingsLayout from './layouts/SettingsLayout'
+
+import Login from './pages/Login'
+import Register from './pages/Register'
+import VerifyEmail from './pages/VerifyEmail'
+import VerifyPhone from './pages/VerifyPhone'
+import ProfileSetup from './pages/ProfileSetup'
+import Dashboard from './pages/Dashboard'
+import AccountSettings from './pages/settings/AccountSettings'
+import SecuritySettings from './pages/settings/SecuritySettings'
+import NotificationSettings from './pages/settings/NotificationSettings'
+import PrivacySettings from './pages/settings/PrivacySettings'
+import CompanyProfileSettings from './pages/settings/CompanyProfileSettings'
+import FreelancerProfileSettings from './pages/settings/FreelancerProfileSettings'
+import VerificationSettings from './pages/settings/VerificationSettings'
+
 function App() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-navy-50">
-      <div className="text-center">
-        <h1 className="text-3xl font-bold text-navy-700">GigConnect</h1>
-        <p className="text-navy-500 mt-2">Frontend scaffold ready.</p>
-      </div>
-    </div>
+    <AuthProvider>
+      <Routes>
+        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/verify-email/:token" element={<VerifyEmail />} />
+
+        <Route element={<ProtectedRoute />}>
+          <Route path="/verify-phone" element={<VerifyPhone />} />
+          <Route path="/profile-setup" element={<ProfileSetup />} />
+
+          <Route element={<Layout />}>
+            <Route path="/dashboard" element={<Dashboard />} />
+
+            <Route path="/settings" element={<SettingsLayout />}>
+              <Route index element={<Navigate to="account" replace />} />
+              <Route path="account" element={<AccountSettings />} />
+              <Route path="security" element={<SecuritySettings />} />
+              <Route path="notifications" element={<NotificationSettings />} />
+              <Route path="privacy" element={<PrivacySettings />} />
+
+              <Route element={<RoleRoute role="client" />}>
+                <Route path="company-profile" element={<CompanyProfileSettings />} />
+              </Route>
+              <Route element={<RoleRoute role="freelancer" />}>
+                <Route path="freelancer-profile" element={<FreelancerProfileSettings />} />
+                <Route path="verification" element={<VerificationSettings />} />
+              </Route>
+            </Route>
+          </Route>
+        </Route>
+
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    </AuthProvider>
   )
 }
 

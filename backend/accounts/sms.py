@@ -7,4 +7,4 @@ class SMSProvider:
 
     @staticmethod
     def send(phone, message):
-        print(f'[SMS to {phone}] {message}')
+        print(f'[SMS to {phone}] {message}', flush=True)
