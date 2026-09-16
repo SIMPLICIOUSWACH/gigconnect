@@ -22,6 +22,18 @@ class ClientProfileSerializer(serializers.ModelSerializer):
         fields = ['company_name', 'industry', 'company_logo']
 
 
+class ClientProfileCompleteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ClientProfile
+        fields = ['company_logo']
+
+
+class FreelancerProfileCompleteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FreelancerProfile
+        fields = ['bio', 'profile_photo']
+
+
 class FreelancerProfileSerializer(serializers.ModelSerializer):
     # id_number and id_document are intentionally omitted — never serialized out, per spec.
     skills = SkillSerializer(many=True, read_only=True)
