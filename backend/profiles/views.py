@@ -4,14 +4,17 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.models import User
-from accounts.permissions import IsFreelancer
+from accounts.permissions import IsAdminRole, IsFreelancer
 
-from .models import PortfolioItem, Skill
+from .models import FreelancerProfile, PortfolioItem, Skill
 from .serializers import (
+    AdminVerificationListSerializer,
+    AdminVerificationUpdateSerializer,
     ClientProfileCompleteSerializer,
     FreelancerProfileCompleteSerializer,
     PortfolioItemSerializer,
     SkillSerializer,
+    SubmitVerificationSerializer,
 )
 
 
@@ -69,3 +72,35 @@ class PortfolioItemDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         return PortfolioItem.objects.filter(freelancer=self.request.user.freelancer_profile)
+
+
+class SubmitVerificationView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsFreelancer]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        profile = request.user.freelancer_profile
+        serializer = SubmitVerificationSerializer(profile, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(verification_status=FreelancerProfile.VerificationStatus.PENDING)
+        # never echo id_number/id_document back — build the response by hand
+        return Response({
+            'detail': 'Verification submitted for review.',
+            'verification_status': profile.verification_status,
+        })
+
+
+class AdminVerificationListView(generics.ListAPIView):
+    serializer_class = AdminVerificationListSerializer
+    permission_classes = [permissions.IsAuthenticated, IsAdminRole]
+
+    def get_queryset(self):
+        status_param = self.request.query_params.get('status', FreelancerProfile.VerificationStatus.PENDING)
+        return FreelancerProfile.objects.filter(verification_status=status_param)
+
+
+class AdminVerificationDetailView(generics.UpdateAPIView):
+    queryset = FreelancerProfile.objects.all()
+    serializer_class = AdminVerificationUpdateSerializer
+    permission_classes = [permissions.IsAuthenticated, IsAdminRole]
+    http_method_names = ['patch']

@@ -1,9 +1,10 @@
+from django.core.files.uploadedfile import SimpleUploadedFile
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from accounts.models import User
 
-from .models import PortfolioItem, Skill
+from .models import FreelancerProfile, PortfolioItem, Skill
 
 
 class ProfileCompleteTests(APITestCase):
@@ -79,3 +80,82 @@ class PortfolioItemTests(APITestCase):
         self.client.force_authenticate(user=self.client_user)
         response = self.client.post('/api/profile/portfolio-items/', {'title': 'Not allowed'}, format='multipart')
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class IdentityVerificationTests(APITestCase):
+    def setUp(self):
+        self.skill = Skill.objects.create(name='Test Skill', category='Technology')
+        self.freelancer = User.objects.create_user(
+            email='freelancer@example.com', password='StrongPass123!',
+            full_name='Freelancer', phone='254700000001', role='freelancer',
+        )
+        self.freelancer.freelancer_profile.skills.set([self.skill])
+        self.client_user = User.objects.create_user(
+            email='client@example.com', password='StrongPass123!',
+            full_name='Client', phone='254700000002', role='client',
+        )
+        self.admin = User.objects.create_user(
+            email='admin@example.com', password='StrongPass123!',
+            full_name='Admin', phone='254700000003', role='admin',
+        )
+
+    def _submit_verification(self):
+        self.client.force_authenticate(user=self.freelancer)
+        id_document = SimpleUploadedFile('id.pdf', b'fake-pdf-bytes', content_type='application/pdf')
+        return self.client.post('/api/profile/submit-verification/', {
+            'id_number': '12345678', 'id_document': id_document,
+        }, format='multipart')
+
+    def test_submit_verification_sets_pending_status(self):
+        response = self._submit_verification()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.freelancer.freelancer_profile.refresh_from_db()
+        self.assertEqual(
+            self.freelancer.freelancer_profile.verification_status,
+            FreelancerProfile.VerificationStatus.PENDING,
+        )
+
+    def test_submit_verification_response_never_includes_id_number(self):
+        response = self._submit_verification()
+        self.assertNotIn('id_number', response.data)
+        self.assertNotIn('id_document', response.data)
+
+    def test_own_profile_view_never_includes_id_number(self):
+        self._submit_verification()
+        self.client.force_authenticate(user=self.freelancer)
+        response = self.client.get('/api/skills/')  # sanity: auth works
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        from accounts.serializers import UserSerializer
+        data = UserSerializer(self.freelancer).data
+        self.assertNotIn('id_number', data['profile'])
+        self.assertNotIn('id_document', data['profile'])
+
+    def test_only_admin_can_approve_verification(self):
+        self._submit_verification()
+        profile = self.freelancer.freelancer_profile
+        self.client.force_authenticate(user=self.client_user)
+        response = self.client.patch(f'/api/admin/verifications/{profile.id}/', {'verification_status': 'verified'})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        self.client.force_authenticate(user=self.freelancer)
+        response = self.client.patch(f'/api/admin/verifications/{profile.id}/', {'verification_status': 'verified'})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_admin_can_approve_verification(self):
+        self._submit_verification()
+        profile = self.freelancer.freelancer_profile
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.patch(f'/api/admin/verifications/{profile.id}/', {'verification_status': 'verified'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        profile.refresh_from_db()
+        self.assertTrue(profile.verified)
+
+    def test_admin_can_reject_verification(self):
+        self._submit_verification()
+        profile = self.freelancer.freelancer_profile
+        self.client.force_authenticate(user=self.admin)
+        response = self.client.patch(f'/api/admin/verifications/{profile.id}/', {'verification_status': 'rejected'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        profile.refresh_from_db()
+        self.assertEqual(profile.verification_status, FreelancerProfile.VerificationStatus.REJECTED)
+        self.assertFalse(profile.verified)
