@@ -2,9 +2,12 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
+import PublicLayout from './components/PublicLayout'
 import RoleRoute from './components/RoleRoute'
 import SettingsLayout from './layouts/SettingsLayout'
 
+import About from './pages/About'
+import Home from './pages/Home'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import VerifyEmail from './pages/VerifyEmail'
@@ -24,7 +27,10 @@ function App() {
   return (
     <AuthProvider>
       <Routes>
-        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route element={<PublicLayout />}>
+          <Route path="/" element={<Home />} />
+          <Route path="/about" element={<About />} />
+        </Route>
         <Route path="/register" element={<Register />} />
         <Route path="/login" element={<Login />} />
         <Route path="/verify-email/:token" element={<VerifyEmail />} />
@@ -55,7 +61,7 @@ function App() {
           </Route>
         </Route>
 
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </AuthProvider>
   )

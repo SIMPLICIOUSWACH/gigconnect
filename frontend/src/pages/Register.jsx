@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { fetchSkills, register } from '../api/auth'
 import { INDUSTRIES as INDUSTRY_OPTIONS } from '../constants'
 import Alert from '../components/Alert'
@@ -13,6 +13,8 @@ const INDUSTRIES = [{ value: '', label: 'Select industry (optional)' }, ...INDUS
 
 export default function Register() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const initialRole = searchParams.get('role') === 'client' ? 'client' : 'freelancer'
   const [skills, setSkills] = useState([])
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -22,7 +24,7 @@ export default function Register() {
     password: '',
     confirm_password: '',
     phone: '',
-    role: 'freelancer',
+    role: initialRole,
     company_name: '',
     industry: '',
     skills: [],
