@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { fetchSkills, register } from '../api/auth'
+import { INDUSTRIES as INDUSTRY_OPTIONS } from '../constants'
 import Alert from '../components/Alert'
 import Button from '../components/Button'
 import Card from '../components/Card'
@@ -8,18 +9,7 @@ import Input from '../components/Input'
 import Label from '../components/Label'
 import Select from '../components/Select'
 
-const INDUSTRIES = [
-  { value: '', label: 'Select industry (optional)' },
-  { value: 'technology', label: 'Technology' },
-  { value: 'retail', label: 'Retail' },
-  { value: 'agriculture', label: 'Agriculture' },
-  { value: 'construction', label: 'Construction' },
-  { value: 'hospitality', label: 'Hospitality' },
-  { value: 'finance', label: 'Finance' },
-  { value: 'education', label: 'Education' },
-  { value: 'healthcare', label: 'Healthcare' },
-  { value: 'other', label: 'Other' },
-]
+const INDUSTRIES = [{ value: '', label: 'Select industry (optional)' }, ...INDUSTRY_OPTIONS]
 
 export default function Register() {
   const navigate = useNavigate()

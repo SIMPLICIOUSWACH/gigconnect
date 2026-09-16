@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { fetchSkills } from '../../api/auth'
 import { completeProfile } from '../../api/profile'
 import { useAuth } from '../../context/AuthContext'
@@ -44,7 +45,12 @@ export default function FreelancerProfileSettings() {
 
   return (
     <div>
-      <h1 className="text-page-title text-primary mb-6">Profile & Portfolio</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-page-title text-primary">Profile & Portfolio</h1>
+        <Link to={`/profile/${user.id}`} className="text-body text-primary font-medium">
+          View public profile
+        </Link>
+      </div>
       <div className="space-y-6 max-w-xl">
         <Card variant="elevated">
           <h2 className="text-section-title text-ink mb-6">About You</h2>
