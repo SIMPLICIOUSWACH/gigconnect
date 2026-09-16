@@ -108,6 +108,22 @@ class LoginTests(APITestCase):
         self.assertIn('refresh', response.data)
 
 
+class MeViewTests(APITestCase):
+    def test_me_returns_current_user(self):
+        user = User.objects.create_user(
+            email='me@example.com', password='StrongPass123!',
+            full_name='Me User', phone='254700000000', role='client',
+        )
+        self.client.force_authenticate(user=user)
+        response = self.client.get('/api/auth/me/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['email'], 'me@example.com')
+
+    def test_me_requires_authentication(self):
+        response = self.client.get('/api/auth/me/')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
 class OTPTests(APITestCase):
     def setUp(self):
         self.user = User.objects.create_user(
