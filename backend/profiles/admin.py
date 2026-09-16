@@ -1,3 +1,8 @@
 from django.contrib import admin
 
-# Register your models here.
+from .models import ClientProfile, FreelancerProfile, PortfolioItem, Skill
+
+admin.site.register(Skill)
+admin.site.register(ClientProfile)
+admin.site.register(FreelancerProfile)
+admin.site.register(PortfolioItem)
