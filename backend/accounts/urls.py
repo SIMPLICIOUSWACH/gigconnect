@@ -2,9 +2,10 @@ from django.urls import path
 
 from usersettings.token_views import TrackedTokenObtainPairView, TrackedTokenRefreshView
 
-from .views import RegisterView, SendOTPView, VerifyEmailView, VerifyOTPView
+from .views import MeView, RegisterView, SendOTPView, VerifyEmailView, VerifyOTPView
 
 urlpatterns = [
+    path('me/', MeView.as_view(), name='me'),
     path('register/', RegisterView.as_view(), name='register'),
     path('verify-email/<str:token>/', VerifyEmailView.as_view(), name='verify-email'),
     path('send-otp/', SendOTPView.as_view(), name='send-otp'),
