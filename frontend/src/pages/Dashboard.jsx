@@ -1,7 +1,9 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { sendOtp } from '../api/auth'
 import { useAuth } from '../context/AuthContext'
 import Alert from '../components/Alert'
+import Button from '../components/Button'
 import Card from '../components/Card'
 
 export default function Dashboard() {
@@ -61,6 +63,17 @@ export default function Dashboard() {
           )}
         </dl>
       </Card>
+
+      {user.role === 'client' && (
+        <div className="mt-6 flex gap-3">
+          <Link to="/gigs/new">
+            <Button>Post a gig</Button>
+          </Link>
+          <Link to="/gigs/mine">
+            <Button variant="secondary">View my gigs</Button>
+          </Link>
+        </div>
+      )}
     </div>
   )
 }

@@ -30,6 +30,11 @@ export default function Navbar() {
             <NavLink to="/dashboard" end className={navLinkClass}>
               Dashboard
             </NavLink>
+            {user.role === 'client' && (
+              <NavLink to="/gigs/mine" className={navLinkClass}>
+                My Gigs
+              </NavLink>
+            )}
             <NavLink to="/settings/account" className={navLinkClass}>
               Settings
             </NavLink>

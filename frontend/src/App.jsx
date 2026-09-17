@@ -15,6 +15,9 @@ import VerifyPhone from './pages/VerifyPhone'
 import ProfileSetup from './pages/ProfileSetup'
 import PublicProfile from './pages/PublicProfile'
 import Dashboard from './pages/Dashboard'
+import GigForm from './pages/gigs/GigForm'
+import GigDetail from './pages/gigs/GigDetail'
+import MyGigs from './pages/gigs/MyGigs'
 import AccountSettings from './pages/settings/AccountSettings'
 import SecuritySettings from './pages/settings/SecuritySettings'
 import NotificationSettings from './pages/settings/NotificationSettings'
@@ -42,6 +45,13 @@ function App() {
           <Route element={<Layout />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/profile/:id" element={<PublicProfile />} />
+            <Route path="/gigs/:id" element={<GigDetail />} />
+
+            <Route element={<RoleRoute role="client" />}>
+              <Route path="/gigs/new" element={<GigForm />} />
+              <Route path="/gigs/mine" element={<MyGigs />} />
+              <Route path="/gigs/:id/edit" element={<GigForm />} />
+            </Route>
 
             <Route path="/settings" element={<SettingsLayout />}>
               <Route index element={<Navigate to="account" replace />} />
