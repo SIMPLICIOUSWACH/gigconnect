@@ -1,0 +1,18 @@
+import api from './client'
+
+export const fetchCategories = () => api.get('/categories/').then((r) => r.data)
+
+export const fetchGigs = () => api.get('/gigs/').then((r) => r.data)
+
+export const fetchGig = (id) => api.get(`/gigs/${id}/`).then((r) => r.data)
+
+export const fetchMyGigs = () => api.get('/gigs/mine/').then((r) => r.data)
+
+export const createGig = (payload) => api.post('/gigs/', payload).then((r) => r.data)
+
+export const updateGig = (id, payload) => api.put(`/gigs/${id}/`, payload).then((r) => r.data)
+
+export const deleteGig = (id) => api.delete(`/gigs/${id}/`)
+
+export const updateGigStatus = (id, statusValue) =>
+  api.patch(`/gigs/${id}/status/`, { status: statusValue }).then((r) => r.data)

@@ -9,6 +9,7 @@ import Card from '../../components/Card'
 import ImageUpload from '../../components/ImageUpload'
 import Label from '../../components/Label'
 import PortfolioManager from '../../components/PortfolioManager'
+import SkillPicker from '../../components/SkillPicker'
 
 export default function FreelancerProfileSettings() {
   const { user, refreshUser } = useAuth()
@@ -69,22 +70,7 @@ export default function FreelancerProfileSettings() {
             <ImageUpload label="Profile photo" currentUrl={profile.profile_photo} onChange={setPhoto} round />
             <div>
               <Label>Skills</Label>
-              <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto border border-border rounded-lg p-4">
-                {allSkills.map((skill) => (
-                  <button
-                    type="button"
-                    key={skill.id}
-                    onClick={() => toggleSkill(skill.id)}
-                    className={`text-caption font-medium px-3 py-1.5 rounded-full border transition-colors ${
-                      selectedSkills.includes(skill.id)
-                        ? 'bg-primary text-white border-primary'
-                        : 'bg-surface text-ink border-border hover:bg-bg'
-                    }`}
-                  >
-                    {skill.name}
-                  </button>
-                ))}
-              </div>
+              <SkillPicker skills={allSkills} selected={selectedSkills} onToggle={toggleSkill} />
             </div>
             <Alert type="success">{message}</Alert>
             <Alert type="error">{error}</Alert>
