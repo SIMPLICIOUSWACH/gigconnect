@@ -8,7 +8,7 @@ function SplitCTA({ size = 'default' }) {
   return (
     <div className="flex flex-col sm:flex-row gap-4">
       <Link to="/register?role=client">
-        <Button className={`w-full sm:w-auto ${padding}`}>I'm hiring — post a gig</Button>
+        <Button className={`w-full sm:w-auto ${padding}`}>I'm hiring  post a gig</Button>
       </Link>
       <Link to="/register?role=freelancer">
         <Button variant="secondary" className={`w-full sm:w-auto ${padding}`}>
@@ -108,7 +108,7 @@ export default function Home() {
             </h1>
             <p className="text-body text-muted mb-8 max-w-md">
               GigConnect replaces scattered WhatsApp groups and Facebook pages with structured gig
-              posting, KES pricing, and matching tuned to the local market — not a global platform
+              posting, KES pricing, and matching tuned to the local market not a global platform
               with a currency converter bolted on.
             </p>
             <SplitCTA size="large" />
@@ -124,13 +124,13 @@ export default function Home() {
         <h2 className="text-page-title text-primary mb-6">The problem</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <p className="text-body text-ink">
-            Kenya's gig economy grew from roughly 638,000 workers in 2019 to 1.9 million by 2022 —
+            Kenya's gig economy grew from roughly 638,000 workers in 2019 to 1.9 million by 2022 
             but the tooling hasn't kept up. Gig work is still discovered and coordinated through
             informal WhatsApp groups and Facebook pages: fragmented, unsearchable, and impossible
             for a client to assess an applicant's actual track record.
           </p>
           <p className="text-body text-ink">
-            Global platforms like Upwork and Fiverr exist, but they don't fit this market — budgets
+            Global platforms like Upwork and Fiverr exist, but they don't fit this market  budgets
             are quoted in USD with no M-Pesa support, freelancers compete against the entire world
             instead of the local market, and the categories and matching are tuned to global demand,
             not Kenyan skills and pricing norms.
