@@ -1,6 +1,9 @@
 from datetime import timedelta
+from io import StringIO
 
 from django.core import mail
+from django.core.management import call_command
+from django.test import TestCase
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -172,3 +175,38 @@ class OTPTests(APITestCase):
         self.client.post('/api/auth/send-otp/')
         response = self.client.post('/api/auth/verify-otp/', {'code': '000000'})
         self.assertIn(response.status_code, (status.HTTP_400_BAD_REQUEST,))
+
+
+class SeedDataCommandTests(TestCase):
+    def setUp(self):
+        Skill.objects.create(name='Test Skill', category='Technology')
+
+    def run_command(self, **options):
+        call_command('seed_data', stdout=StringIO(), **options)
+
+    def test_seed_creates_requested_count_of_each_role(self):
+        self.run_command(count=3)
+        self.assertEqual(User.objects.filter(email__startswith='seed-client-').count(), 3)
+        self.assertEqual(User.objects.filter(email__startswith='seed-freelancer-').count(), 3)
+
+    def test_seed_is_idempotent(self):
+        self.run_command(count=3)
+        self.run_command(count=3)
+        self.assertEqual(User.objects.filter(email__startswith='seed-client-').count(), 3)
+        self.assertEqual(User.objects.filter(email__startswith='seed-freelancer-').count(), 3)
+
+    def test_seeded_freelancers_have_at_least_one_skill(self):
+        self.run_command(count=2)
+        freelancer = User.objects.filter(email__startswith='seed-freelancer-').first()
+        self.assertGreaterEqual(freelancer.freelancer_profile.skills.count(), 1)
+
+    def test_seeded_clients_have_company_info(self):
+        self.run_command(count=2)
+        client_user = User.objects.filter(email__startswith='seed-client-').first()
+        self.assertTrue(client_user.client_profile.company_name)
+        self.assertTrue(client_user.client_profile.industry)
+
+    def test_seed_does_nothing_without_skills(self):
+        Skill.objects.all().delete()
+        self.run_command(count=3)
+        self.assertEqual(User.objects.filter(email__startswith='seed-freelancer-').count(), 0)
