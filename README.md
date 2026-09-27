@@ -1,6 +1,6 @@
 # GigConnect
 
-A gig marketplace platform for the Kenyan digital labour market — a final-year capstone
+A gig marketplace platform for the Kenyan digital labour market  a final-year capstone
 project (BSc Informatics & Computer Science, Strathmore University). GigConnect centralises
 gig posting and applications, priced and structured for the Kenyan market (KES, local
 categories), and will integrate a hybrid ML recommendation engine (TF-IDF/cosine similarity +
@@ -16,7 +16,7 @@ Truncated SVD) in a later sprint.
 ## Prerequisites
 
 - Python 3.12+
-- Node.js 20+ (Vite is pinned to `^6.3.5` on purpose — Node 20.18 doesn't support the native
+- Node.js 20+ (Vite is pinned to `^6.3.5` on purpose Node 20.18 doesn't support the native
   Rolldown binding Vite 7/8 require; do not upgrade Vite without also upgrading Node to ≥20.19)
 - PostgreSQL 15+ (native install, or via `docker-compose up -d`)
 
@@ -45,7 +45,7 @@ npm run dev
 
 The app serves at `http://localhost:5173` and proxies `/api/*` requests to the backend on
 port 8000 (see `frontend/vite.config.js`). The frontend currently has no required environment
-variables — see `frontend/.env.example`.
+variables see `frontend/.env.example`.
 
 ## Database
 
@@ -53,7 +53,7 @@ variables — see `frontend/.env.example`.
 `gigconnect`/`gigconnect` user/database, matching `backend/.env.example`.
 
 If you run Postgres natively instead (as this project's own dev machine does), your instance
-may listen on a different port — for example, a native Windows Postgres install commonly ends
+may listen on a different port  for example, a native Windows Postgres install commonly ends
 up on **3204**, not the default 5432. Whatever your actual port is, set `DB_PORT` in
 `backend/.env` to match; don't assume 5432 just because that's the Docker default.
 
