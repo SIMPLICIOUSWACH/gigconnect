@@ -30,6 +30,9 @@ export default function Navbar() {
             <NavLink to="/dashboard" end className={navLinkClass}>
               Dashboard
             </NavLink>
+            <NavLink to="/gigs" className={navLinkClass}>
+              Browse Gigs
+            </NavLink>
             {user.role === 'client' && (
               <NavLink to="/gigs/mine" className={navLinkClass}>
                 My Gigs

@@ -2,7 +2,7 @@ import api from './client'
 
 export const fetchCategories = () => api.get('/categories/').then((r) => r.data)
 
-export const fetchGigs = () => api.get('/gigs/').then((r) => r.data)
+export const fetchGigsPaged = (params) => api.get('/gigs/', { params }).then((r) => r.data)
 
 export const fetchGig = (id) => api.get(`/gigs/${id}/`).then((r) => r.data)
 
