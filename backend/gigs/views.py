@@ -1,3 +1,5 @@
+from datetime import date
+
 from django.db.models import F
 from rest_framework import generics, permissions
 from rest_framework.response import Response
@@ -5,7 +7,9 @@ from rest_framework import status as http_status
 
 from accounts.permissions import IsClientRole, IsEmailVerified
 
+from .filters import GigFilterSerializer, apply_gig_filters
 from .models import Category, Gig
+from .pagination import GigPagination
 from .permissions import IsOwnerClient
 from .serializers import (
     CategorySerializer,
@@ -24,6 +28,8 @@ class CategoryListView(generics.ListAPIView):
 
 
 class GigListCreateView(generics.ListCreateAPIView):
+    pagination_class = GigPagination
+
     def get_permissions(self):
         if self.request.method == 'POST':
             return [permissions.IsAuthenticated(), IsClientRole(), IsEmailVerified()]
@@ -35,7 +41,24 @@ class GigListCreateView(generics.ListCreateAPIView):
         return GigListSerializer
 
     def get_queryset(self):
-        return Gig.objects.filter(status=Gig.Status.OPEN)
+        # Public feed: open gigs only, and never anything past its application deadline —
+        # those are still reachable directly by ID (see GigDetailView) but shouldn't show up
+        # here. select_related/prefetch_related avoid N+1s across client/category/skills.
+        return (
+            Gig.objects.filter(status=Gig.Status.OPEN, application_deadline__gte=date.today())
+            .select_related('client', 'client__client_profile', 'category')
+            .prefetch_related('skills')
+        )
+
+    def list(self, request, *args, **kwargs):
+        filters = GigFilterSerializer(data=request.query_params)
+        filters.is_valid(raise_exception=True)
+
+        queryset = apply_gig_filters(self.get_queryset(), filters.validated_data)
+
+        page = self.paginate_queryset(queryset)
+        serializer = self.get_serializer(page, many=True)
+        return self.get_paginated_response(serializer.data)
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -50,11 +73,17 @@ class MyGigsView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated, IsClientRole]
 
     def get_queryset(self):
-        return Gig.objects.filter(client=self.request.user)
+        return (
+            Gig.objects.filter(client=self.request.user)
+            .select_related('client', 'client__client_profile', 'category')
+            .prefetch_related('skills')
+        )
 
 
 class GigDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Gig.objects.all()
+    queryset = Gig.objects.all().select_related(
+        'client', 'client__client_profile', 'category'
+    ).prefetch_related('skills')
     http_method_names = ['get', 'put', 'delete']
 
     def get_permissions(self):
