@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { fetchSkills } from '../../api/auth'
+import { createSkill, fetchSkills } from '../../api/auth'
 import { createGig, fetchCategories, fetchGig, updateGig } from '../../api/gigs'
 import Alert from '../../components/Alert'
 import Button from '../../components/Button'
@@ -21,6 +21,8 @@ const EMPTY_FORM = {
   budget_min: '',
   budget_max: '',
   deadline: '',
+  application_deadline: '',
+  is_negotiable: true,
 }
 
 function todayISO() {
@@ -58,6 +60,8 @@ export default function GigForm() {
           budget_min: gig.budget_min,
           budget_max: gig.budget_max,
           deadline: gig.deadline,
+          application_deadline: gig.application_deadline || '',
+          is_negotiable: gig.is_negotiable,
         })
       })
       .catch(() => setLoadError('Could not load this gig for editing.'))
@@ -66,11 +70,19 @@ export default function GigForm() {
 
   const update = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }))
 
+  const toggleNegotiable = (e) => setForm((f) => ({ ...f, is_negotiable: e.target.checked }))
+
   const toggleSkill = (skillId) =>
     setForm((f) => ({
       ...f,
       skills: f.skills.includes(skillId) ? f.skills.filter((s) => s !== skillId) : [...f.skills, skillId],
     }))
+
+  const handleCreateSkill = async (name) => {
+    const skill = await createSkill(name)
+    setSkills((prev) => (prev.some((s) => s.id === skill.id) ? prev : [...prev, skill]))
+    setForm((f) => (f.skills.includes(skill.id) ? f : { ...f, skills: [...f.skills, skill.id] }))
+  }
 
   const validateStep = (targetStep) => {
     const stepErrors = {}
@@ -92,6 +104,13 @@ export default function GigForm() {
         stepErrors.deadline = 'Deadline is required.'
       } else if (form.deadline <= todayISO()) {
         stepErrors.deadline = 'Deadline must be in the future.'
+      }
+      if (form.application_deadline) {
+        if (form.application_deadline <= todayISO()) {
+          stepErrors.application_deadline = 'Application deadline must be in the future.'
+        } else if (form.deadline && form.application_deadline > form.deadline) {
+          stepErrors.application_deadline = 'Application deadline cannot be after the project deadline.'
+        }
       }
     }
     setErrors(stepErrors)
@@ -115,6 +134,8 @@ export default function GigForm() {
       budget_min: form.budget_min,
       budget_max: form.budget_max,
       deadline: form.deadline,
+      application_deadline: form.application_deadline || null,
+      is_negotiable: form.is_negotiable,
     }
     try {
       const gig = isEdit ? await updateGig(id, payload) : await createGig(payload)
@@ -174,7 +195,7 @@ export default function GigForm() {
         {step === 2 && (
           <div>
             <Label required>Required skills (select at least one)</Label>
-            <SkillPicker skills={skills} selected={form.skills} onToggle={toggleSkill} />
+            <SkillPicker skills={skills} selected={form.skills} onToggle={toggleSkill} onCreate={handleCreateSkill} />
             {errors.skills && <p className="text-caption text-red-600 mt-2">{errors.skills}</p>}
           </div>
         )}
@@ -210,6 +231,27 @@ export default function GigForm() {
               onChange={update('deadline')}
               error={errors.deadline}
             />
+            <Input
+              label="Application deadline (optional)"
+              type="date"
+              min={todayISO()}
+              max={form.deadline || undefined}
+              value={form.application_deadline}
+              onChange={update('application_deadline')}
+              error={errors.application_deadline}
+            />
+            <p className="text-caption text-muted -mt-4">
+              Freelancers can't apply after this date. Leave blank to use the project deadline above.
+            </p>
+            <label className="flex items-center gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.is_negotiable}
+                onChange={toggleNegotiable}
+                className="w-4 h-4 rounded border-border text-primary focus:ring-2 focus:ring-primary/30"
+              />
+              <span className="text-body text-ink">This budget is negotiable</span>
+            </label>
           </div>
         )}
 
