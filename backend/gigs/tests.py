@@ -1,5 +1,8 @@
 from datetime import date, timedelta
+from io import StringIO
 
+from django.core.management import CommandError, call_command
+from django.test import TestCase, override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -228,7 +231,7 @@ class GigSerializationTests(GigTestBase):
     def test_list_payload_excludes_full_description(self):
         response = self.client.get('/api/gigs/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertNotIn('description', response.data[0])
+        self.assertNotIn('description', response.data['results'][0])
 
     def test_detail_payload_includes_description(self):
         response = self.client.get(f'/api/gigs/{self.gig.id}/')
@@ -247,7 +250,7 @@ class GigSerializationTests(GigTestBase):
     def test_list_only_shows_open_gigs(self):
         closed_gig = self.create_gig(title='Closed gig', status=Gig.Status.CLOSED)
         response = self.client.get('/api/gigs/')
-        ids = [g['id'] for g in response.data]
+        ids = [g['id'] for g in response.data['results']]
         self.assertIn(str(self.gig.id), ids)
         self.assertNotIn(str(closed_gig.id), ids)
 
@@ -325,3 +328,216 @@ class GigDescriptionIndexTests(APITestCase):
             row = cursor.fetchone()
         self.assertIsNotNone(row, 'Expected a GIN index named gig_description_gin on gigs_gig')
         self.assertIn('gin', row[0].lower())
+
+
+class GigFilterSearchTests(GigTestBase):
+    def setUp(self):
+        super().setUp()
+        self.other_category = Category.objects.create(name='Other Test Category')
+        self.other_skill = Skill.objects.create(name='Other Test Skill', category='Design')
+
+        self.bakery_gig = self.create_gig(
+            title='Bakery website in Nairobi',
+            description='Simple site for a bakery',
+            budget_min=10000, budget_max=20000,
+        )
+        self.logo_gig = self.create_gig(
+            title='Logo design',
+            description='Need a bakery logo',
+            budget_min=5000, budget_max=8000,
+            category=self.other_category,
+        )
+        self.logo_gig.skills.set([self.other_skill])
+
+    def test_filter_by_category(self):
+        response = self.client.get('/api/gigs/', {'category': self.other_category.slug})
+        titles = [g['title'] for g in response.data['results']]
+        self.assertEqual(titles, ['Logo design'])
+
+    def test_filter_by_skills_matches_any(self):
+        response = self.client.get('/api/gigs/', {'skills': str(self.skill.id)})
+        titles = [g['title'] for g in response.data['results']]
+        self.assertEqual(titles, ['Bakery website in Nairobi'])
+
+    def test_filter_by_skill_name_case_insensitive(self):
+        response = self.client.get('/api/gigs/', {'skills': 'other test skill'})
+        titles = [g['title'] for g in response.data['results']]
+        self.assertEqual(titles, ['Logo design'])
+
+    def test_budget_overlap_matches(self):
+        response = self.client.get('/api/gigs/', {'budget_min': '15000', 'budget_max': '30000'})
+        titles = [g['title'] for g in response.data['results']]
+        self.assertEqual(titles, ['Bakery website in Nairobi'])
+
+    def test_budget_no_overlap_excludes(self):
+        response = self.client.get('/api/gigs/', {'budget_min': '25000', 'budget_max': '30000'})
+        self.assertEqual(response.data['count'], 0)
+
+    def test_negotiable_filter(self):
+        self.logo_gig.is_negotiable = False
+        self.logo_gig.save()
+        response = self.client.get('/api/gigs/', {'negotiable': 'false'})
+        titles = [g['title'] for g in response.data['results']]
+        self.assertEqual(titles, ['Logo design'])
+
+    def test_deadline_before_filter(self):
+        self.create_gig(title='Near deadline gig', deadline=date.today() + timedelta(days=1))
+        response = self.client.get('/api/gigs/', {'deadline_before': str(date.today() + timedelta(days=2))})
+        titles = [g['title'] for g in response.data['results']]
+        self.assertEqual(titles, ['Near deadline gig'])
+
+    def test_posted_within_filter(self):
+        from django.utils import timezone
+        old_gig = self.create_gig(title='Old gig')
+        Gig.objects.filter(pk=old_gig.pk).update(created_at=timezone.now() - timedelta(days=10))
+        response = self.client.get('/api/gigs/', {'posted_within': '7'})
+        titles = [g['title'] for g in response.data['results']]
+        self.assertNotIn('Old gig', titles)
+
+    def test_filters_combine_with_and(self):
+        response = self.client.get('/api/gigs/', {
+            'category': str(self.category.slug),
+            'budget_min': '15000', 'budget_max': '30000',
+        })
+        titles = [g['title'] for g in response.data['results']]
+        self.assertEqual(titles, ['Bakery website in Nairobi'])
+
+    def test_only_open_gigs_appear_in_feed(self):
+        for gig_status in [Gig.Status.IN_PROGRESS, Gig.Status.COMPLETED, Gig.Status.CLOSED]:
+            self.create_gig(title=f'{gig_status} gig', status=gig_status)
+        response = self.client.get('/api/gigs/')
+        titles = [g['title'] for g in response.data['results']]
+        self.assertEqual(set(titles), {'Bakery website in Nairobi', 'Logo design'})
+
+    def test_gig_past_application_deadline_excluded_from_feed_but_retrievable_by_id(self):
+        expired = self.create_gig(
+            title='Expired gig',
+            deadline=date.today() + timedelta(days=30),
+            application_deadline=date.today() - timedelta(days=1),
+        )
+        response = self.client.get('/api/gigs/')
+        titles = [g['title'] for g in response.data['results']]
+        self.assertNotIn('Expired gig', titles)
+
+        detail_response = self.client.get(f'/api/gigs/{expired.id}/')
+        self.assertEqual(detail_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(detail_response.data['title'], 'Expired gig')
+
+    def test_search_ranks_title_match_above_description_only_match(self):
+        response = self.client.get('/api/gigs/', {'q': 'bakery', 'sort': 'relevance'})
+        titles = [g['title'] for g in response.data['results']]
+        self.assertEqual(titles, ['Bakery website in Nairobi', 'Logo design'])
+
+    def test_search_handles_punctuation_without_error(self):
+        response = self.client.get('/api/gigs/', {'q': 'bakery!! -- (()) stray quote follows'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_search_handles_empty_string(self):
+        response = self.client.get('/api/gigs/', {'q': ''})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['count'], 2)
+
+    def test_relevance_sort_without_query_falls_back_to_newest(self):
+        response = self.client.get('/api/gigs/', {'sort': 'relevance'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_invalid_category_returns_400_with_field_error(self):
+        response = self.client.get('/api/gigs/', {'category': 'does-not-exist'})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('category', response.data)
+
+    def test_invalid_posted_within_returns_400(self):
+        response = self.client.get('/api/gigs/', {'posted_within': '5'})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('posted_within', response.data)
+
+    def test_budget_min_greater_than_budget_max_returns_400(self):
+        response = self.client.get('/api/gigs/', {'budget_min': '50000', 'budget_max': '1000'})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('budget_min', response.data)
+
+    def test_invalid_sort_returns_400(self):
+        response = self.client.get('/api/gigs/', {'sort': 'not-a-real-sort'})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_pagination_metadata(self):
+        for i in range(15):
+            self.create_gig(title=f'Paginated gig {i}')
+        response = self.client.get('/api/gigs/', {'page_size': '5'})
+        self.assertEqual(response.data['page_size'], 5)
+        self.assertEqual(response.data['page'], 1)
+        self.assertEqual(response.data['total_pages'], 4)
+        self.assertIsNotNone(response.data['next'])
+        self.assertIsNone(response.data['previous'])
+
+    def test_page_size_is_capped_at_50(self):
+        response = self.client.get('/api/gigs/', {'page_size': '200'})
+        self.assertEqual(response.data['page_size'], 50)
+
+    def test_default_page_size_is_12(self):
+        for i in range(20):
+            self.create_gig(title=f'Default page size gig {i}')
+        response = self.client.get('/api/gigs/')
+        self.assertEqual(len(response.data['results']), 12)
+
+    def test_list_endpoint_has_no_n_plus_1_query(self):
+        for i in range(10):
+            gig = self.create_gig(title=f'N+1 test gig {i}')
+            gig.skills.set([self.skill, self.other_skill])
+        # 1 count query (pagination) + 1 joined select (client/client_profile/category via
+        # select_related) + 1 prefetch for skills — flat regardless of how many gigs are on
+        # the page, which is the actual thing this test is guarding against.
+        with self.assertNumQueries(3):
+            response = self.client.get('/api/gigs/', {'page_size': 50})
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+@override_settings(DEBUG=True)  # Django forces DEBUG=False during tests by default.
+class SeedGigsCommandTests(TestCase):
+    def setUp(self):
+        Category.objects.create(name='Seed Test Category')
+        Skill.objects.create(name='Seed Test Skill', category='Technology')
+        self.seed_client = User.objects.create_user(
+            email='seed-client-1@example.test', password='SeedPass123!',
+            full_name='Seed Client', phone='254700000099', role='client',
+        )
+
+    def run_command(self, **options):
+        call_command('seed_gigs', stdout=StringIO(), **options)
+
+    @override_settings(DEBUG=False)
+    def test_refuses_to_run_when_debug_is_false(self):
+        with self.assertRaises(CommandError):
+            self.run_command(count=3)
+        self.assertEqual(Gig.objects.count(), 0)
+
+    def test_requires_seed_client_accounts(self):
+        User.objects.filter(email='seed-client-1@example.test').delete()
+        with self.assertRaises(CommandError):
+            self.run_command(count=3)
+
+    def test_creates_requested_count(self):
+        self.run_command(count=5)
+        self.assertEqual(Gig.objects.filter(client__email__startswith='seed-client-').count(), 5)
+
+    def test_seeded_gigs_belong_to_seed_clients_and_are_open(self):
+        self.run_command(count=3)
+        for gig in Gig.objects.all():
+            self.assertTrue(gig.client.email.startswith('seed-client-'))
+            self.assertEqual(gig.status, Gig.Status.OPEN)
+            self.assertGreaterEqual(gig.skills.count(), 1)
+
+    def test_delete_removes_only_seeded_gigs(self):
+        real_client = User.objects.create_user(
+            email='real-client@example.com', password='StrongPass123!',
+            full_name='Real Client', phone='254700000098', role='client',
+        )
+        real_gig = Gig.objects.create(
+            client=real_client, category=Category.objects.first(),
+            title='Real gig', description='Not seed data.',
+            budget_min=1000, budget_max=2000, deadline=date.today() + timedelta(days=30),
+        )
+        self.run_command(count=3)
+        self.run_command(delete=True)
+        self.assertEqual(Gig.objects.filter(client__email__startswith='seed-client-').count(), 0)
+        self.assertTrue(Gig.objects.filter(pk=real_gig.pk).exists())
