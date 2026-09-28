@@ -24,8 +24,8 @@ class GigListSerializer(serializers.ModelSerializer):
         model = Gig
         fields = [
             'id', 'title', 'client_id', 'client_name', 'category',
-            'budget_min', 'budget_max', 'currency', 'deadline', 'status',
-            'skills', 'created_at',
+            'budget_min', 'budget_max', 'currency', 'deadline', 'application_deadline',
+            'is_negotiable', 'status', 'skills', 'created_at',
         ]
 
 
@@ -49,8 +49,8 @@ class GigDetailSerializer(serializers.ModelSerializer):
         model = Gig
         fields = [
             'id', 'title', 'description', 'client', 'category',
-            'budget_min', 'budget_max', 'currency', 'deadline', 'status',
-            'skills', 'view_count', 'created_at', 'updated_at',
+            'budget_min', 'budget_max', 'currency', 'deadline', 'application_deadline',
+            'is_negotiable', 'status', 'skills', 'view_count', 'created_at', 'updated_at',
         ]
 
 
@@ -67,6 +67,18 @@ class GigValidationMixin:
         if deadline is not None and deadline <= date.today():
             raise serializers.ValidationError({'deadline': 'Deadline must be in the future.'})
 
+        application_deadline = attrs.get('application_deadline')
+        if application_deadline is not None:
+            if application_deadline <= date.today():
+                raise serializers.ValidationError(
+                    {'application_deadline': 'Application deadline must be in the future.'}
+                )
+            effective_deadline = deadline if deadline is not None else getattr(self.instance, 'deadline', None)
+            if effective_deadline is not None and application_deadline > effective_deadline:
+                raise serializers.ValidationError(
+                    {'application_deadline': 'Application deadline cannot be after the project deadline.'}
+                )
+
         return attrs
 
 
@@ -77,9 +89,14 @@ class GigCreateSerializer(GigValidationMixin, serializers.ModelSerializer):
         model = Gig
         fields = [
             'id', 'title', 'description', 'category',
-            'budget_min', 'budget_max', 'currency', 'deadline', 'skills',
+            'budget_min', 'budget_max', 'currency', 'deadline', 'application_deadline',
+            'is_negotiable', 'skills',
         ]
         read_only_fields = ['id']
+        extra_kwargs = {
+            'application_deadline': {'required': False},
+            'is_negotiable': {'required': False},
+        }
 
     def create(self, validated_data):
         skills = validated_data.pop('skills')
@@ -94,7 +111,14 @@ class GigUpdateSerializer(GigValidationMixin, serializers.ModelSerializer):
 
     class Meta:
         model = Gig
-        fields = ['title', 'description', 'category', 'budget_min', 'budget_max', 'deadline', 'skills']
+        fields = [
+            'title', 'description', 'category', 'budget_min', 'budget_max', 'deadline',
+            'application_deadline', 'is_negotiable', 'skills',
+        ]
+        extra_kwargs = {
+            'application_deadline': {'required': False},
+            'is_negotiable': {'required': False},
+        }
 
     def validate(self, attrs):
         if self.instance.status != Gig.Status.OPEN:

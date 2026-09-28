@@ -43,6 +43,11 @@ class Gig(models.Model):
     budget_max = models.DecimalField(max_digits=10, decimal_places=2)
     currency = models.CharField(max_length=3, default='KES')
     deadline = models.DateField()
+    # Last day to apply — distinct from `deadline` (project delivery date). Nullable at the
+    # column level so it *can* be omitted on input, but save() always fills it in, so it's
+    # functionally never null once persisted.
+    application_deadline = models.DateField(null=True, blank=True)
+    is_negotiable = models.BooleanField(default=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.OPEN)
     skills = models.ManyToManyField(Skill, through='GigSkill', related_name='gigs')
     view_count = models.PositiveIntegerField(default=0)
@@ -55,6 +60,11 @@ class Gig(models.Model):
             # Trigram GIN index — supports Sprint 3's full-text/partial search over description.
             GinIndex(fields=['description'], name='gig_description_gin', opclasses=['gin_trgm_ops']),
         ]
+
+    def save(self, *args, **kwargs):
+        if self.application_deadline is None:
+            self.application_deadline = self.deadline
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.title

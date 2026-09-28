@@ -272,6 +272,48 @@ class CategoryTests(GigTestBase):
         self.assertGreaterEqual(len(response.data), 1)
 
 
+class GigPrerequisiteFieldTests(GigTestBase):
+    def test_application_deadline_defaults_to_deadline_when_not_given(self):
+        self.client.force_authenticate(user=self.client_user)
+        response = self.client.post('/api/gigs/', self.valid_payload(), format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['application_deadline'], response.data['deadline'])
+
+    def test_application_deadline_can_be_set_explicitly(self):
+        self.client.force_authenticate(user=self.client_user)
+        earlier = str(date.today() + timedelta(days=10))
+        response = self.client.post(
+            '/api/gigs/', self.valid_payload(application_deadline=earlier), format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['application_deadline'], earlier)
+
+    def test_application_deadline_after_project_deadline_is_rejected(self):
+        self.client.force_authenticate(user=self.client_user)
+        too_late = str(date.today() + timedelta(days=60))
+        response = self.client.post(
+            '/api/gigs/', self.valid_payload(application_deadline=too_late), format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('application_deadline', response.data)
+
+    def test_is_negotiable_defaults_true(self):
+        self.client.force_authenticate(user=self.client_user)
+        response = self.client.post('/api/gigs/', self.valid_payload(), format='json')
+        self.assertTrue(response.data['is_negotiable'])
+
+    def test_is_negotiable_can_be_set_false(self):
+        self.client.force_authenticate(user=self.client_user)
+        response = self.client.post(
+            '/api/gigs/', self.valid_payload(is_negotiable=False), format='json'
+        )
+        self.assertFalse(response.data['is_negotiable'])
+
+    def test_existing_gig_created_without_application_deadline_gets_backfilled(self):
+        gig = self.create_gig()
+        self.assertEqual(gig.application_deadline, gig.deadline)
+
+
 class GigDescriptionIndexTests(APITestCase):
     def test_gin_index_exists_on_description(self):
         from django.db import connection

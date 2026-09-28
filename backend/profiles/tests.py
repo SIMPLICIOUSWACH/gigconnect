@@ -201,3 +201,40 @@ class PublicProfileViewTests(APITestCase):
         response = self.client.get(f'/api/profiles/{self.client_user.id}/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('company_name', response.data['profile'])
+
+
+class SkillCreateTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email='freelancer@example.com', password='StrongPass123!',
+            full_name='Freelancer', phone='254700000001', role='freelancer',
+        )
+
+    def test_requires_authentication(self):
+        response = self.client.post('/api/skills/', {'name': 'Drone Photography'})
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_creates_a_new_skill(self):
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post('/api/skills/', {'name': 'Drone Photography', 'category': 'Media'})
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Skill.objects.filter(name='Drone Photography').count(), 1)
+
+    def test_defaults_category_when_not_given(self):
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post('/api/skills/', {'name': 'Drone Photography'})
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['category'], 'Other')
+
+    def test_duplicate_name_case_insensitive_returns_existing_skill(self):
+        existing = Skill.objects.create(name='Drone Photography', category='Media')
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post('/api/skills/', {'name': 'drone photography'})
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['id'], str(existing.id))
+        self.assertEqual(Skill.objects.filter(name__iexact='drone photography').count(), 1)
+
+    def test_blank_name_is_rejected(self):
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post('/api/skills/', {'name': '   '})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
