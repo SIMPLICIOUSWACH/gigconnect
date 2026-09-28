@@ -21,3 +21,5 @@ export const sendOtp = () => api.post('/auth/send-otp/').then((r) => r.data)
 export const verifyOtp = (code) => api.post('/auth/verify-otp/', { code }).then((r) => r.data)
 
 export const fetchSkills = () => api.get('/skills/').then((r) => r.data)
+
+export const createSkill = (name) => api.post('/skills/', { name }).then((r) => r.data)
