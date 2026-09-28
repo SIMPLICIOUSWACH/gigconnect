@@ -2,6 +2,7 @@ import uuid
 
 from django.conf import settings
 from django.contrib.postgres.indexes import GinIndex
+from django.contrib.postgres.search import SearchVectorField
 from django.db import models
 from django.utils.text import slugify
 
@@ -54,11 +55,27 @@ class Gig(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    # Stored, weighted full-text search vector (title=A, skills=B, description=C). Kept in
+    # sync by signals (post_save for title/description, m2m_changed for skills) — see
+    # gigs/signals.py. Never set this directly; it's derived data.
+    search_vector = SearchVectorField(null=True, editable=False)
+
     class Meta:
         ordering = ['-created_at']
         indexes = [
-            # Trigram GIN index — supports Sprint 3's full-text/partial search over description.
+            # Trigram GIN index — kept per the original proposal. Good for fuzzy/partial
+            # matching on description alone, but can't do weighted multi-field ranking, which
+            # is what `search_vector` below is for.
             GinIndex(fields=['description'], name='gig_description_gin', opclasses=['gin_trgm_ops']),
+            GinIndex(fields=['search_vector'], name='gig_search_vector_gin'),
+            # Covers the default public feed query: WHERE status='open' ORDER BY created_at DESC.
+            models.Index(fields=['status', '-created_at'], name='gig_status_created_idx'),
+            # Covers browsing/filtering by category within open gigs.
+            models.Index(fields=['status', 'category'], name='gig_status_category_idx'),
+            models.Index(fields=['deadline'], name='gig_deadline_idx'),
+            models.Index(fields=['application_deadline'], name='gig_app_deadline_idx'),
+            models.Index(fields=['budget_min'], name='gig_budget_min_idx'),
+            models.Index(fields=['budget_max'], name='gig_budget_max_idx'),
         ]
 
     def save(self, *args, **kwargs):
