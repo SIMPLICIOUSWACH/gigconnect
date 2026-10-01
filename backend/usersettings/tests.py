@@ -1,6 +1,5 @@
 from rest_framework import status
 from rest_framework.test import APITestCase
-from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
 
 from accounts.models import User
 from profiles.models import Skill

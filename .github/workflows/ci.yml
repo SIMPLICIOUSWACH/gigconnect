@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+
+jobs:
+  backend:
+    name: backend
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: gigconnect
+          POSTGRES_USER: gigconnect
+          POSTGRES_PASSWORD: gigconnect
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      SECRET_KEY: ci-secret-key
+      DEBUG: 'True'
+      ALLOWED_HOSTS: localhost,127.0.0.1
+      DB_NAME: gigconnect
+      DB_USER: gigconnect
+      DB_PASSWORD: gigconnect
+      DB_HOST: localhost
+      DB_PORT: 5432
+      CORS_ALLOWED_ORIGINS: http://localhost:5173
+      FRONTEND_URL: http://localhost:5173
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        working-directory: backend
+        run: pip install -r requirements-dev.txt
+
+      - name: Lint (ruff)
+        working-directory: backend
+        run: ruff check .
+
+      - name: Run migrations
+        working-directory: backend
+        run: python manage.py migrate
+
+      - name: Run tests
+        working-directory: backend
+        run: python manage.py test
+
+  frontend:
+    name: frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Lint (ESLint)
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Unit tests (Vitest)
+        working-directory: frontend
+        run: npm test
+
+      - name: Build
+        working-directory: frontend
+        run: npm run build
