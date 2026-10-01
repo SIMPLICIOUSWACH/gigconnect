@@ -471,6 +471,10 @@ class GigFilterSearchTests(GigTestBase):
     def test_relevance_sort_without_query_falls_back_to_newest(self):
         response = self.client.get('/api/gigs/', {'sort': 'relevance'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Same order as an explicit sort=newest, not merely "didn't error": logo_gig was
+        # created after bakery_gig, so newest-first puts it first.
+        titles = [g['title'] for g in response.data['results']]
+        self.assertEqual(titles, ['Logo design', 'Bakery website in Nairobi'])
 
     def test_invalid_category_returns_400_with_field_error(self):
         response = self.client.get('/api/gigs/', {'category': 'does-not-exist'})
