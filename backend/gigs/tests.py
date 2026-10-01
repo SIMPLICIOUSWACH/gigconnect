@@ -523,6 +523,44 @@ class GigFilterSearchTests(GigTestBase):
             self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
+class IncludeClosedFilterTests(GigTestBase):
+    def setUp(self):
+        super().setUp()
+        self.open_gig = self.create_gig(title='Still open')
+        self.closed_status_gig = self.create_gig(title='Cancelled gig', status=Gig.Status.CLOSED)
+        self.expired_gig = self.create_gig(
+            title='Expired application gig',
+            deadline=date.today() + timedelta(days=30),
+            application_deadline=date.today() - timedelta(days=1),
+        )
+
+    def test_default_feed_excludes_closed_status_and_expired_application_deadline(self):
+        response = self.client.get('/api/gigs/')
+        titles = [g['title'] for g in response.data['results']]
+        self.assertIn('Still open', titles)
+        self.assertNotIn('Cancelled gig', titles)
+        self.assertNotIn('Expired application gig', titles)
+
+    def test_include_closed_true_shows_everything(self):
+        response = self.client.get('/api/gigs/', {'include_closed': 'true'})
+        titles = [g['title'] for g in response.data['results']]
+        self.assertIn('Still open', titles)
+        self.assertIn('Cancelled gig', titles)
+        self.assertIn('Expired application gig', titles)
+
+    def test_include_closed_combines_with_other_filters(self):
+        other_category = Category.objects.create(name='Include-Closed Other Category')
+        self.closed_status_gig.category = other_category
+        self.closed_status_gig.save(update_fields=['category'])
+
+        response = self.client.get(
+            '/api/gigs/', {'include_closed': 'true', 'category': self.category.slug}
+        )
+        titles = [g['title'] for g in response.data['results']]
+        self.assertIn('Still open', titles)
+        self.assertNotIn('Cancelled gig', titles)  # different category, still filtered out
+
+
 @override_settings(DEBUG=True)  # Django forces DEBUG=False during tests by default.
 class SeedGigsCommandTests(TestCase):
     def setUp(self):
