@@ -1,9 +1,18 @@
 import { Link, useLocation } from 'react-router-dom'
-import { formatBudget, formatDate, formatRelativeTime, isUrgent } from '../../utils/gigFormat'
+import { formatBudget, formatDate, formatRelativeTime, isApplicationClosed, isUrgent } from '../../utils/gigFormat'
+
+const STATUS_LABELS = {
+  in_progress: 'In Progress',
+  completed: 'Completed',
+  closed: 'Closed',
+}
 
 export default function GigCard({ gig }) {
   const location = useLocation()
   const urgent = isUrgent(gig.application_deadline)
+  // Only reachable via the "Show closed gigs" toggle — the default feed never returns these.
+  const statusBadge = gig.status !== 'open' ? STATUS_LABELS[gig.status] : null
+  const applicationsClosed = !statusBadge && isApplicationClosed(gig.application_deadline)
   const visibleSkills = gig.skills.slice(0, 4)
   const extraCount = gig.skills.length - visibleSkills.length
 
@@ -20,6 +29,11 @@ export default function GigCard({ gig }) {
         {urgent && (
           <span className="text-caption font-medium px-2.5 py-1 rounded-full bg-red-50 text-red-700 shrink-0">
             Urgent
+          </span>
+        )}
+        {(statusBadge || applicationsClosed) && (
+          <span className="text-caption font-medium px-2.5 py-1 rounded-full bg-bg text-muted shrink-0">
+            {statusBadge || 'Applications closed'}
           </span>
         )}
       </div>
