@@ -56,6 +56,12 @@ class GigDetailSerializer(serializers.ModelSerializer):
 
 class GigValidationMixin:
     def validate(self, attrs):
+        currency = attrs.get('currency')
+        if currency is not None and currency != Gig.CURRENCY_KES:
+            raise serializers.ValidationError(
+                {'currency': 'GigConnect only supports KES gigs at this time.'}
+            )
+
         budget_min = attrs.get('budget_min', getattr(self.instance, 'budget_min', None))
         budget_max = attrs.get('budget_max', getattr(self.instance, 'budget_max', None))
         if budget_min is not None and budget_max is not None and budget_max < budget_min:

@@ -111,6 +111,36 @@ class GigCreationTests(GigTestBase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
+class CurrencyLockTests(GigTestBase):
+    def test_create_without_currency_defaults_to_kes(self):
+        self.client.force_authenticate(user=self.client_user)
+        response = self.client.post('/api/gigs/', self.valid_payload(), format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Gig.objects.get().currency, 'KES')
+
+    def test_create_with_non_kes_currency_rejected(self):
+        self.client.force_authenticate(user=self.client_user)
+        response = self.client.post(
+            '/api/gigs/', self.valid_payload(currency='USD'), format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('currency', response.data)
+        self.assertEqual(Gig.objects.count(), 0)
+
+    def test_budget_filter_excludes_non_kes_rows_even_when_numbers_overlap(self):
+        # Bypasses the serializer (which now rejects this) to model a pre-existing or imported
+        # non-KES row and prove the budget filter doesn't compare its raw numbers as if KES.
+        usd_gig = self.create_gig(title='USD gig', budget_min=10000, budget_max=20000, currency='USD')
+        kes_gig = self.create_gig(title='KES gig', budget_min=10000, budget_max=20000)
+
+        response = self.client.get('/api/gigs/', {'budget_min': '15000', 'budget_max': '30000'})
+        titles = [g['title'] for g in response.data['results']]
+        self.assertIn('KES gig', titles)
+        self.assertNotIn('USD gig', titles)
+        self.assertTrue(Gig.objects.filter(pk=usd_gig.pk).exists())  # the row itself is untouched
+        self.assertTrue(Gig.objects.filter(pk=kes_gig.pk).exists())
+
+
 class GigOwnershipTests(GigTestBase):
     def setUp(self):
         super().setUp()
