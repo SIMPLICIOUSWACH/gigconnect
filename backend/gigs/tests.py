@@ -1,6 +1,7 @@
 from datetime import date, timedelta
 from io import StringIO
 
+from django.contrib.postgres.search import SearchQuery
 from django.core.management import CommandError, call_command
 from django.test import TestCase, override_settings
 from rest_framework import status
@@ -541,3 +542,83 @@ class SeedGigsCommandTests(TestCase):
         self.run_command(delete=True)
         self.assertEqual(Gig.objects.filter(client__email__startswith='seed-client-').count(), 0)
         self.assertTrue(Gig.objects.filter(pk=real_gig.pk).exists())
+
+
+def _findable(term):
+    return Gig.objects.filter(search_vector=SearchQuery(term, search_type='websearch'))
+
+
+class RebuildSearchVectorsTests(TestCase):
+    """post_save/m2m_changed never fire for bulk_create, so search_vector is left null for
+    anything created that way until this command backfills it."""
+
+    def setUp(self):
+        self.category = Category.objects.create(name='Rebuild Test Category')
+        self.skill = Skill.objects.create(name='Beekeeping', category='Agriculture')
+        self.client_user = User.objects.create_user(
+            email='bulk-client@example.com', password='StrongPass123!',
+            full_name='Bulk Client', phone='254700000055', role='client',
+        )
+
+    def _bulk_create_gig(self, **overrides):
+        fields = {
+            'client': self.client_user,
+            'category': self.category,
+            'title': 'Honey harvest consulting',
+            'description': 'Need advice on scaling a smallholder apiary.',
+            'budget_min': 5000,
+            'budget_max': 9000,
+            'deadline': date.today() + timedelta(days=30),
+        }
+        fields.update(overrides)
+        gig = Gig.objects.bulk_create([Gig(**fields)])[0]
+        return gig
+
+    def test_bulk_created_gig_has_no_search_vector_until_rebuilt(self):
+        self._bulk_create_gig()
+        self.assertIsNone(Gig.objects.get().search_vector)
+
+    def test_rebuild_makes_bulk_created_gig_findable_by_title_skill_and_description(self):
+        gig = self._bulk_create_gig()
+        gig.skills.set([self.skill])  # m2m_changed fires here and already rebuilds it...
+        Gig.objects.filter(pk=gig.pk).update(search_vector=None)  # ...so force it back to null.
+
+        call_command('rebuild_search_vectors')
+
+        self.assertTrue(_findable('Honey harvest').filter(pk=gig.pk).exists())
+        self.assertTrue(_findable('Beekeeping').filter(pk=gig.pk).exists())
+        self.assertTrue(_findable('smallholder apiary').filter(pk=gig.pk).exists())
+
+    def test_gig_id_option_rebuilds_only_that_gig(self):
+        gig = self._bulk_create_gig()
+        other = self._bulk_create_gig(title='A second gig')
+
+        call_command('rebuild_search_vectors', gig_id=str(gig.pk))
+
+        gig.refresh_from_db()
+        other.refresh_from_db()
+        self.assertIsNotNone(gig.search_vector)
+        self.assertIsNone(other.search_vector)
+
+    def test_unknown_gig_id_raises_command_error(self):
+        with self.assertRaises(CommandError):
+            call_command('rebuild_search_vectors', gig_id='00000000-0000-0000-0000-000000000000')
+
+    def test_skill_rename_is_reflected_after_rebuild(self):
+        gig = self._bulk_create_gig()
+        gig.skills.set([self.skill])
+
+        self.skill.name = 'Apiculture'
+        self.skill.save()  # renaming the Skill does not touch Gig, so its vector is now stale.
+
+        self.assertFalse(_findable('Apiculture').filter(pk=gig.pk).exists())
+
+        call_command('rebuild_search_vectors')
+
+        self.assertTrue(_findable('Apiculture').filter(pk=gig.pk).exists())
+
+    def test_rebuild_is_idempotent(self):
+        self._bulk_create_gig()
+        call_command('rebuild_search_vectors')
+        call_command('rebuild_search_vectors')  # must not error or duplicate anything
+        self.assertEqual(Gig.objects.count(), 1)
