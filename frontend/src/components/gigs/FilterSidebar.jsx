@@ -127,6 +127,16 @@ export default function FilterSidebar({ categories, skills, filters, onChange, o
         />
         <span className="text-body text-ink">Negotiable budget only</span>
       </label>
+
+      <label className="flex items-center gap-2.5 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={filters.includeClosed}
+          onChange={(e) => onChange({ includeClosed: e.target.checked })}
+          className="w-4 h-4 rounded border-border text-primary focus:ring-2 focus:ring-primary/30"
+        />
+        <span className="text-body text-ink">Show closed gigs</span>
+      </label>
     </div>
   )
 }

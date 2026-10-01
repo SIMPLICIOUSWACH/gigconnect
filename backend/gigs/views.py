@@ -40,21 +40,25 @@ class GigListCreateView(generics.ListCreateAPIView):
             return GigCreateSerializer
         return GigListSerializer
 
-    def get_queryset(self):
+    def get_queryset(self, include_closed=False):
         # Public feed: open gigs only, and never anything past its application deadline —
         # those are still reachable directly by ID (see GigDetailView) but shouldn't show up
-        # here. select_related/prefetch_related avoid N+1s across client/category/skills.
-        return (
-            Gig.objects.filter(status=Gig.Status.OPEN, application_deadline__gte=date.today())
-            .select_related('client', 'client__client_profile', 'category')
+        # here by default. ?include_closed=true (see list()) lifts that restriction entirely.
+        # select_related/prefetch_related avoid N+1s across client/category/skills either way.
+        queryset = (
+            Gig.objects.select_related('client', 'client__client_profile', 'category')
             .prefetch_related('skills')
         )
+        if not include_closed:
+            queryset = queryset.filter(status=Gig.Status.OPEN, application_deadline__gte=date.today())
+        return queryset
 
     def list(self, request, *args, **kwargs):
         filters = GigFilterSerializer(data=request.query_params)
         filters.is_valid(raise_exception=True)
 
-        queryset = apply_gig_filters(self.get_queryset(), filters.validated_data)
+        include_closed = bool(filters.validated_data.get('include_closed'))
+        queryset = apply_gig_filters(self.get_queryset(include_closed=include_closed), filters.validated_data)
 
         page = self.paginate_queryset(queryset)
         serializer = self.get_serializer(page, many=True)
