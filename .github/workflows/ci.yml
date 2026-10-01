@@ -1,8 +1,10 @@
 name: CI
 
 on:
+  # No branch filter: stacked feature-branch PRs (e.g. this hardening pass, based on
+  # feat/sprint-3-browse-search rather than develop) must run CI too, not just PRs into
+  # develop/main.
   pull_request:
-    branches: [develop, main]
   push:
     branches: [develop, main]
 
