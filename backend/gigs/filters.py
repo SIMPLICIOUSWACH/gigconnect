@@ -8,7 +8,7 @@ from rest_framework import serializers
 
 from profiles.models import Skill
 
-from .models import Category
+from .models import Category, Gig
 
 SORT_CHOICES = ['newest', 'deadline', 'budget_high', 'budget_low', 'relevance']
 
@@ -24,6 +24,7 @@ class GigFilterSerializer(serializers.Serializer):
     # allow_null + an explicit default=None overrides that so "not provided" really means
     # "don't filter on this" rather than "filter for non-negotiable gigs only".
     negotiable = serializers.BooleanField(required=False, allow_null=True, default=None)
+    include_closed = serializers.BooleanField(required=False, allow_null=True, default=None)
     deadline_before = serializers.DateField(required=False)
     posted_within = serializers.IntegerField(required=False)
     sort = serializers.ChoiceField(choices=SORT_CHOICES, required=False, default='newest')
@@ -100,10 +101,14 @@ def apply_gig_filters(queryset, data):
         queryset = queryset.filter(skills__id__in=skill_ids).distinct()
 
     budget_min = data.get('budget_min')
+    budget_max = data.get('budget_max')
+    if budget_min is not None or budget_max is not None:
+        # budget_min/budget_max are always given in KES, so a budget comparison can only be
+        # meaningful against KES rows — excluding anything else here (there shouldn't be any
+        # going forward; see GigValidationMixin) rather than comparing numbers across currencies.
+        queryset = queryset.filter(currency=Gig.CURRENCY_KES)
     if budget_min is not None:
         queryset = queryset.filter(budget_max__gte=budget_min)
-
-    budget_max = data.get('budget_max')
     if budget_max is not None:
         queryset = queryset.filter(budget_min__lte=budget_max)
 
