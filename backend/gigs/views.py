@@ -2,8 +2,8 @@ from datetime import date
 
 from django.db.models import F
 from rest_framework import generics, permissions
-from rest_framework.response import Response
 from rest_framework import status as http_status
+from rest_framework.response import Response
 
 from accounts.permissions import IsClientRole, IsEmailVerified
 
