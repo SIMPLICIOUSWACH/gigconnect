@@ -9,6 +9,27 @@ class SkillSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'category']
 
 
+class SkillCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Skill
+        fields = ['id', 'name', 'category']
+        extra_kwargs = {'category': {'required': False, 'allow_blank': True}}
+
+    def validate_name(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError('Skill name cannot be blank.')
+        return value
+
+    def create(self, validated_data):
+        name = validated_data['name']
+        category = (validated_data.get('category') or 'Other').strip() or 'Other'
+        existing = Skill.objects.filter(name__iexact=name).first()
+        if existing:
+            return existing
+        return Skill.objects.create(name=name, category=category)
+
+
 class PortfolioItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = PortfolioItem

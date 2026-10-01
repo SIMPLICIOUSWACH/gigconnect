@@ -14,15 +14,30 @@ from .serializers import (
     FreelancerProfileCompleteSerializer,
     PortfolioItemSerializer,
     PublicProfileSerializer,
+    SkillCreateSerializer,
     SkillSerializer,
     SubmitVerificationSerializer,
 )
 
 
-class SkillListView(generics.ListAPIView):
+class SkillListView(generics.ListCreateAPIView):
     queryset = Skill.objects.all()
-    serializer_class = SkillSerializer
-    permission_classes = [permissions.AllowAny]
+
+    def get_permissions(self):
+        if self.request.method == 'POST':
+            return [permissions.IsAuthenticated()]
+        return [permissions.AllowAny()]
+
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return SkillCreateSerializer
+        return SkillSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        skill = serializer.save()
+        return Response(SkillSerializer(skill).data, status=status.HTTP_201_CREATED)
 
 
 class ProfileCompleteView(APIView):
