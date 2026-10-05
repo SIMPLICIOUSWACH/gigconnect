@@ -27,7 +27,7 @@ export default function FilterSidebar({ categories, counties = [], skills, filte
 
       <div>
         <Label>Category</Label>
-        <div className="space-y-1.5">
+        <div className="space-y-1.5" role="radiogroup" aria-label="Category">
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="radio"
@@ -100,15 +100,17 @@ export default function FilterSidebar({ categories, counties = [], skills, filte
             type="number"
             min="0"
             placeholder="Min"
+            aria-label="Minimum budget in KES"
             value={filters.budget_min}
             onChange={(e) => onChange({ budget_min: e.target.value })}
             className={fieldClass}
           />
-          <span className="text-muted">–</span>
+          <span className="text-muted" aria-hidden="true">–</span>
           <input
             type="number"
             min="0"
             placeholder="Max"
+            aria-label="Maximum budget in KES"
             value={filters.budget_max}
             onChange={(e) => onChange({ budget_max: e.target.value })}
             className={fieldClass}
@@ -118,7 +120,7 @@ export default function FilterSidebar({ categories, counties = [], skills, filte
 
       <div>
         <Label>Posted within</Label>
-        <div className="space-y-1.5">
+        <div className="space-y-1.5" role="radiogroup" aria-label="Posted within">
           {POSTED_WITHIN_OPTIONS.map((opt) => (
             <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
               <input
@@ -138,6 +140,7 @@ export default function FilterSidebar({ categories, counties = [], skills, filte
         <Label>Deadline before</Label>
         <input
           type="date"
+          aria-label="Deadline before"
           value={filters.deadline_before}
           onChange={(e) => onChange({ deadline_before: e.target.value })}
           className={fieldClass}
