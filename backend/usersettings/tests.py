@@ -2,6 +2,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from accounts.models import User
+from gigs.models import Category, Gig, GigInteraction
 from profiles.models import Skill
 
 from .models import NotificationPreference, UserSession
@@ -202,3 +203,58 @@ class RoleScopedSettingsTests(APITestCase):
         self.client.force_authenticate(user=self.client_user)
         response = self.client.post('/api/profile/submit-verification/', {'id_number': '123'}, format='multipart')
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class InteractionPrivacyTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email='browser@example.com', password='StrongPass123!',
+            full_name='Browser', phone='254700000033', role='freelancer',
+        )
+        self.other = User.objects.create_user(
+            email='other-browser@example.com', password='StrongPass123!',
+            full_name='Other', phone='254700000034', role='freelancer',
+        )
+        owner = User.objects.create_user(
+            email='gig-owner@example.com', password='StrongPass123!',
+            full_name='Owner', phone='254700000035', role='client',
+        )
+        from datetime import date, timedelta
+
+        self.gig = Gig.objects.create(
+            client=owner, category=Category.objects.create(name='Privacy Category'), title='Logo for a cafe',
+            description='Privacy test.', budget_min=1000, budget_max=2000,
+            deadline=date.today() + timedelta(days=30),
+        )
+        GigInteraction.objects.create(gig=self.gig, user=self.user, type='view')
+        GigInteraction.objects.create(
+            gig=self.gig, user=self.user, type='search_click', query='logo', position=2
+        )
+        GigInteraction.objects.create(gig=self.gig, user=self.other, type='view')
+        self.client.force_authenticate(user=self.user)
+
+    def test_export_includes_only_the_users_own_interactions(self):
+        response = self.client.get('/api/settings/export-data/')
+        exported = response.data['gig_interactions']
+        self.assertEqual(len(exported), 2)
+        self.assertEqual({i['type'] for i in exported}, {'view', 'search_click'})
+        click = next(i for i in exported if i['type'] == 'search_click')
+        self.assertEqual((click['query'], click['position'], click['gig_title']), ('logo', 2, 'Logo for a cafe'))
+
+    def test_export_with_no_interactions_is_an_empty_list(self):
+        self.client.force_authenticate(user=self.other)
+        GigInteraction.objects.filter(user=self.other).delete()
+        self.assertEqual(self.client.get('/api/settings/export-data/').data['gig_interactions'], [])
+
+    def test_deleting_the_account_deletes_that_users_interactions(self):
+        response = self.client.post('/api/settings/delete-account/', {'password': 'StrongPass123!'})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(GigInteraction.objects.filter(user=self.user).exists())
+
+    def test_deleting_one_account_leaves_other_users_interactions(self):
+        self.client.post('/api/settings/delete-account/', {'password': 'StrongPass123!'})
+        self.assertEqual(GigInteraction.objects.filter(user=self.other).count(), 1)
+
+    def test_a_wrong_password_deletes_nothing(self):
+        self.client.post('/api/settings/delete-account/', {'password': 'wrong'})
+        self.assertEqual(GigInteraction.objects.filter(user=self.user).count(), 2)

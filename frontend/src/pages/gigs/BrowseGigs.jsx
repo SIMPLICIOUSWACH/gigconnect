@@ -5,6 +5,7 @@ import { fetchSkills } from '../../api/auth'
 import { fetchCategories, fetchGigsPaged } from '../../api/gigs'
 import { useAuth } from '../../context/AuthContext'
 import { RECOMMENDATIONS_ENABLED } from '../../constants'
+import useCounties from '../../hooks/useCounties'
 import useDebouncedValue from '../../hooks/useDebouncedValue'
 import Alert from '../../components/Alert'
 import Button from '../../components/Button'
@@ -35,6 +36,8 @@ function paramsToFilters(searchParams) {
     budget_max: searchParams.get('budget_max') || '',
     negotiable: searchParams.get('negotiable') === 'true',
     includeClosed: searchParams.get('include_closed') === 'true',
+    county: searchParams.get('county') || '',
+    remote: searchParams.get('remote') === 'true',
     deadline_before: searchParams.get('deadline_before') || '',
     posted_within: searchParams.get('posted_within') || '',
     sort: searchParams.get('sort') || 'newest',
@@ -78,6 +81,12 @@ function buildChips(filters, categories, skills, onChange) {
   if (filters.negotiable) {
     chips.push({ key: 'negotiable', label: 'Negotiable only', onRemove: () => onChange({ negotiable: false }) })
   }
+  if (filters.county) {
+    chips.push({ key: 'county', label: filters.county, onRemove: () => onChange({ county: '' }) })
+  }
+  if (filters.remote) {
+    chips.push({ key: 'remote', label: 'Remote only', onRemove: () => onChange({ remote: false }) })
+  }
   if (filters.includeClosed) {
     chips.push({
       key: 'include_closed',
@@ -112,6 +121,7 @@ export default function BrowseGigs() {
   const debouncedSearch = useDebouncedValue(searchInput, 400)
 
   const [categories, setCategories] = useState([])
+  const counties = useCounties()
   const [skills, setSkills] = useState([])
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -195,6 +205,8 @@ export default function BrowseGigs() {
     if (filters.budget_max) params.budget_max = filters.budget_max
     if (filters.negotiable) params.negotiable = 'true'
     if (filters.includeClosed) params.include_closed = 'true'
+    if (filters.county) params.county = filters.county
+    if (filters.remote) params.remote = 'true'
     if (filters.deadline_before) params.deadline_before = filters.deadline_before
     if (filters.posted_within) params.posted_within = filters.posted_within
     if (filters.sort) params.sort = filters.sort
@@ -223,6 +235,8 @@ export default function BrowseGigs() {
     filters.budget_max,
     filters.negotiable,
     filters.includeClosed,
+    filters.county,
+    filters.remote,
     filters.deadline_before,
     filters.posted_within,
     filters.sort,
@@ -275,6 +289,7 @@ export default function BrowseGigs() {
         <aside className="hidden md:block w-[280px] shrink-0">
           <FilterSidebar
             categories={categories}
+            counties={counties}
             skills={skills}
             filters={filters}
             onChange={handleFilterChange}
@@ -350,8 +365,13 @@ export default function BrowseGigs() {
                 fetching ? 'opacity-50 pointer-events-none' : ''
               }`}
             >
-              {result.results.map((gig) => (
-                <GigCard key={gig.id} gig={gig} />
+              {result.results.map((gig, index) => (
+                <GigCard
+                  key={gig.id}
+                  gig={gig}
+                  query={filters.q}
+                  position={(result.page - 1) * result.page_size + index + 1}
+                />
               ))}
             </div>
           )}
@@ -396,6 +416,7 @@ export default function BrowseGigs() {
             </div>
             <FilterSidebar
               categories={categories}
+            counties={counties}
               skills={skills}
               filters={filters}
               onChange={handleFilterChange}

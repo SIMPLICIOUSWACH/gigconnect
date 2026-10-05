@@ -1,16 +1,20 @@
 from datetime import date, timedelta
 from io import StringIO
+from unittest import mock
 
 from django.contrib.postgres.search import SearchQuery
+from django.core.cache import cache
 from django.core.management import CommandError, call_command
 from django.test import TestCase, override_settings
+from django.utils import timezone
 from rest_framework import status
-from rest_framework.test import APITestCase
+from rest_framework.test import APIClient, APITestCase
+from rest_framework.throttling import ScopedRateThrottle
 
 from accounts.models import User
 from profiles.models import Skill
 
-from .models import Category, Gig
+from .models import Category, Gig, GigInteraction
 
 
 class GigTestBase(APITestCase):
@@ -274,6 +278,8 @@ class GigSerializationTests(GigTestBase):
         self.client.get(f'/api/gigs/{self.gig.id}/')
         self.gig.refresh_from_db()
         self.assertEqual(self.gig.view_count, 1)
+        # A second, different visitor counts; the same visitor again would not (see ViewCountDedupeTests).
+        self.client.force_authenticate(user=self.freelancer)
         self.client.get(f'/api/gigs/{self.gig.id}/')
         self.gig.refresh_from_db()
         self.assertEqual(self.gig.view_count, 2)
@@ -527,6 +533,349 @@ class GigFilterSearchTests(GigTestBase):
             self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
+class ViewCountDedupeTests(GigTestBase):
+    def setUp(self):
+        super().setUp()
+        self.gig = self.create_gig()
+        self.url = f'/api/gigs/{self.gig.id}/'
+
+    def views(self):
+        self.gig.refresh_from_db()
+        return self.gig.view_count
+
+    def test_same_user_counts_once_within_24_hours(self):
+        self.client.force_authenticate(user=self.freelancer)
+        for _ in range(3):
+            self.client.get(self.url)
+        self.assertEqual(self.views(), 1)
+
+    def test_same_user_counts_again_after_24_hours(self):
+        self.client.force_authenticate(user=self.freelancer)
+        self.client.get(self.url)
+        GigInteraction.objects.update(created_at=timezone.now() - timedelta(hours=25))
+        self.client.get(self.url)
+        self.assertEqual(self.views(), 2)
+
+    def test_different_users_each_count(self):
+        for user in (self.freelancer, self.other_client):
+            self.client.force_authenticate(user=user)
+            self.client.get(self.url)
+        self.assertEqual(self.views(), 2)
+
+    def test_owner_viewing_their_own_gig_never_counts(self):
+        self.client.force_authenticate(user=self.client_user)
+        for _ in range(3):
+            self.client.get(self.url)
+        self.assertEqual(self.views(), 0)
+        self.assertEqual(GigInteraction.objects.count(), 0)
+
+    def test_anonymous_visitor_is_deduped_by_session(self):
+        self.client.get(self.url)
+        self.client.get(self.url)  # same client keeps its session cookie
+        self.assertEqual(self.views(), 1)
+
+    def test_different_anonymous_sessions_each_count(self):
+        APIClient().get(self.url)
+        APIClient().get(self.url)
+        self.assertEqual(self.views(), 2)
+
+    def test_counted_view_is_logged_as_an_interaction(self):
+        self.client.force_authenticate(user=self.freelancer)
+        self.client.get(self.url)
+        self.client.get(self.url)
+        interaction = GigInteraction.objects.get()
+        self.assertEqual(interaction.type, GigInteraction.Type.VIEW)
+        self.assertEqual(interaction.user, self.freelancer)
+        self.assertEqual(interaction.gig, self.gig)
+
+    def test_anonymous_view_is_logged_with_a_session_key(self):
+        self.client.get(self.url)
+        interaction = GigInteraction.objects.get()
+        self.assertIsNone(interaction.user)
+        self.assertTrue(interaction.session_key)
+
+    def test_response_reports_the_updated_count(self):
+        self.client.force_authenticate(user=self.freelancer)
+        first = self.client.get(self.url).data['view_count']
+        again = self.client.get(self.url).data['view_count']
+        self.assertEqual((first, again), (1, 1))
+
+
+class SyntheticFlagTests(GigTestBase):
+    def setUp(self):
+        super().setUp()
+        self.real_gig = self.create_gig(title='Real gig')
+        self.synthetic_gig = self.create_gig(title='Synthetic gig', is_synthetic=True)
+
+    def titles(self, **params):
+        return [g['title'] for g in self.client.get('/api/gigs/', params).data['results']]
+
+    def test_gigs_are_not_synthetic_by_default(self):
+        self.assertFalse(self.real_gig.is_synthetic)
+
+    @override_settings(SHOW_SYNTHETIC=True)
+    def test_feed_shows_synthetic_gigs_when_enabled(self):
+        self.assertEqual(set(self.titles()), {'Real gig', 'Synthetic gig'})
+
+    @override_settings(SHOW_SYNTHETIC=False)
+    def test_feed_hides_synthetic_gigs_when_disabled(self):
+        self.assertEqual(self.titles(), ['Real gig'])
+
+    @override_settings(SHOW_SYNTHETIC=False)
+    def test_hiding_applies_with_include_closed_and_search_too(self):
+        self.assertEqual(self.titles(include_closed='true'), ['Real gig'])
+        self.assertEqual(self.titles(q='gig'), ['Real gig'])
+
+    @override_settings(SHOW_SYNTHETIC=False)
+    def test_a_hidden_synthetic_gig_is_still_reachable_by_id(self):
+        response = self.client.get(f'/api/gigs/{self.synthetic_gig.id}/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @override_settings(SHOW_SYNTHETIC=False)
+    def test_clients_still_see_their_own_synthetic_gigs_in_my_gigs(self):
+        self.client.force_authenticate(user=self.client_user)
+        titles = [g['title'] for g in self.client.get('/api/gigs/mine/').data]  # not paginated
+        self.assertIn('Synthetic gig', titles)
+
+
+class GigInteractionEndpointTests(GigTestBase):
+    def setUp(self):
+        super().setUp()
+        cache.clear()  # throttle counters live in the cache
+        self.gig = self.create_gig()
+        self.url = f'/api/gigs/{self.gig.id}/interactions/'
+
+    def post(self, **body):
+        return self.client.post(self.url, {'type': 'search_click', **body}, format='json')
+
+    def test_logs_a_search_click_with_query_and_position(self):
+        self.client.force_authenticate(user=self.freelancer)
+        response = self.post(query='logo design', position=4)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        interaction = GigInteraction.objects.get()
+        self.assertEqual(interaction.type, 'search_click')
+        self.assertEqual((interaction.query, interaction.position), ('logo design', 4))
+        self.assertEqual(interaction.user, self.freelancer)
+
+    def test_query_and_position_are_optional(self):
+        self.client.force_authenticate(user=self.freelancer)
+        self.assertEqual(self.post().status_code, status.HTTP_201_CREATED)
+        interaction = GigInteraction.objects.get()
+        self.assertIsNone(interaction.query)
+        self.assertIsNone(interaction.position)
+
+    def test_anonymous_visitor_is_logged_by_session(self):
+        self.assertEqual(self.post(position=1).status_code, status.HTTP_201_CREATED)
+        interaction = GigInteraction.objects.get()
+        self.assertIsNone(interaction.user)
+        self.assertTrue(interaction.session_key)
+
+    def test_every_click_is_logged_not_deduped(self):
+        self.client.force_authenticate(user=self.freelancer)
+        self.post()
+        self.post()
+        self.assertEqual(GigInteraction.objects.count(), 2)
+
+    def test_clients_cannot_post_view_save_or_apply(self):
+        for kind in ('view', 'save', 'apply'):
+            response = self.client.post(self.url, {'type': kind}, format='json')
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, kind)
+        self.assertEqual(GigInteraction.objects.count(), 0)
+
+    def test_rejects_bad_position_and_overlong_query(self):
+        self.assertEqual(self.post(position=0).status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(self.post(query='x' * 201).status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_unknown_gig_is_a_404(self):
+        response = self.client.post(
+            '/api/gigs/00000000-0000-0000-0000-000000000000/interactions/',
+            {'type': 'search_click'}, format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_endpoint_is_rate_limited(self):
+        with mock.patch.object(ScopedRateThrottle, 'THROTTLE_RATES', {'gig_interaction': '2/hour'}):
+            codes = [self.post().status_code for _ in range(3)]
+        self.assertEqual(codes, [201, 201, 429])
+
+
+class GigInteractionModelTests(GigTestBase):
+    def test_anonymous_interaction_needs_no_user(self):
+        gig = self.create_gig()
+        interaction = GigInteraction.objects.create(
+            gig=gig, session_key='abc123', type=GigInteraction.Type.VIEW
+        )
+        self.assertIsNone(interaction.user)
+        self.assertFalse(interaction.is_synthetic)
+        self.assertIsNone(interaction.query)
+        self.assertIsNone(interaction.position)
+
+    def test_search_click_can_carry_the_query_and_rank(self):
+        gig = self.create_gig()
+        interaction = GigInteraction.objects.create(
+            gig=gig, user=self.freelancer, type=GigInteraction.Type.SEARCH_CLICK, query='logo', position=3
+        )
+        interaction.refresh_from_db()
+        self.assertEqual((interaction.query, interaction.position), ('logo', 3))
+
+    def test_type_choices_are_the_four_agreed_values(self):
+        self.assertEqual(
+            set(GigInteraction.Type.values), {'view', 'search_click', 'save', 'apply'}
+        )
+
+    def test_indexes_for_the_collaborative_filter_exist(self):
+        names = {index.name for index in GigInteraction._meta.indexes}
+        self.assertEqual(names, {'interaction_user_gig_idx', 'interaction_type_created_idx'})
+
+    def test_deleting_a_gig_deletes_its_interactions(self):
+        gig = self.create_gig()
+        GigInteraction.objects.create(gig=gig, user=self.freelancer, type=GigInteraction.Type.VIEW)
+        gig.delete()
+        self.assertEqual(GigInteraction.objects.count(), 0)
+
+
+class TypoToleranceTests(GigTestBase):
+    def setUp(self):
+        super().setUp()
+        self.python_gig = self.create_gig(
+            title='Python developer for a REST API', description='Backend work in Django.'
+        )
+
+    def titles(self, **params):
+        response = self.client.get('/api/gigs/', params)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return [g['title'] for g in response.data['results']]
+
+    def test_typo_finds_gig_that_full_text_search_misses(self):
+        self.assertIn('Python developer for a REST API', self.titles(q='pyhton'))
+
+    def test_exact_matches_rank_above_fuzzy_matches(self):
+        self.create_gig(title='Pyhton data cleaning', description='Tidy a spreadsheet.')
+        titles = self.titles(q='python', sort='relevance')
+        self.assertEqual(titles[0], 'Python developer for a REST API')
+        self.assertIn('Pyhton data cleaning', titles)
+
+    def test_unrelated_gigs_are_not_pulled_in(self):
+        self.create_gig(title='Wedding photography', description='Capture the day.')
+        self.assertNotIn('Wedding photography', self.titles(q='pyhton'))
+
+    @override_settings(SEARCH_FALLBACK_MIN_RESULTS=1)
+    def test_no_fuzzy_results_when_enough_exact_matches(self):
+        self.create_gig(title='Pyhton data cleaning', description='Tidy a spreadsheet.')
+        self.assertEqual(self.titles(q='python'), ['Python developer for a REST API'])
+
+    @override_settings(SEARCH_TRIGRAM_THRESHOLD=0.9)
+    def test_threshold_setting_is_respected(self):
+        self.assertNotIn('Python developer for a REST API', self.titles(q='pyhton'))
+
+
+class SkillsModeTests(GigTestBase):
+    def setUp(self):
+        super().setUp()
+        self.react = Skill.objects.get(name='React')  # seeded by profiles migration 0005
+        self.python = Skill.objects.get(name='Python')
+        self.both = self.create_gig(title='Needs both')
+        self.both.skills.set([self.react, self.python])
+        self.react_only = self.create_gig(title='React only')
+        self.react_only.skills.set([self.react])
+        self.python_only = self.create_gig(title='Python only')
+        self.python_only.skills.set([self.python])
+
+    def titles(self, **params):
+        response = self.client.get('/api/gigs/', params)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return [g['title'] for g in response.data['results']]
+
+    def test_default_mode_is_any(self):
+        titles = self.titles(skills='React,Python')
+        self.assertEqual(set(titles), {'Needs both', 'React only', 'Python only'})
+        self.assertEqual(len(titles), 3)  # a gig with two matching skills is still listed once
+
+    def test_all_mode_requires_every_skill(self):
+        self.assertEqual(self.titles(skills='React,Python', skills_mode='all'), ['Needs both'])
+
+    def test_all_mode_with_a_single_skill_matches_like_any(self):
+        self.assertEqual(set(self.titles(skills='React', skills_mode='all')), {'Needs both', 'React only'})
+
+    def test_all_mode_with_an_unknown_skill_returns_nothing(self):
+        self.assertEqual(self.titles(skills='React,Cobol', skills_mode='all'), [])
+
+    def test_any_mode_ignores_an_unknown_skill(self):
+        self.assertEqual(set(self.titles(skills='React,Cobol')), {'Needs both', 'React only'})
+
+    def test_relevance_ranks_by_number_of_matched_skills(self):
+        titles = self.titles(skills='React,Python', sort='relevance')
+        self.assertEqual(titles[0], 'Needs both')
+        self.assertEqual(set(titles[1:]), {'React only', 'Python only'})
+
+    def test_relevance_with_skills_but_no_q_does_not_fall_back_to_newest(self):
+        # newest-first would put 'Python only' first; matched-skill ranking puts 'Needs both' first.
+        self.assertEqual(self.titles(skills='React,Python', sort='relevance')[0], 'Needs both')
+
+    def test_skill_filter_resolves_aliases_and_spacing(self):
+        js = Skill.objects.get(name='JavaScript')
+        gig = self.create_gig(title='Needs JavaScript')
+        gig.skills.set([js])
+        for token in ['JS', 'js', 'javascript', '  JavaScript ']:
+            self.assertEqual(self.titles(skills=token), ['Needs JavaScript'], token)
+
+    def test_invalid_skills_mode_is_a_400(self):
+        response = self.client.get('/api/gigs/', {'skills': 'React', 'skills_mode': 'some'})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('skills_mode', response.data)
+
+
+class LocationTests(GigTestBase):
+    def setUp(self):
+        super().setUp()
+        self.nairobi_gig = self.create_gig(title='Nairobi gig', county='Nairobi')
+        self.remote_gig = self.create_gig(title='Remote gig', is_remote=True)
+        self.unplaced_gig = self.create_gig(title='Unplaced gig')
+
+    def titles(self, **params):
+        response = self.client.get('/api/gigs/', params)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return [g['title'] for g in response.data['results']]
+
+    def test_filter_by_county(self):
+        self.assertEqual(self.titles(county='Nairobi'), ['Nairobi gig'])
+
+    def test_unknown_county_is_a_400(self):
+        response = self.client.get('/api/gigs/', {'county': 'Atlantis'})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('county', response.data)
+
+    def test_remote_true_only_returns_remote_gigs(self):
+        self.assertEqual(self.titles(remote='true'), ['Remote gig'])
+
+    def test_remote_false_excludes_remote_gigs(self):
+        self.assertEqual(set(self.titles(remote='false')), {'Nairobi gig', 'Unplaced gig'})
+
+    def test_county_and_remote_combine_with_and(self):
+        self.assertEqual(self.titles(county='Nairobi', remote='true'), [])
+
+    def test_create_gig_with_county_and_remote(self):
+        self.client.force_authenticate(user=self.client_user)
+        response = self.client.post(
+            '/api/gigs/', self.valid_payload(county='Mombasa', is_remote=True), format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['county'], 'Mombasa')
+        self.assertTrue(response.data['is_remote'])
+
+    def test_create_gig_rejects_unknown_county(self):
+        self.client.force_authenticate(user=self.client_user)
+        response = self.client.post('/api/gigs/', self.valid_payload(county='Atlantis'), format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('county', response.data)
+
+    def test_listing_includes_location_fields(self):
+        response = self.client.get('/api/gigs/', {'county': 'Nairobi'})
+        gig = response.data['results'][0]
+        self.assertEqual(gig['county'], 'Nairobi')
+        self.assertFalse(gig['is_remote'])
+
+
 class IncludeClosedFilterTests(GigTestBase):
     def setUp(self):
         super().setUp()
@@ -599,6 +948,11 @@ class SeedGigsCommandTests(TestCase):
             self.assertTrue(gig.client.email.startswith('seed-client-'))
             self.assertEqual(gig.status, Gig.Status.OPEN)
             self.assertGreaterEqual(gig.skills.count(), 1)
+
+    def test_seeded_gigs_are_flagged_synthetic(self):
+        self.run_command(count=3)
+        self.assertEqual(Gig.objects.filter(is_synthetic=True).count(), 3)
+        self.assertFalse(Gig.objects.filter(is_synthetic=False).exists())
 
     def test_delete_removes_only_seeded_gigs(self):
         real_client = User.objects.create_user(

@@ -6,6 +6,7 @@ from django.contrib.postgres.search import SearchVectorField
 from django.db import models
 from django.utils.text import slugify
 
+from profiles.counties import COUNTY_CHOICES
 from profiles.models import Skill
 
 
@@ -56,6 +57,9 @@ class Gig(models.Model):
     # functionally never null once persisted.
     application_deadline = models.DateField(null=True, blank=True)
     is_negotiable = models.BooleanField(default=True)
+    county = models.CharField(max_length=40, choices=COUNTY_CHOICES, null=True, blank=True)
+    is_remote = models.BooleanField(default=False)
+    is_synthetic = models.BooleanField(default=False)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.OPEN)
     skills = models.ManyToManyField(Skill, through='GigSkill', related_name='gigs')
     view_count = models.PositiveIntegerField(default=0)
@@ -106,3 +110,37 @@ class GigSkill(models.Model):
 
     def __str__(self):
         return f'{self.gig_id}:{self.skill_id}'
+
+
+class GigInteraction(models.Model):
+    """One thing a visitor did with a gig. This is the training data for the collaborative filter."""
+
+    class Type(models.TextChoices):
+        VIEW = 'view', 'View'
+        SEARCH_CLICK = 'search_click', 'Search click'
+        SAVE = 'save', 'Save'
+        APPLY = 'apply', 'Apply'  # written by the applications flow (Sprint 4)
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    # Null for anonymous visitors, who are identified by session_key instead.
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True, blank=True, related_name='gig_interactions'
+    )
+    session_key = models.CharField(max_length=40, blank=True)
+    gig = models.ForeignKey(Gig, on_delete=models.CASCADE, related_name='interactions')
+    type = models.CharField(max_length=20, choices=Type.choices)
+    # The search text and the result's rank when this came from a search; null otherwise.
+    query = models.TextField(null=True, blank=True)
+    position = models.PositiveIntegerField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_synthetic = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'gig'], name='interaction_user_gig_idx'),
+            models.Index(fields=['type', 'created_at'], name='interaction_type_created_idx'),
+        ]
+
+    def __str__(self):
+        return f'{self.type} {self.gig_id}'

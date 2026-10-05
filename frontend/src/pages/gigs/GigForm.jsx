@@ -10,6 +10,7 @@ import Label from '../../components/Label'
 import Select from '../../components/Select'
 import SkillPicker from '../../components/SkillPicker'
 import StepIndicator from '../../components/StepIndicator'
+import useCounties from '../../hooks/useCounties'
 
 const STEPS = ['Basic Info', 'Skills', 'Budget & Deadline']
 
@@ -23,6 +24,8 @@ const EMPTY_FORM = {
   deadline: '',
   application_deadline: '',
   is_negotiable: true,
+  county: '',
+  is_remote: false,
 }
 
 function todayISO() {
@@ -37,6 +40,7 @@ export default function GigForm() {
   const [step, setStep] = useState(1)
   const [categories, setCategories] = useState([])
   const [skills, setSkills] = useState([])
+  const counties = useCounties()
   const [form, setForm] = useState(EMPTY_FORM)
   const [errors, setErrors] = useState({})
   const [submitting, setSubmitting] = useState(false)
@@ -62,6 +66,8 @@ export default function GigForm() {
           deadline: gig.deadline,
           application_deadline: gig.application_deadline || '',
           is_negotiable: gig.is_negotiable,
+          county: gig.county || '',
+          is_remote: gig.is_remote,
         })
       })
       .catch(() => setLoadError('Could not load this gig for editing.'))
@@ -71,6 +77,8 @@ export default function GigForm() {
   const update = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }))
 
   const toggleNegotiable = (e) => setForm((f) => ({ ...f, is_negotiable: e.target.checked }))
+
+  const toggleRemote = (e) => setForm((f) => ({ ...f, is_remote: e.target.checked }))
 
   const toggleSkill = (skillId) =>
     setForm((f) => ({
@@ -136,6 +144,8 @@ export default function GigForm() {
       deadline: form.deadline,
       application_deadline: form.application_deadline || null,
       is_negotiable: form.is_negotiable,
+      county: form.county || null,
+      is_remote: form.is_remote,
     }
     try {
       const gig = isEdit ? await updateGig(id, payload) : await createGig(payload)
@@ -189,6 +199,21 @@ export default function GigForm() {
               onChange={update('category')}
               error={errors.category}
             />
+            <Select
+              label="County (optional)"
+              options={[{ value: '', label: 'Not specified' }, ...counties]}
+              value={form.county}
+              onChange={update('county')}
+            />
+            <label className="flex items-center gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.is_remote}
+                onChange={toggleRemote}
+                className="w-4 h-4 rounded border-border text-primary focus:ring-2 focus:ring-primary/30"
+              />
+              <span className="text-body text-ink">This gig can be done remotely</span>
+            </label>
           </div>
         )}
 

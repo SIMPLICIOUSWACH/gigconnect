@@ -50,7 +50,10 @@ export default function GigDetail() {
           <Link to={`/profile/${gig.client.id}`} className="text-primary font-medium">
             {gig.client.company_name || gig.client.full_name}
           </Link>{' '}
-          · {gig.category.name} · {gig.view_count} view{gig.view_count === 1 ? '' : 's'}
+          · {gig.category.name}
+          {(gig.county || gig.is_remote) &&
+            ` · ${[gig.county, gig.is_remote && 'Remote'].filter(Boolean).join(', ')}`}
+          {' '}· {gig.view_count} view{gig.view_count === 1 ? '' : 's'}
         </p>
 
         <p className="text-body text-ink whitespace-pre-wrap mb-6">{gig.description}</p>

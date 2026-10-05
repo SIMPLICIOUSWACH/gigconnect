@@ -5,7 +5,7 @@ from rest_framework import serializers
 from profiles.models import Skill
 from profiles.serializers import SkillSerializer
 
-from .models import Category, Gig
+from .models import Category, Gig, GigInteraction
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -25,7 +25,7 @@ class GigListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'title', 'client_id', 'client_name', 'category',
             'budget_min', 'budget_max', 'currency', 'deadline', 'application_deadline',
-            'is_negotiable', 'status', 'skills', 'created_at',
+            'is_negotiable', 'county', 'is_remote', 'status', 'skills', 'created_at',
         ]
 
 
@@ -50,7 +50,7 @@ class GigDetailSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'title', 'description', 'client', 'category',
             'budget_min', 'budget_max', 'currency', 'deadline', 'application_deadline',
-            'is_negotiable', 'status', 'skills', 'view_count', 'created_at', 'updated_at',
+            'is_negotiable', 'county', 'is_remote', 'status', 'skills', 'view_count', 'created_at', 'updated_at',
         ]
 
 
@@ -96,7 +96,7 @@ class GigCreateSerializer(GigValidationMixin, serializers.ModelSerializer):
         fields = [
             'id', 'title', 'description', 'category',
             'budget_min', 'budget_max', 'currency', 'deadline', 'application_deadline',
-            'is_negotiable', 'skills',
+            'is_negotiable', 'county', 'is_remote', 'skills',
         ]
         read_only_fields = ['id']
         extra_kwargs = {
@@ -119,7 +119,7 @@ class GigUpdateSerializer(GigValidationMixin, serializers.ModelSerializer):
         model = Gig
         fields = [
             'title', 'description', 'category', 'budget_min', 'budget_max', 'deadline',
-            'application_deadline', 'is_negotiable', 'skills',
+            'application_deadline', 'is_negotiable', 'county', 'is_remote', 'skills',
         ]
         extra_kwargs = {
             'application_deadline': {'required': False},
@@ -159,3 +159,13 @@ class GigStatusUpdateSerializer(serializers.ModelSerializer):
         if value not in ALLOWED_STATUS_TRANSITIONS.get(current, set()):
             raise serializers.ValidationError(f'Cannot change status from "{current}" to "{value}".')
         return value
+
+
+class GigInteractionCreateSerializer(serializers.Serializer):
+    """Body of POST /api/gigs/<id>/interactions/. Only search_click can be posted by the client:
+    views are logged by the server (so they can't be inflated) and save/apply have their own flows."""
+
+    type = serializers.ChoiceField(choices=[GigInteraction.Type.SEARCH_CLICK])
+    query = serializers.CharField(required=False, allow_null=True, allow_blank=True, max_length=200)
+    position = serializers.IntegerField(required=False, allow_null=True, min_value=1, max_value=10000)
+
