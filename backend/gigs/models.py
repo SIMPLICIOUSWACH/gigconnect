@@ -59,6 +59,7 @@ class Gig(models.Model):
     is_negotiable = models.BooleanField(default=True)
     county = models.CharField(max_length=40, choices=COUNTY_CHOICES, null=True, blank=True)
     is_remote = models.BooleanField(default=False)
+    is_synthetic = models.BooleanField(default=False)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.OPEN)
     skills = models.ManyToManyField(Skill, through='GigSkill', related_name='gigs')
     view_count = models.PositiveIntegerField(default=0)

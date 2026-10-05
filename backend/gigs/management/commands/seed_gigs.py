@@ -111,6 +111,7 @@ class Command(BaseCommand):
                 is_negotiable=random.random() < 0.7,
                 county=None if location == 'remote' else location,
                 is_remote=location == 'remote',
+                is_synthetic=True,
                 status=Gig.Status.OPEN,
             )
             gig.skills.set(skill_sample)

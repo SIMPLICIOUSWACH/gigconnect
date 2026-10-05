@@ -601,6 +601,43 @@ class ViewCountDedupeTests(GigTestBase):
         self.assertEqual((first, again), (1, 1))
 
 
+class SyntheticFlagTests(GigTestBase):
+    def setUp(self):
+        super().setUp()
+        self.real_gig = self.create_gig(title='Real gig')
+        self.synthetic_gig = self.create_gig(title='Synthetic gig', is_synthetic=True)
+
+    def titles(self, **params):
+        return [g['title'] for g in self.client.get('/api/gigs/', params).data['results']]
+
+    def test_gigs_are_not_synthetic_by_default(self):
+        self.assertFalse(self.real_gig.is_synthetic)
+
+    @override_settings(SHOW_SYNTHETIC=True)
+    def test_feed_shows_synthetic_gigs_when_enabled(self):
+        self.assertEqual(set(self.titles()), {'Real gig', 'Synthetic gig'})
+
+    @override_settings(SHOW_SYNTHETIC=False)
+    def test_feed_hides_synthetic_gigs_when_disabled(self):
+        self.assertEqual(self.titles(), ['Real gig'])
+
+    @override_settings(SHOW_SYNTHETIC=False)
+    def test_hiding_applies_with_include_closed_and_search_too(self):
+        self.assertEqual(self.titles(include_closed='true'), ['Real gig'])
+        self.assertEqual(self.titles(q='gig'), ['Real gig'])
+
+    @override_settings(SHOW_SYNTHETIC=False)
+    def test_a_hidden_synthetic_gig_is_still_reachable_by_id(self):
+        response = self.client.get(f'/api/gigs/{self.synthetic_gig.id}/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @override_settings(SHOW_SYNTHETIC=False)
+    def test_clients_still_see_their_own_synthetic_gigs_in_my_gigs(self):
+        self.client.force_authenticate(user=self.client_user)
+        titles = [g['title'] for g in self.client.get('/api/gigs/mine/').data]  # not paginated
+        self.assertIn('Synthetic gig', titles)
+
+
 class GigInteractionEndpointTests(GigTestBase):
     def setUp(self):
         super().setUp()
@@ -911,6 +948,11 @@ class SeedGigsCommandTests(TestCase):
             self.assertTrue(gig.client.email.startswith('seed-client-'))
             self.assertEqual(gig.status, Gig.Status.OPEN)
             self.assertGreaterEqual(gig.skills.count(), 1)
+
+    def test_seeded_gigs_are_flagged_synthetic(self):
+        self.run_command(count=3)
+        self.assertEqual(Gig.objects.filter(is_synthetic=True).count(), 3)
+        self.assertFalse(Gig.objects.filter(is_synthetic=False).exists())
 
     def test_delete_removes_only_seeded_gigs(self):
         real_client = User.objects.create_user(

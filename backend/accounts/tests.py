@@ -189,6 +189,17 @@ class SeedDataCommandTests(TestCase):
         self.assertEqual(User.objects.filter(email__startswith='seed-client-').count(), 3)
         self.assertEqual(User.objects.filter(email__startswith='seed-freelancer-').count(), 3)
 
+    def test_seeded_accounts_are_flagged_synthetic_and_real_ones_are_not(self):
+        real = User.objects.create_user(
+            email='real@example.com', password='StrongPass123!',
+            full_name='Real', phone='254700000088', role='client',
+        )
+        self.run_command(count=2)
+        seeded = User.objects.filter(email__startswith='seed-')
+        self.assertEqual(seeded.count(), 4)
+        self.assertFalse(seeded.filter(is_synthetic=False).exists())
+        self.assertFalse(real.is_synthetic)
+
     def test_seed_is_idempotent(self):
         self.run_command(count=3)
         self.run_command(count=3)

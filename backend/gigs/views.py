@@ -1,5 +1,6 @@
 from datetime import date
 
+from django.conf import settings
 from django.db.models import F
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions
@@ -56,6 +57,8 @@ class GigListCreateView(generics.ListCreateAPIView):
         )
         if not include_closed:
             queryset = queryset.filter(status=Gig.Status.OPEN, application_deadline__gte=date.today())
+        if not settings.SHOW_SYNTHETIC:
+            queryset = queryset.filter(is_synthetic=False)
         return queryset
 
     def list(self, request, *args, **kwargs):

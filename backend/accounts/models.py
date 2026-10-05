@@ -25,6 +25,9 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_staff = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
+    # Set by the seed and data-pipeline commands. The profile rows hang off the user, so this one
+    # flag covers them too.
+    is_synthetic = models.BooleanField(default=False)
 
     objects = UserManager()
 

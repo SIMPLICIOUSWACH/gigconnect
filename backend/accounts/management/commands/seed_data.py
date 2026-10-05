@@ -32,7 +32,7 @@ class Command(BaseCommand):
     help = (
         'Seed synthetic client and freelancer accounts (with profiles and, for freelancers, '
         'skills) for local development and demos. Idempotent — re-running skips accounts that '
-        'already exist. Does not seed a county, since no current model has that field.'
+        'already exist. Every account it creates is flagged is_synthetic. It does not seed a county.'
     )
 
     def add_arguments(self, parser):
@@ -82,6 +82,7 @@ class Command(BaseCommand):
                 role=User.Role.CLIENT,
                 is_email_verified=True,
                 is_profile_complete=True,
+                is_synthetic=True,
             )
             profile = user.client_profile
             profile.company_name = f'{random.choice(COMPANY_WORDS)} {random.choice(COMPANY_SUFFIXES)}'
@@ -105,6 +106,7 @@ class Command(BaseCommand):
                 role=User.Role.FREELANCER,
                 is_email_verified=True,
                 is_profile_complete=True,
+                is_synthetic=True,
             )
             profile = user.freelancer_profile
             profile.bio = random.choice(BIOS)

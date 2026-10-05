@@ -127,6 +127,10 @@ EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 DEFAULT_FROM_EMAIL = 'GigConnect <no-reply@gigconnect.local>'
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
 
+# Synthetic rows (from the seed and data-pipeline commands) are shown in the public feed in dev
+# only, unless SHOW_SYNTHETIC is set explicitly.
+SHOW_SYNTHETIC = os.environ.get('SHOW_SYNTHETIC', str(DEBUG)) == 'True'
+
 # Typo-tolerant search: when full-text search returns fewer than this many gigs, results are
 # merged with trigram word-similarity matches on title/description.
 SEARCH_FALLBACK_MIN_RESULTS = int(os.environ.get('SEARCH_FALLBACK_MIN_RESULTS', '5'))
