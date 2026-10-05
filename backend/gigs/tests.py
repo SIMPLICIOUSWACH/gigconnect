@@ -4,8 +4,9 @@ from io import StringIO
 from django.contrib.postgres.search import SearchQuery
 from django.core.management import CommandError, call_command
 from django.test import TestCase, override_settings
+from django.utils import timezone
 from rest_framework import status
-from rest_framework.test import APITestCase
+from rest_framework.test import APIClient, APITestCase
 
 from accounts.models import User
 from profiles.models import Skill
@@ -274,6 +275,8 @@ class GigSerializationTests(GigTestBase):
         self.client.get(f'/api/gigs/{self.gig.id}/')
         self.gig.refresh_from_db()
         self.assertEqual(self.gig.view_count, 1)
+        # A second, different visitor counts; the same visitor again would not (see ViewCountDedupeTests).
+        self.client.force_authenticate(user=self.freelancer)
         self.client.get(f'/api/gigs/{self.gig.id}/')
         self.gig.refresh_from_db()
         self.assertEqual(self.gig.view_count, 2)
@@ -525,6 +528,74 @@ class GigFilterSearchTests(GigTestBase):
         with self.assertNumQueries(3):
             response = self.client.get('/api/gigs/', {'page_size': 50})
             self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+class ViewCountDedupeTests(GigTestBase):
+    def setUp(self):
+        super().setUp()
+        self.gig = self.create_gig()
+        self.url = f'/api/gigs/{self.gig.id}/'
+
+    def views(self):
+        self.gig.refresh_from_db()
+        return self.gig.view_count
+
+    def test_same_user_counts_once_within_24_hours(self):
+        self.client.force_authenticate(user=self.freelancer)
+        for _ in range(3):
+            self.client.get(self.url)
+        self.assertEqual(self.views(), 1)
+
+    def test_same_user_counts_again_after_24_hours(self):
+        self.client.force_authenticate(user=self.freelancer)
+        self.client.get(self.url)
+        GigInteraction.objects.update(created_at=timezone.now() - timedelta(hours=25))
+        self.client.get(self.url)
+        self.assertEqual(self.views(), 2)
+
+    def test_different_users_each_count(self):
+        for user in (self.freelancer, self.other_client):
+            self.client.force_authenticate(user=user)
+            self.client.get(self.url)
+        self.assertEqual(self.views(), 2)
+
+    def test_owner_viewing_their_own_gig_never_counts(self):
+        self.client.force_authenticate(user=self.client_user)
+        for _ in range(3):
+            self.client.get(self.url)
+        self.assertEqual(self.views(), 0)
+        self.assertEqual(GigInteraction.objects.count(), 0)
+
+    def test_anonymous_visitor_is_deduped_by_session(self):
+        self.client.get(self.url)
+        self.client.get(self.url)  # same client keeps its session cookie
+        self.assertEqual(self.views(), 1)
+
+    def test_different_anonymous_sessions_each_count(self):
+        APIClient().get(self.url)
+        APIClient().get(self.url)
+        self.assertEqual(self.views(), 2)
+
+    def test_counted_view_is_logged_as_an_interaction(self):
+        self.client.force_authenticate(user=self.freelancer)
+        self.client.get(self.url)
+        self.client.get(self.url)
+        interaction = GigInteraction.objects.get()
+        self.assertEqual(interaction.type, GigInteraction.Type.VIEW)
+        self.assertEqual(interaction.user, self.freelancer)
+        self.assertEqual(interaction.gig, self.gig)
+
+    def test_anonymous_view_is_logged_with_a_session_key(self):
+        self.client.get(self.url)
+        interaction = GigInteraction.objects.get()
+        self.assertIsNone(interaction.user)
+        self.assertTrue(interaction.session_key)
+
+    def test_response_reports_the_updated_count(self):
+        self.client.force_authenticate(user=self.freelancer)
+        first = self.client.get(self.url).data['view_count']
+        again = self.client.get(self.url).data['view_count']
+        self.assertEqual((first, again), (1, 1))
 
 
 class GigInteractionModelTests(GigTestBase):

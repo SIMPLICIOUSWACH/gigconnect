@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from accounts.permissions import IsClientRole, IsEmailVerified
 
 from .filters import GigFilterSerializer, apply_gig_filters
+from .interactions import record_view_if_new
 from .models import Category, Gig
 from .pagination import GigPagination
 from .permissions import IsOwnerClient
@@ -102,8 +103,9 @@ class GigDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
-        Gig.objects.filter(pk=instance.pk).update(view_count=F('view_count') + 1)
-        instance.refresh_from_db(fields=['view_count'])
+        if record_view_if_new(request, instance):
+            Gig.objects.filter(pk=instance.pk).update(view_count=F('view_count') + 1)
+            instance.refresh_from_db(fields=['view_count'])
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
 
