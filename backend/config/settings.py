@@ -122,3 +122,10 @@ CORS_ALLOWED_ORIGINS = os.environ.get(
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 DEFAULT_FROM_EMAIL = 'GigConnect <no-reply@gigconnect.local>'
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
+
+# Typo-tolerant search: when full-text search returns fewer than this many gigs, results are
+# merged with trigram word-similarity matches on title/description.
+SEARCH_FALLBACK_MIN_RESULTS = int(os.environ.get('SEARCH_FALLBACK_MIN_RESULTS', '5'))
+# 0.25 rather than pg_trgm's 0.3 default: a one-transposition typo like "pyhton" vs "python"
+# only scores about 0.27-0.29, so 0.3 would miss the most common kind of typo.
+SEARCH_TRIGRAM_THRESHOLD = float(os.environ.get('SEARCH_TRIGRAM_THRESHOLD', '0.25'))

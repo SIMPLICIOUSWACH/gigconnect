@@ -527,6 +527,41 @@ class GigFilterSearchTests(GigTestBase):
             self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
+class TypoToleranceTests(GigTestBase):
+    def setUp(self):
+        super().setUp()
+        self.python_gig = self.create_gig(
+            title='Python developer for a REST API', description='Backend work in Django.'
+        )
+
+    def titles(self, **params):
+        response = self.client.get('/api/gigs/', params)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return [g['title'] for g in response.data['results']]
+
+    def test_typo_finds_gig_that_full_text_search_misses(self):
+        self.assertIn('Python developer for a REST API', self.titles(q='pyhton'))
+
+    def test_exact_matches_rank_above_fuzzy_matches(self):
+        self.create_gig(title='Pyhton data cleaning', description='Tidy a spreadsheet.')
+        titles = self.titles(q='python', sort='relevance')
+        self.assertEqual(titles[0], 'Python developer for a REST API')
+        self.assertIn('Pyhton data cleaning', titles)
+
+    def test_unrelated_gigs_are_not_pulled_in(self):
+        self.create_gig(title='Wedding photography', description='Capture the day.')
+        self.assertNotIn('Wedding photography', self.titles(q='pyhton'))
+
+    @override_settings(SEARCH_FALLBACK_MIN_RESULTS=1)
+    def test_no_fuzzy_results_when_enough_exact_matches(self):
+        self.create_gig(title='Pyhton data cleaning', description='Tidy a spreadsheet.')
+        self.assertEqual(self.titles(q='python'), ['Python developer for a REST API'])
+
+    @override_settings(SEARCH_TRIGRAM_THRESHOLD=0.9)
+    def test_threshold_setting_is_respected(self):
+        self.assertNotIn('Python developer for a REST API', self.titles(q='pyhton'))
+
+
 class IncludeClosedFilterTests(GigTestBase):
     def setUp(self):
         super().setUp()

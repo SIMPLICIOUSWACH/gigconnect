@@ -1,8 +1,10 @@
 import uuid
 from datetime import timedelta
 
-from django.contrib.postgres.search import SearchQuery, SearchRank
-from django.db.models import F, Q
+from django.conf import settings
+from django.contrib.postgres.search import SearchQuery, SearchRank, TrigramWordSimilarity
+from django.db.models import Case, F, FloatField, Q, When
+from django.db.models.functions import Greatest
 from django.utils import timezone
 from rest_framework import serializers
 
@@ -82,15 +84,34 @@ def _resolve_skill_ids(raw):
     return list(Skill.objects.filter(query).values_list('id', flat=True))
 
 
+def _apply_text_search(queryset, q):
+    """Full-text search on `q`, topped up with trigram matches when it finds too few gigs.
+
+    Runs after every other filter, so "too few" means too few in the final result set. Exact
+    full-text matches always rank above fuzzy-only ones (their rank is offset by 2, and a
+    similarity score is at most 1).
+    """
+    search_query = SearchQuery(q, search_type='websearch')
+    exact = queryset.filter(search_vector=search_query)
+    if exact.count() >= settings.SEARCH_FALLBACK_MIN_RESULTS:
+        return exact.annotate(rank=SearchRank(F('search_vector'), search_query))
+
+    similarity = Greatest(TrigramWordSimilarity(q, 'title'), TrigramWordSimilarity(q, 'description'))
+    return (
+        queryset.annotate(similarity=similarity)
+        .filter(Q(search_vector=search_query) | Q(similarity__gte=settings.SEARCH_TRIGRAM_THRESHOLD))
+        .annotate(
+            rank=Case(
+                When(search_vector=search_query, then=SearchRank(F('search_vector'), search_query) + 2.0),
+                default=F('similarity'),
+                output_field=FloatField(),
+            )
+        )
+    )
+
+
 def apply_gig_filters(queryset, data):
     """Apply validated GigFilterSerializer data to a Gig queryset. All filters AND together."""
-    q = data.get('q')
-    if q:
-        search_query = SearchQuery(q, search_type='websearch')
-        queryset = queryset.filter(search_vector=search_query).annotate(
-            rank=SearchRank(F('search_vector'), search_query)
-        )
-
     category_slug = data.get('category')
     if category_slug:
         queryset = queryset.filter(category__slug=category_slug)
@@ -124,6 +145,10 @@ def apply_gig_filters(queryset, data):
     if posted_within is not None:
         since = timezone.now() - timedelta(days=posted_within)
         queryset = queryset.filter(created_at__gte=since)
+
+    q = data.get('q')
+    if q:
+        queryset = _apply_text_search(queryset, q)
 
     sort = data.get('sort', 'newest')
     if sort == 'relevance':
