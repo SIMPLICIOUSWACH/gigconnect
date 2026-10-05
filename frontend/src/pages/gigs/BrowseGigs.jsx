@@ -365,8 +365,13 @@ export default function BrowseGigs() {
                 fetching ? 'opacity-50 pointer-events-none' : ''
               }`}
             >
-              {result.results.map((gig) => (
-                <GigCard key={gig.id} gig={gig} />
+              {result.results.map((gig, index) => (
+                <GigCard
+                  key={gig.id}
+                  gig={gig}
+                  query={filters.q}
+                  position={(result.page - 1) * result.page_size + index + 1}
+                />
               ))}
             </div>
           )}

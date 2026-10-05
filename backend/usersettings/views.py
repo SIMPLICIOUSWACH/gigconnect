@@ -9,6 +9,7 @@ from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, Ou
 from accounts.email import send_verification_email
 from accounts.otp import issue_otp
 from accounts.serializers import UserSerializer
+from gigs.models import GigInteraction
 
 from .models import NotificationPreference, UserSession
 from .serializers import AccountSettingsSerializer, NotificationPreferenceSerializer, UserSessionSerializer
@@ -117,11 +118,22 @@ class ExportDataView(APIView):
     def get(self, request):
         user = request.user
         preference, _ = NotificationPreference.objects.get_or_create(user=user)
-        # gigs/applications keys are omitted entirely — those apps don't exist yet this sprint,
-        # rather than faking an empty list for a feature that isn't built.
+        interactions = GigInteraction.objects.filter(user=user).select_related('gig').order_by('created_at')
+        # Applications are left out rather than faked as an empty list: that feature isn't built yet.
         return Response({
             'user': UserSerializer(user).data,
             'notification_preferences': NotificationPreferenceSerializer(preference).data,
+            'gig_interactions': [
+                {
+                    'type': i.type,
+                    'gig_id': str(i.gig_id),
+                    'gig_title': i.gig.title,
+                    'query': i.query,
+                    'position': i.position,
+                    'created_at': i.created_at,
+                }
+                for i in interactions
+            ],
         })
 
 
@@ -134,6 +146,10 @@ class DeleteAccountView(APIView):
 
         if not user.check_password(password):
             return Response({'password': 'Incorrect password.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Browsing history is personal data and has no use once the account is gone, so it is
+        # deleted outright rather than anonymised.
+        GigInteraction.objects.filter(user=user).delete()
 
         user.full_name = 'Deleted User'
         user.email = f'deleted-{user.id}@gigconnect.invalid'

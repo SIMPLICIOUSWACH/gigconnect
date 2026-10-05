@@ -5,7 +5,7 @@ from rest_framework import serializers
 from profiles.models import Skill
 from profiles.serializers import SkillSerializer
 
-from .models import Category, Gig
+from .models import Category, Gig, GigInteraction
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -159,3 +159,13 @@ class GigStatusUpdateSerializer(serializers.ModelSerializer):
         if value not in ALLOWED_STATUS_TRANSITIONS.get(current, set()):
             raise serializers.ValidationError(f'Cannot change status from "{current}" to "{value}".')
         return value
+
+
+class GigInteractionCreateSerializer(serializers.Serializer):
+    """Body of POST /api/gigs/<id>/interactions/. Only search_click can be posted by the client:
+    views are logged by the server (so they can't be inflated) and save/apply have their own flows."""
+
+    type = serializers.ChoiceField(choices=[GigInteraction.Type.SEARCH_CLICK])
+    query = serializers.CharField(required=False, allow_null=True, allow_blank=True, max_length=200)
+    position = serializers.IntegerField(required=False, allow_null=True, min_value=1, max_value=10000)
+

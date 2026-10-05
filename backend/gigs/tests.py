@@ -1,12 +1,15 @@
 from datetime import date, timedelta
 from io import StringIO
+from unittest import mock
 
 from django.contrib.postgres.search import SearchQuery
+from django.core.cache import cache
 from django.core.management import CommandError, call_command
 from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
+from rest_framework.throttling import ScopedRateThrottle
 
 from accounts.models import User
 from profiles.models import Skill
@@ -596,6 +599,67 @@ class ViewCountDedupeTests(GigTestBase):
         first = self.client.get(self.url).data['view_count']
         again = self.client.get(self.url).data['view_count']
         self.assertEqual((first, again), (1, 1))
+
+
+class GigInteractionEndpointTests(GigTestBase):
+    def setUp(self):
+        super().setUp()
+        cache.clear()  # throttle counters live in the cache
+        self.gig = self.create_gig()
+        self.url = f'/api/gigs/{self.gig.id}/interactions/'
+
+    def post(self, **body):
+        return self.client.post(self.url, {'type': 'search_click', **body}, format='json')
+
+    def test_logs_a_search_click_with_query_and_position(self):
+        self.client.force_authenticate(user=self.freelancer)
+        response = self.post(query='logo design', position=4)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        interaction = GigInteraction.objects.get()
+        self.assertEqual(interaction.type, 'search_click')
+        self.assertEqual((interaction.query, interaction.position), ('logo design', 4))
+        self.assertEqual(interaction.user, self.freelancer)
+
+    def test_query_and_position_are_optional(self):
+        self.client.force_authenticate(user=self.freelancer)
+        self.assertEqual(self.post().status_code, status.HTTP_201_CREATED)
+        interaction = GigInteraction.objects.get()
+        self.assertIsNone(interaction.query)
+        self.assertIsNone(interaction.position)
+
+    def test_anonymous_visitor_is_logged_by_session(self):
+        self.assertEqual(self.post(position=1).status_code, status.HTTP_201_CREATED)
+        interaction = GigInteraction.objects.get()
+        self.assertIsNone(interaction.user)
+        self.assertTrue(interaction.session_key)
+
+    def test_every_click_is_logged_not_deduped(self):
+        self.client.force_authenticate(user=self.freelancer)
+        self.post()
+        self.post()
+        self.assertEqual(GigInteraction.objects.count(), 2)
+
+    def test_clients_cannot_post_view_save_or_apply(self):
+        for kind in ('view', 'save', 'apply'):
+            response = self.client.post(self.url, {'type': kind}, format='json')
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, kind)
+        self.assertEqual(GigInteraction.objects.count(), 0)
+
+    def test_rejects_bad_position_and_overlong_query(self):
+        self.assertEqual(self.post(position=0).status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(self.post(query='x' * 201).status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_unknown_gig_is_a_404(self):
+        response = self.client.post(
+            '/api/gigs/00000000-0000-0000-0000-000000000000/interactions/',
+            {'type': 'search_click'}, format='json',
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_endpoint_is_rate_limited(self):
+        with mock.patch.object(ScopedRateThrottle, 'THROTTLE_RATES', {'gig_interaction': '2/hour'}):
+            codes = [self.post().status_code for _ in range(3)]
+        self.assertEqual(codes, [201, 201, 429])
 
 
 class GigInteractionModelTests(GigTestBase):

@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
+import { logSearchClick } from '../../api/gigs'
 import { formatBudget, formatDate, formatRelativeTime, isApplicationClosed, isUrgent } from '../../utils/gigFormat'
 
 const STATUS_LABELS = {
@@ -13,7 +14,7 @@ function locationLabel(gig) {
   return gig.county || ''
 }
 
-export default function GigCard({ gig }) {
+export default function GigCard({ gig, position, query }) {
   const location = useLocation()
   const urgent = isUrgent(gig.application_deadline)
   // Only reachable via the "Show closed gigs" toggle — the default feed never returns these.
@@ -28,6 +29,7 @@ export default function GigCard({ gig }) {
         <Link
           to={`/gigs/${gig.id}`}
           state={{ from: `${location.pathname}${location.search}` }}
+          onClick={() => logSearchClick(gig.id, { query, position })}
           className="text-section-title text-ink hover:text-primary"
         >
           {gig.title}

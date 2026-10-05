@@ -106,6 +106,7 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_THROTTLE_RATES': {
         'skill_create': '30/hour',
+        'gig_interaction': '300/hour',
     },
 }
 

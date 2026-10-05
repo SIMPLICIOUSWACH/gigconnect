@@ -1,21 +1,25 @@
 from datetime import date
 
 from django.db.models import F
+from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions
 from rest_framework import status as http_status
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
+from rest_framework.views import APIView
 
 from accounts.permissions import IsClientRole, IsEmailVerified
 
 from .filters import GigFilterSerializer, apply_gig_filters
-from .interactions import record_view_if_new
-from .models import Category, Gig
+from .interactions import record_view_if_new, viewer_identity
+from .models import Category, Gig, GigInteraction
 from .pagination import GigPagination
 from .permissions import IsOwnerClient
 from .serializers import (
     CategorySerializer,
     GigCreateSerializer,
     GigDetailSerializer,
+    GigInteractionCreateSerializer,
     GigListSerializer,
     GigStatusUpdateSerializer,
     GigUpdateSerializer,
@@ -129,3 +133,26 @@ class GigStatusUpdateView(generics.UpdateAPIView):
         serializer.is_valid(raise_exception=True)
         gig = serializer.save()
         return Response(GigDetailSerializer(gig, context=self.get_serializer_context()).data)
+
+
+class GigInteractionCreateView(APIView):
+    """Logs that the visitor opened this gig from a list of search results."""
+
+    permission_classes = [permissions.AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'gig_interaction'
+
+    def post(self, request, gig_id):
+        gig = get_object_or_404(Gig, pk=gig_id)
+        serializer = GigInteractionCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        GigInteraction.objects.create(
+            gig=gig,
+            type=data['type'],
+            query=data.get('query') or None,
+            position=data.get('position'),
+            **viewer_identity(request),
+        )
+        return Response(status=http_status.HTTP_201_CREATED)
+
