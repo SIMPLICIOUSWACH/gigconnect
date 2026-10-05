@@ -10,7 +10,7 @@ from rest_framework.test import APITestCase
 from accounts.models import User
 from profiles.models import Skill
 
-from .models import Category, Gig
+from .models import Category, Gig, GigInteraction
 
 
 class GigTestBase(APITestCase):
@@ -525,6 +525,41 @@ class GigFilterSearchTests(GigTestBase):
         with self.assertNumQueries(3):
             response = self.client.get('/api/gigs/', {'page_size': 50})
             self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+class GigInteractionModelTests(GigTestBase):
+    def test_anonymous_interaction_needs_no_user(self):
+        gig = self.create_gig()
+        interaction = GigInteraction.objects.create(
+            gig=gig, session_key='abc123', type=GigInteraction.Type.VIEW
+        )
+        self.assertIsNone(interaction.user)
+        self.assertFalse(interaction.is_synthetic)
+        self.assertIsNone(interaction.query)
+        self.assertIsNone(interaction.position)
+
+    def test_search_click_can_carry_the_query_and_rank(self):
+        gig = self.create_gig()
+        interaction = GigInteraction.objects.create(
+            gig=gig, user=self.freelancer, type=GigInteraction.Type.SEARCH_CLICK, query='logo', position=3
+        )
+        interaction.refresh_from_db()
+        self.assertEqual((interaction.query, interaction.position), ('logo', 3))
+
+    def test_type_choices_are_the_four_agreed_values(self):
+        self.assertEqual(
+            set(GigInteraction.Type.values), {'view', 'search_click', 'save', 'apply'}
+        )
+
+    def test_indexes_for_the_collaborative_filter_exist(self):
+        names = {index.name for index in GigInteraction._meta.indexes}
+        self.assertEqual(names, {'interaction_user_gig_idx', 'interaction_type_created_idx'})
+
+    def test_deleting_a_gig_deletes_its_interactions(self):
+        gig = self.create_gig()
+        GigInteraction.objects.create(gig=gig, user=self.freelancer, type=GigInteraction.Type.VIEW)
+        gig.delete()
+        self.assertEqual(GigInteraction.objects.count(), 0)
 
 
 class TypoToleranceTests(GigTestBase):
