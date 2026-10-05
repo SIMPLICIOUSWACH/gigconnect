@@ -1,6 +1,7 @@
 from datetime import date, timedelta
 from io import StringIO
 
+from django.contrib.postgres.search import SearchQuery
 from django.core.management import CommandError, call_command
 from django.test import TestCase, override_settings
 from rest_framework import status
@@ -108,6 +109,36 @@ class GigCreationTests(GigTestBase):
     def test_create_gig_requires_authentication(self):
         response = self.client.post('/api/gigs/', self.valid_payload(), format='json')
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class CurrencyLockTests(GigTestBase):
+    def test_create_without_currency_defaults_to_kes(self):
+        self.client.force_authenticate(user=self.client_user)
+        response = self.client.post('/api/gigs/', self.valid_payload(), format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Gig.objects.get().currency, 'KES')
+
+    def test_create_with_non_kes_currency_rejected(self):
+        self.client.force_authenticate(user=self.client_user)
+        response = self.client.post(
+            '/api/gigs/', self.valid_payload(currency='USD'), format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('currency', response.data)
+        self.assertEqual(Gig.objects.count(), 0)
+
+    def test_budget_filter_excludes_non_kes_rows_even_when_numbers_overlap(self):
+        # Bypasses the serializer (which now rejects this) to model a pre-existing or imported
+        # non-KES row and prove the budget filter doesn't compare its raw numbers as if KES.
+        usd_gig = self.create_gig(title='USD gig', budget_min=10000, budget_max=20000, currency='USD')
+        kes_gig = self.create_gig(title='KES gig', budget_min=10000, budget_max=20000)
+
+        response = self.client.get('/api/gigs/', {'budget_min': '15000', 'budget_max': '30000'})
+        titles = [g['title'] for g in response.data['results']]
+        self.assertIn('KES gig', titles)
+        self.assertNotIn('USD gig', titles)
+        self.assertTrue(Gig.objects.filter(pk=usd_gig.pk).exists())  # the row itself is untouched
+        self.assertTrue(Gig.objects.filter(pk=kes_gig.pk).exists())
 
 
 class GigOwnershipTests(GigTestBase):
@@ -440,6 +471,10 @@ class GigFilterSearchTests(GigTestBase):
     def test_relevance_sort_without_query_falls_back_to_newest(self):
         response = self.client.get('/api/gigs/', {'sort': 'relevance'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Same order as an explicit sort=newest, not merely "didn't error": logo_gig was
+        # created after bakery_gig, so newest-first puts it first.
+        titles = [g['title'] for g in response.data['results']]
+        self.assertEqual(titles, ['Logo design', 'Bakery website in Nairobi'])
 
     def test_invalid_category_returns_400_with_field_error(self):
         response = self.client.get('/api/gigs/', {'category': 'does-not-exist'})
@@ -492,6 +527,44 @@ class GigFilterSearchTests(GigTestBase):
             self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
+class IncludeClosedFilterTests(GigTestBase):
+    def setUp(self):
+        super().setUp()
+        self.open_gig = self.create_gig(title='Still open')
+        self.closed_status_gig = self.create_gig(title='Cancelled gig', status=Gig.Status.CLOSED)
+        self.expired_gig = self.create_gig(
+            title='Expired application gig',
+            deadline=date.today() + timedelta(days=30),
+            application_deadline=date.today() - timedelta(days=1),
+        )
+
+    def test_default_feed_excludes_closed_status_and_expired_application_deadline(self):
+        response = self.client.get('/api/gigs/')
+        titles = [g['title'] for g in response.data['results']]
+        self.assertIn('Still open', titles)
+        self.assertNotIn('Cancelled gig', titles)
+        self.assertNotIn('Expired application gig', titles)
+
+    def test_include_closed_true_shows_everything(self):
+        response = self.client.get('/api/gigs/', {'include_closed': 'true'})
+        titles = [g['title'] for g in response.data['results']]
+        self.assertIn('Still open', titles)
+        self.assertIn('Cancelled gig', titles)
+        self.assertIn('Expired application gig', titles)
+
+    def test_include_closed_combines_with_other_filters(self):
+        other_category = Category.objects.create(name='Include-Closed Other Category')
+        self.closed_status_gig.category = other_category
+        self.closed_status_gig.save(update_fields=['category'])
+
+        response = self.client.get(
+            '/api/gigs/', {'include_closed': 'true', 'category': self.category.slug}
+        )
+        titles = [g['title'] for g in response.data['results']]
+        self.assertIn('Still open', titles)
+        self.assertNotIn('Cancelled gig', titles)  # different category, still filtered out
+
+
 @override_settings(DEBUG=True)  # Django forces DEBUG=False during tests by default.
 class SeedGigsCommandTests(TestCase):
     def setUp(self):
@@ -541,3 +614,83 @@ class SeedGigsCommandTests(TestCase):
         self.run_command(delete=True)
         self.assertEqual(Gig.objects.filter(client__email__startswith='seed-client-').count(), 0)
         self.assertTrue(Gig.objects.filter(pk=real_gig.pk).exists())
+
+
+def _findable(term):
+    return Gig.objects.filter(search_vector=SearchQuery(term, search_type='websearch'))
+
+
+class RebuildSearchVectorsTests(TestCase):
+    """post_save/m2m_changed never fire for bulk_create, so search_vector is left null for
+    anything created that way until this command backfills it."""
+
+    def setUp(self):
+        self.category = Category.objects.create(name='Rebuild Test Category')
+        self.skill = Skill.objects.create(name='Beekeeping', category='Agriculture')
+        self.client_user = User.objects.create_user(
+            email='bulk-client@example.com', password='StrongPass123!',
+            full_name='Bulk Client', phone='254700000055', role='client',
+        )
+
+    def _bulk_create_gig(self, **overrides):
+        fields = {
+            'client': self.client_user,
+            'category': self.category,
+            'title': 'Honey harvest consulting',
+            'description': 'Need advice on scaling a smallholder apiary.',
+            'budget_min': 5000,
+            'budget_max': 9000,
+            'deadline': date.today() + timedelta(days=30),
+        }
+        fields.update(overrides)
+        gig = Gig.objects.bulk_create([Gig(**fields)])[0]
+        return gig
+
+    def test_bulk_created_gig_has_no_search_vector_until_rebuilt(self):
+        self._bulk_create_gig()
+        self.assertIsNone(Gig.objects.get().search_vector)
+
+    def test_rebuild_makes_bulk_created_gig_findable_by_title_skill_and_description(self):
+        gig = self._bulk_create_gig()
+        gig.skills.set([self.skill])  # m2m_changed fires here and already rebuilds it...
+        Gig.objects.filter(pk=gig.pk).update(search_vector=None)  # ...so force it back to null.
+
+        call_command('rebuild_search_vectors')
+
+        self.assertTrue(_findable('Honey harvest').filter(pk=gig.pk).exists())
+        self.assertTrue(_findable('Beekeeping').filter(pk=gig.pk).exists())
+        self.assertTrue(_findable('smallholder apiary').filter(pk=gig.pk).exists())
+
+    def test_gig_id_option_rebuilds_only_that_gig(self):
+        gig = self._bulk_create_gig()
+        other = self._bulk_create_gig(title='A second gig')
+
+        call_command('rebuild_search_vectors', gig_id=str(gig.pk))
+
+        gig.refresh_from_db()
+        other.refresh_from_db()
+        self.assertIsNotNone(gig.search_vector)
+        self.assertIsNone(other.search_vector)
+
+    def test_unknown_gig_id_raises_command_error(self):
+        with self.assertRaises(CommandError):
+            call_command('rebuild_search_vectors', gig_id='00000000-0000-0000-0000-000000000000')
+
+    def test_skill_rename_is_reflected_after_rebuild(self):
+        gig = self._bulk_create_gig()
+        gig.skills.set([self.skill])
+
+        self.skill.name = 'Apiculture'
+        self.skill.save()  # renaming the Skill does not touch Gig, so its vector is now stale.
+
+        self.assertFalse(_findable('Apiculture').filter(pk=gig.pk).exists())
+
+        call_command('rebuild_search_vectors')
+
+        self.assertTrue(_findable('Apiculture').filter(pk=gig.pk).exists())
+
+    def test_rebuild_is_idempotent(self):
+        self._bulk_create_gig()
+        call_command('rebuild_search_vectors')
+        call_command('rebuild_search_vectors')  # must not error or duplicate anything
+        self.assertEqual(Gig.objects.count(), 1)

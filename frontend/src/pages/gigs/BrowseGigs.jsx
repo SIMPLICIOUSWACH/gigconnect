@@ -34,6 +34,7 @@ function paramsToFilters(searchParams) {
     budget_min: searchParams.get('budget_min') || '',
     budget_max: searchParams.get('budget_max') || '',
     negotiable: searchParams.get('negotiable') === 'true',
+    includeClosed: searchParams.get('include_closed') === 'true',
     deadline_before: searchParams.get('deadline_before') || '',
     posted_within: searchParams.get('posted_within') || '',
     sort: searchParams.get('sort') || 'newest',
@@ -76,6 +77,13 @@ function buildChips(filters, categories, skills, onChange) {
   }
   if (filters.negotiable) {
     chips.push({ key: 'negotiable', label: 'Negotiable only', onRemove: () => onChange({ negotiable: false }) })
+  }
+  if (filters.includeClosed) {
+    chips.push({
+      key: 'include_closed',
+      label: 'Including closed gigs',
+      onRemove: () => onChange({ includeClosed: false }),
+    })
   }
   if (filters.deadline_before) {
     chips.push({
@@ -155,10 +163,13 @@ export default function BrowseGigs() {
     [setSearchParams]
   )
 
+  const PARAM_KEY_MAP = { skillIds: 'skills', includeClosed: 'include_closed' }
+
   const handleFilterChange = (updates) => {
     const mapped = {}
     Object.entries(updates).forEach(([key, value]) => {
-      mapped[key === 'skillIds' ? 'skills' : key] = key === 'skillIds' ? value.join(',') : value
+      const paramKey = PARAM_KEY_MAP[key] || key
+      mapped[paramKey] = key === 'skillIds' ? value.join(',') : value
     })
     updateParams(mapped, { resetPage: true })
   }
@@ -183,6 +194,7 @@ export default function BrowseGigs() {
     if (filters.budget_min) params.budget_min = filters.budget_min
     if (filters.budget_max) params.budget_max = filters.budget_max
     if (filters.negotiable) params.negotiable = 'true'
+    if (filters.includeClosed) params.include_closed = 'true'
     if (filters.deadline_before) params.deadline_before = filters.deadline_before
     if (filters.posted_within) params.posted_within = filters.posted_within
     if (filters.sort) params.sort = filters.sort
@@ -210,6 +222,7 @@ export default function BrowseGigs() {
     filters.budget_min,
     filters.budget_max,
     filters.negotiable,
+    filters.includeClosed,
     filters.deadline_before,
     filters.posted_within,
     filters.sort,

@@ -2,6 +2,7 @@ import random
 from datetime import date, timedelta
 
 from django.conf import settings
+from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError
 
 from accounts.models import User
@@ -111,5 +112,10 @@ class Command(BaseCommand):
             )
             gig.skills.set(skill_sample)
             created += 1
+
+        # Belt-and-braces: the post_save/m2m_changed signals already keep search_vector current
+        # for the create()/skills.set() calls above, but calling the rebuild here means this
+        # command stays correct even if it's ever switched to bulk_create for speed.
+        call_command('rebuild_search_vectors')
 
         self.stdout.write(self.style.SUCCESS(f'Created {created} seeded gig(s).'))

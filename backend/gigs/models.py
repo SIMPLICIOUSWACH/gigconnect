@@ -35,6 +35,13 @@ class Gig(models.Model):
         COMPLETED = 'completed', 'Completed'
         CLOSED = 'closed', 'Closed'
 
+    # GigConnect is KES-only (see GigValidationMixin.validate in serializers.py for the actual
+    # enforcement on create). The field stays a plain CharField rather than gaining DB-level
+    # choices: that would be schema churn for a constraint Django doesn't enforce at the DB
+    # layer anyway, and historical/imported rows (see the ML data pipeline) may legitimately
+    # carry a converted-from value worth keeping visible rather than coercing to KES silently.
+    CURRENCY_KES = 'KES'
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     client = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='gigs')
     category = models.ForeignKey(Category, on_delete=models.PROTECT, related_name='gigs')
@@ -42,7 +49,7 @@ class Gig(models.Model):
     description = models.TextField()
     budget_min = models.DecimalField(max_digits=10, decimal_places=2)
     budget_max = models.DecimalField(max_digits=10, decimal_places=2)
-    currency = models.CharField(max_length=3, default='KES')
+    currency = models.CharField(max_length=3, default=CURRENCY_KES)
     deadline = models.DateField()
     # Last day to apply — distinct from `deadline` (project delivery date). Nullable at the
     # column level so it *can* be omitted on input, but save() always fills it in, so it's
