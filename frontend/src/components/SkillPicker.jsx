@@ -18,8 +18,12 @@ export default function SkillPicker({ skills, selected, onToggle, onCreate }) {
     try {
       await onCreate(trimmed)
       setQuery('')
-    } catch {
-      setCreateError('Could not add this skill. Please try again.')
+    } catch (err) {
+      const status = err.response?.status
+      setCreateError(
+        err.response?.data?.name?.[0] ||
+          (status === 429 ? 'You are adding skills too quickly. Try again later.' : 'Could not add this skill. Please try again.')
+      )
     } finally {
       setCreating(false)
     }

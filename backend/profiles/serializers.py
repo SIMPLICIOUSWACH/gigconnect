@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from . import skills as skill_names
 from .models import ClientProfile, FreelancerProfile, PortfolioItem, Skill
 
 
@@ -13,20 +14,26 @@ class SkillCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Skill
         fields = ['id', 'name', 'category']
-        extra_kwargs = {'category': {'required': False, 'allow_blank': True}}
+        # No unique validator on name: posting an existing skill (or an alias of one) is a
+        # get-or-create that returns the canonical skill, not an error.
+        extra_kwargs = {
+            'name': {'validators': []},
+            'category': {'required': False, 'allow_blank': True},
+        }
 
     def validate_name(self, value):
-        value = value.strip()
-        if not value:
-            raise serializers.ValidationError('Skill name cannot be blank.')
-        return value
+        error = skill_names.validation_error(value)
+        if error:
+            raise serializers.ValidationError(error)
+        return skill_names.display_name(value)
 
     def create(self, validated_data):
         name = validated_data['name']
-        category = (validated_data.get('category') or 'Other').strip() or 'Other'
-        existing = Skill.objects.filter(name__iexact=name).first()
+        # Resolves case/spacing variants and aliases (ReactJS -> React) to the existing skill.
+        existing = skill_names.find_skill(name)
         if existing:
             return existing
+        category = (validated_data.get('category') or 'Other').strip() or 'Other'
         return Skill.objects.create(name=name, category=category)
 
 

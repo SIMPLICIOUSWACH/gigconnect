@@ -565,8 +565,8 @@ class TypoToleranceTests(GigTestBase):
 class SkillsModeTests(GigTestBase):
     def setUp(self):
         super().setUp()
-        self.react = Skill.objects.create(name='React', category='Technology')
-        self.python = Skill.objects.create(name='Python', category='Technology')
+        self.react = Skill.objects.get(name='React')  # seeded by profiles migration 0005
+        self.python = Skill.objects.get(name='Python')
         self.both = self.create_gig(title='Needs both')
         self.both.skills.set([self.react, self.python])
         self.react_only = self.create_gig(title='React only')
@@ -604,6 +604,13 @@ class SkillsModeTests(GigTestBase):
     def test_relevance_with_skills_but_no_q_does_not_fall_back_to_newest(self):
         # newest-first would put 'Python only' first; matched-skill ranking puts 'Needs both' first.
         self.assertEqual(self.titles(skills='React,Python', sort='relevance')[0], 'Needs both')
+
+    def test_skill_filter_resolves_aliases_and_spacing(self):
+        js = Skill.objects.get(name='JavaScript')
+        gig = self.create_gig(title='Needs JavaScript')
+        gig.skills.set([js])
+        for token in ['JS', 'js', 'javascript', '  JavaScript ']:
+            self.assertEqual(self.titles(skills=token), ['Needs JavaScript'], token)
 
     def test_invalid_skills_mode_is_a_400(self):
         response = self.client.get('/api/gigs/', {'skills': 'React', 'skills_mode': 'some'})

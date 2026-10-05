@@ -104,6 +104,9 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
+    'DEFAULT_THROTTLE_RATES': {
+        'skill_create': '30/hour',
+    },
 }
 
 SIMPLE_JWT = {

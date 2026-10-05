@@ -10,6 +10,7 @@ from rest_framework import serializers
 
 from profiles.counties import KENYA_COUNTIES
 from profiles.models import Skill
+from profiles.skills import find_skill
 
 from .models import Category, Gig
 
@@ -77,7 +78,8 @@ def _resolve_skills(raw):
             uuid.UUID(token)
             skill_id = Skill.objects.filter(id=token).values_list('id', flat=True).first()
         except ValueError:
-            skill_id = Skill.objects.filter(name__iexact=token).values_list('id', flat=True).first()
+            skill = find_skill(token)  # case/spacing-insensitive, and resolves aliases (JS -> JavaScript)
+            skill_id = skill.id if skill else None
         if skill_id is None:
             unresolved += 1
         else:

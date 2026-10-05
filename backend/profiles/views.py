@@ -1,6 +1,7 @@
 from rest_framework import generics, permissions, status
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from accounts.models import User
@@ -24,10 +25,18 @@ from .serializers import (
 class SkillListView(generics.ListCreateAPIView):
     queryset = Skill.objects.all()
 
+    throttle_scope = 'skill_create'
+
     def get_permissions(self):
         if self.request.method == 'POST':
             return [permissions.IsAuthenticated()]
         return [permissions.AllowAny()]
+
+    def get_throttles(self):
+        # Only creating skills is rate limited; listing them stays unthrottled.
+        if self.request.method == 'POST':
+            return [ScopedRateThrottle()]
+        return []
 
     def get_serializer_class(self):
         if self.request.method == 'POST':

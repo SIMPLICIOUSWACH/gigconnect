@@ -4,18 +4,52 @@ from django.conf import settings
 from django.db import models
 
 from .counties import COUNTY_CHOICES
+from .skills import display_name, match_key
 
 
 class Skill(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    # The display name, trimmed and with whitespace collapsed on save.
     name = models.CharField(max_length=100, unique=True)
+    # Case-folded copy of `name`, maintained by save(); this is what matching uses.
+    normalized_name = models.CharField(max_length=100, db_index=True, editable=False, blank=True, default='')
     category = models.CharField(max_length=100)
 
     class Meta:
         ordering = ['category', 'name']
 
+    def save(self, *args, **kwargs):
+        self.name = display_name(self.name)
+        self.normalized_name = match_key(self.name)
+        if 'update_fields' in kwargs and kwargs['update_fields'] is not None:
+            kwargs['update_fields'] = {*kwargs['update_fields'], 'name', 'normalized_name'}
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return self.name
+
+
+class SkillAlias(models.Model):
+    """An alternative spelling (ReactJS, JS, MS Excel) that resolves to a canonical Skill."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    alias = models.CharField(max_length=100)
+    normalized_alias = models.CharField(max_length=100, unique=True, editable=False)
+    skill = models.ForeignKey(Skill, on_delete=models.CASCADE, related_name='aliases')
+
+    class Meta:
+        ordering = ['alias']
+        verbose_name_plural = 'Skill aliases'
+
+    def save(self, *args, **kwargs):
+        self.alias = display_name(self.alias)
+        self.normalized_alias = match_key(self.alias)
+        if 'update_fields' in kwargs and kwargs['update_fields'] is not None:
+            kwargs['update_fields'] = {*kwargs['update_fields'], 'alias', 'normalized_alias'}
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f'{self.alias} -> {self.skill.name}'
 
 
 class ClientProfile(models.Model):
