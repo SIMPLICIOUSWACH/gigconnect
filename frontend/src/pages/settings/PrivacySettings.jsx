@@ -42,7 +42,7 @@ export default function PrivacySettings() {
       <div className="space-y-6 max-w-xl">
         <Card>
           <h2 className="text-section-title text-ink mb-2">Download My Data</h2>
-          <p className="text-body text-muted mb-6">Get a JSON export of your profile and notification settings.</p>
+          <p className="text-body text-muted mb-6">Get a JSON export of your profile, notification settings, and the gigs you have viewed or opened from search results.</p>
           <Button variant="secondary" onClick={handleExport}>
             Download JSON
           </Button>
@@ -51,7 +51,7 @@ export default function PrivacySettings() {
         <Card>
           <h2 className="text-section-title text-ink mb-2">Delete Account</h2>
           <p className="text-body text-muted mb-6">
-            Your account will be deactivated and your personal details anonymized. This cannot be undone.
+            Your account will be deactivated, your personal details anonymized, and your gig viewing history deleted. This cannot be undone.
           </p>
           {!confirming ? (
             <Button variant="danger" onClick={() => setConfirming(true)}>

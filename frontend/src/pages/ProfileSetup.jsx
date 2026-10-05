@@ -8,10 +8,14 @@ import Card from '../components/Card'
 import ImageUpload from '../components/ImageUpload'
 import Input from '../components/Input'
 import Label from '../components/Label'
+import Select from '../components/Select'
+import useCounties from '../hooks/useCounties'
 
 function FreelancerWizard({ onDone }) {
   const [step, setStep] = useState(1)
   const [bio, setBio] = useState('')
+  const [county, setCounty] = useState('')
+  const counties = useCounties()
   const [photo, setPhoto] = useState(null)
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -24,7 +28,7 @@ function FreelancerWizard({ onDone }) {
     setError('')
     setSubmitting(true)
     try {
-      await completeProfile({ bio, profile_photo: photo })
+      await completeProfile({ bio, county, profile_photo: photo })
       setStep(2)
     } catch (err) {
       setError(err.response?.data?.bio?.[0] || 'Could not save profile.')
@@ -65,6 +69,12 @@ function FreelancerWizard({ onDone }) {
             className="w-full px-4 py-3 border border-border rounded-lg text-body text-ink focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
           />
         </label>
+        <Select
+          label="County (optional)"
+          options={[{ value: '', label: 'Prefer not to say' }, ...counties]}
+          value={county}
+          onChange={(e) => setCounty(e.target.value)}
+        />
         <ImageUpload label="Profile photo (optional)" onChange={setPhoto} round />
         <Alert type="error">{error}</Alert>
         <Button type="submit" className="w-full" disabled={submitting}>

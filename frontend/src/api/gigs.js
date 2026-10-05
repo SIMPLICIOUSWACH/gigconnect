@@ -2,7 +2,10 @@ import api from './client'
 
 export const fetchCategories = () => api.get('/categories/').then((r) => r.data)
 
-export const fetchGigs = () => api.get('/gigs/').then((r) => r.data)
+export const fetchGigsPaged = (params) => api.get('/gigs/', { params }).then((r) => r.data)
+
+export const logSearchClick = (gigId, { query, position }) =>
+  api.post(`/gigs/${gigId}/interactions/`, { type: 'search_click', query: query || null, position }).catch(() => {})
 
 export const fetchGig = (id) => api.get(`/gigs/${id}/`).then((r) => r.data)
 

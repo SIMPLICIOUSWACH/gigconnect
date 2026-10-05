@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useLocation, useParams } from 'react-router-dom'
 import { fetchGig } from '../../api/gigs'
 import Alert from '../../components/Alert'
 import Button from '../../components/Button'
 import Card from '../../components/Card'
+import { formatDate, isApplicationClosed } from '../../utils/gigFormat'
 
 const STATUS_LABELS = {
   open: { text: 'Open', className: 'bg-accent-light text-accent' },
@@ -14,6 +15,7 @@ const STATUS_LABELS = {
 
 export default function GigDetail() {
   const { id } = useParams()
+  const location = useLocation()
   const [gig, setGig] = useState(null)
   const [error, setError] = useState('')
 
@@ -25,9 +27,16 @@ export default function GigDetail() {
   if (!gig) return <p className="text-body text-muted">Loading…</p>
 
   const statusInfo = STATUS_LABELS[gig.status]
+  const applicationsClosed = isApplicationClosed(gig.application_deadline)
+  const backTo = location.state?.from
 
   return (
     <div className="max-w-[720px]">
+      {backTo && (
+        <Link to={backTo} className="inline-block text-body text-primary font-medium mb-4">
+          Back to results
+        </Link>
+      )}
       <Card variant="elevated">
         <div className="flex items-start justify-between gap-4 mb-2">
           <h1 className="text-page-title text-primary">{gig.title}</h1>
@@ -41,7 +50,10 @@ export default function GigDetail() {
           <Link to={`/profile/${gig.client.id}`} className="text-primary font-medium">
             {gig.client.company_name || gig.client.full_name}
           </Link>{' '}
-          · {gig.category.name} · {gig.view_count} view{gig.view_count === 1 ? '' : 's'}
+          · {gig.category.name}
+          {(gig.county || gig.is_remote) &&
+            ` · ${[gig.county, gig.is_remote && 'Remote'].filter(Boolean).join(', ')}`}
+          {' '}· {gig.view_count} view{gig.view_count === 1 ? '' : 's'}
         </p>
 
         <p className="text-body text-ink whitespace-pre-wrap mb-6">{gig.description}</p>
@@ -51,11 +63,16 @@ export default function GigDetail() {
             <p className="text-label text-muted mb-1">Budget</p>
             <p className="text-body text-ink">
               {gig.currency} {gig.budget_min} – {gig.budget_max}
+              {gig.is_negotiable && <span className="text-muted"> (Negotiable)</span>}
             </p>
           </div>
           <div>
-            <p className="text-label text-muted mb-1">Deadline</p>
-            <p className="text-body text-ink">{gig.deadline}</p>
+            <p className="text-label text-muted mb-1">Project deadline</p>
+            <p className="text-body text-ink">{formatDate(gig.deadline)}</p>
+          </div>
+          <div>
+            <p className="text-label text-muted mb-1">Application deadline</p>
+            <p className="text-body text-ink">{formatDate(gig.application_deadline)}</p>
           </div>
         </div>
 
@@ -73,9 +90,13 @@ export default function GigDetail() {
           </div>
         </div>
 
-        <Button disabled title="Applications launch in Sprint 4">
-          Apply (coming soon)
-        </Button>
+        {applicationsClosed ? (
+          <Alert type="info">Applications closed on {formatDate(gig.application_deadline)}.</Alert>
+        ) : (
+          <Button disabled title="Applications launch in Sprint 4">
+            Apply (coming soon)
+          </Button>
+        )}
       </Card>
     </div>
   )

@@ -1,10 +1,19 @@
+from datetime import date, timedelta
+from io import StringIO
+from unittest import mock
+
+from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.management import CommandError, call_command
+from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APITestCase
+from rest_framework.throttling import ScopedRateThrottle
 
 from accounts.models import User
+from gigs.models import Category, Gig
 
-from .models import FreelancerProfile, PortfolioItem, Skill
+from .models import FreelancerProfile, PortfolioItem, Skill, SkillAlias
 
 
 class ProfileCompleteTests(APITestCase):
@@ -201,3 +210,244 @@ class PublicProfileViewTests(APITestCase):
         response = self.client.get(f'/api/profiles/{self.client_user.id}/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('company_name', response.data['profile'])
+
+
+class SkillCreateTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email='freelancer@example.com', password='StrongPass123!',
+            full_name='Freelancer', phone='254700000001', role='freelancer',
+        )
+
+    def test_requires_authentication(self):
+        response = self.client.post('/api/skills/', {'name': 'Drone Photography'})
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_creates_a_new_skill(self):
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post('/api/skills/', {'name': 'Drone Photography', 'category': 'Media'})
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Skill.objects.filter(name='Drone Photography').count(), 1)
+
+    def test_defaults_category_when_not_given(self):
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post('/api/skills/', {'name': 'Drone Photography'})
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['category'], 'Other')
+
+    def test_duplicate_name_case_insensitive_returns_existing_skill(self):
+        existing = Skill.objects.create(name='Drone Photography', category='Media')
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post('/api/skills/', {'name': 'drone photography'})
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['id'], str(existing.id))
+        self.assertEqual(Skill.objects.filter(name__iexact='drone photography').count(), 1)
+
+    def test_blank_name_is_rejected(self):
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post('/api/skills/', {'name': '   '})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class CountyTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email='county-freelancer@example.com', password='StrongPass123!',
+            full_name='County Freelancer', phone='254700000077', role='freelancer',
+        )
+
+    def test_counties_endpoint_lists_all_47_without_auth(self):
+        response = self.client.get('/api/meta/counties/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        values = [c['value'] for c in response.data]
+        self.assertEqual(len(values), 47)
+        self.assertEqual(len(set(values)), 47)
+        self.assertIn('Nairobi', values)
+        self.assertIn("Murang'a", values)
+
+    def test_freelancer_can_set_county(self):
+        self.client.force_authenticate(user=self.user)
+        response = self.client.patch('/api/profile/complete/', {'county': 'Kisumu'}, format='multipart')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.freelancer_profile.refresh_from_db()
+        self.assertEqual(self.user.freelancer_profile.county, 'Kisumu')
+
+    def test_unknown_county_is_rejected(self):
+        self.client.force_authenticate(user=self.user)
+        response = self.client.patch('/api/profile/complete/', {'county': 'Atlantis'}, format='multipart')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('county', response.data)
+
+    def test_blank_county_clears_it(self):
+        self.user.freelancer_profile.county = 'Nairobi'
+        self.user.freelancer_profile.save()
+        self.client.force_authenticate(user=self.user)
+        response = self.client.patch('/api/profile/complete/', {'county': ''}, format='multipart')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.freelancer_profile.refresh_from_db()
+        self.assertIsNone(self.user.freelancer_profile.county)
+
+
+class SkillNormalizationTests(APITestCase):
+    def setUp(self):
+        cache.clear()  # throttle counters live in the cache
+        self.user = User.objects.create_user(
+            email='skill-user@example.com', password='StrongPass123!',
+            full_name='Skill User', phone='254700000066', role='freelancer',
+        )
+        self.client.force_authenticate(user=self.user)
+
+    def post(self, name):
+        return self.client.post('/api/skills/', {'name': name})
+
+    def test_whitespace_is_trimmed_and_collapsed_but_display_casing_is_kept(self):
+        response = self.post('  Drone    Photography ')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        skill = Skill.objects.get(id=response.data['id'])
+        self.assertEqual(skill.name, 'Drone Photography')
+        self.assertEqual(skill.normalized_name, 'drone photography')
+
+    def test_spacing_and_case_variants_return_the_existing_skill(self):
+        existing = self.post('Drone Photography').data['id']
+        for variant in ['drone photography', 'DRONE   PHOTOGRAPHY', ' Drone Photography ']:
+            self.assertEqual(self.post(variant).data['id'], existing)
+        self.assertEqual(Skill.objects.filter(normalized_name='drone photography').count(), 1)
+
+    def test_seeded_alias_resolves_to_the_canonical_skill(self):
+        react = Skill.objects.get(name='React')
+        for alias in ['ReactJS', 'react.js', 'REACT JS']:
+            response = self.post(alias)
+            self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+            self.assertEqual(response.data['id'], str(react.id))
+        self.assertFalse(Skill.objects.filter(name__iexact='reactjs').exists())
+
+    def test_common_aliases_are_seeded(self):
+        expected = {'JS': 'JavaScript', 'Py': 'Python', 'MS Excel': 'Excel', 'ReactJS': 'React', 'React.js': 'React'}
+        for alias, canonical in expected.items():
+            self.assertEqual(SkillAlias.objects.get(alias=alias).skill.name, canonical)
+
+    def test_name_that_is_too_long_is_rejected(self):
+        self.assertEqual(self.post('x' * 51).status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_name_that_is_too_short_is_rejected(self):
+        self.assertEqual(self.post('a').status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_name_made_only_of_symbols_is_rejected(self):
+        for name in ['!!!', '---', '+++ ###']:
+            self.assertEqual(self.post(name).status_code, status.HTTP_400_BAD_REQUEST, name)
+
+    def test_names_containing_urls_are_rejected(self):
+        for name in ['https://spam.example', 'www.spam-site', 'buy followers at spam.com']:
+            response = self.post(name)
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST, name)
+            self.assertIn('name', response.data)
+
+    def test_legitimate_names_with_punctuation_are_accepted(self):
+        for name in ['Node.js', 'C++', 'UI/UX Design', 'Next.js']:
+            self.assertEqual(self.post(name).status_code, status.HTTP_201_CREATED, name)
+
+    def test_creating_skills_is_rate_limited(self):
+        with mock.patch.object(ScopedRateThrottle, 'THROTTLE_RATES', {'skill_create': '3/hour'}):
+            codes = [self.post(f'Skill number {n}').status_code for n in range(5)]
+        self.assertEqual(codes[:3], [status.HTTP_201_CREATED] * 3)
+        self.assertEqual(codes[3:], [status.HTTP_429_TOO_MANY_REQUESTS] * 2)
+
+    def test_listing_skills_is_not_rate_limited(self):
+        with mock.patch.object(ScopedRateThrottle, 'THROTTLE_RATES', {'skill_create': '1/hour'}):
+            codes = [self.client.get('/api/skills/').status_code for _ in range(4)]
+        self.assertEqual(codes, [status.HTTP_200_OK] * 4)
+
+    def test_still_requires_authentication(self):
+        self.client.force_authenticate(user=None)
+        self.assertEqual(self.post('Drone Photography').status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class MergeSkillsCommandTests(TestCase):
+    def setUp(self):
+        self.keep = Skill.objects.create(name='Photography Pro', category='Media')
+        self.dupe = Skill.objects.create(name='Photo graphy Pro', category='Media')
+        category = Category.objects.create(name='Merge Test Category')
+        owner = User.objects.create_user(
+            email='merge-owner@example.com', password='StrongPass123!',
+            full_name='Owner', phone='254700000044', role='client',
+        )
+        self.freelancer = User.objects.create_user(
+            email='merge-freelancer@example.com', password='StrongPass123!',
+            full_name='Freelancer', phone='254700000045', role='freelancer',
+        )
+
+        def make_gig(title):
+            return Gig.objects.create(
+                client=owner, category=category, title=title, description='Merge test gig.',
+                budget_min=1000, budget_max=2000, deadline=date.today() + timedelta(days=30),
+            )
+
+        self.gig_dupe_only = make_gig('Uses the duplicate')
+        self.gig_dupe_only.skills.set([self.dupe])
+        self.gig_both = make_gig('Uses both')
+        self.gig_both.skills.set([self.keep, self.dupe])
+        self.freelancer.freelancer_profile.skills.set([self.dupe])
+
+    def run_command(self, *args, **options):
+        out = StringIO()
+        call_command('merge_skills', *args, stdout=out, **options)
+        return out.getvalue()
+
+    def test_repoints_gigs_profiles_and_deletes_the_duplicate(self):
+        self.run_command('Photo graphy Pro', 'Photography Pro')
+
+        self.assertFalse(Skill.objects.filter(pk=self.dupe.pk).exists())
+        self.assertEqual(list(self.gig_dupe_only.skills.all()), [self.keep])
+        self.assertEqual(list(self.gig_both.skills.all()), [self.keep])  # no duplicate row
+        self.assertEqual(list(self.freelancer.freelancer_profile.skills.all()), [self.keep])
+
+    def test_old_name_becomes_an_alias_of_the_kept_skill(self):
+        self.run_command('Photo graphy Pro', 'Photography Pro')
+        self.assertEqual(SkillAlias.objects.get(alias='Photo graphy Pro').skill, self.keep)
+
+    def test_search_reflects_the_merge(self):
+        from django.contrib.postgres.search import SearchQuery
+
+        self.run_command('Photo graphy Pro', 'Photography Pro')
+        found = Gig.objects.filter(search_vector=SearchQuery('photography', search_type='websearch'))
+        self.assertIn(self.gig_dupe_only, found)
+
+    def test_accepts_ids(self):
+        self.run_command(str(self.dupe.id), str(self.keep.id))
+        self.assertFalse(Skill.objects.filter(pk=self.dupe.pk).exists())
+
+    def test_dry_run_changes_nothing(self):
+        output = self.run_command('Photo graphy Pro', 'Photography Pro', dry_run=True)
+        self.assertIn('Would merge', output)
+        self.assertTrue(Skill.objects.filter(pk=self.dupe.pk).exists())
+        self.assertEqual(list(self.gig_dupe_only.skills.all()), [self.dupe])
+
+    def test_merging_a_skill_into_itself_is_an_error(self):
+        with self.assertRaises(CommandError):
+            self.run_command('Photography Pro', 'photography pro')
+
+    def test_unknown_skill_is_an_error(self):
+        with self.assertRaises(CommandError):
+            self.run_command('Nonexistent Skill', 'Photography Pro')
+
+
+class ReportDuplicateSkillsTests(TestCase):
+    def run_report(self):
+        out = StringIO()
+        call_command('report_duplicate_skills', stdout=out)
+        return out.getvalue()
+
+    def test_reports_spelling_variants_without_changing_anything(self):
+        Skill.objects.create(name='Photo graphy Pro', category='Media')
+        Skill.objects.create(name='Photography Pro', category='Media')
+        before = Skill.objects.count()
+
+        output = self.run_report()
+
+        self.assertIn('Photo graphy Pro', output)
+        self.assertIn('Photography Pro', output)
+        self.assertEqual(Skill.objects.count(), before)
+
+    def test_says_so_when_there_is_nothing_to_report(self):
+        # The seeded skills are all distinct enough that none should be flagged.
+        self.assertIn('No likely duplicate skills found', self.run_report())

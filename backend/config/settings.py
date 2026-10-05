@@ -2,9 +2,9 @@
 Django settings for the GigConnect backend.
 """
 
+import os
 from datetime import timedelta
 from pathlib import Path
-import os
 
 from dotenv import load_dotenv
 
@@ -28,7 +28,6 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
-    'django_filters',
 
     'accounts',
     'profiles',
@@ -105,9 +104,10 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
-    'DEFAULT_FILTER_BACKENDS': (
-        'django_filters.rest_framework.DjangoFilterBackend',
-    ),
+    'DEFAULT_THROTTLE_RATES': {
+        'skill_create': '30/hour',
+        'gig_interaction': '300/hour',
+    },
 }
 
 SIMPLE_JWT = {
@@ -126,3 +126,14 @@ CORS_ALLOWED_ORIGINS = os.environ.get(
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 DEFAULT_FROM_EMAIL = 'GigConnect <no-reply@gigconnect.local>'
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
+
+# Synthetic rows (from the seed and data-pipeline commands) are shown in the public feed in dev
+# only, unless SHOW_SYNTHETIC is set explicitly.
+SHOW_SYNTHETIC = os.environ.get('SHOW_SYNTHETIC', str(DEBUG)) == 'True'
+
+# Typo-tolerant search: when full-text search returns fewer than this many gigs, results are
+# merged with trigram word-similarity matches on title/description.
+SEARCH_FALLBACK_MIN_RESULTS = int(os.environ.get('SEARCH_FALLBACK_MIN_RESULTS', '5'))
+# 0.25 rather than pg_trgm's 0.3 default: a one-transposition typo like "pyhton" vs "python"
+# only scores about 0.27-0.29, so 0.3 would miss the most common kind of typo.
+SEARCH_TRIGRAM_THRESHOLD = float(os.environ.get('SEARCH_TRIGRAM_THRESHOLD', '0.25'))

@@ -1,11 +1,13 @@
 from rest_framework import generics, permissions, status
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from accounts.models import User
 from accounts.permissions import IsAdminRole, IsFreelancer
 
+from .counties import COUNTY_CHOICES
 from .models import FreelancerProfile, PortfolioItem, Skill
 from .serializers import (
     AdminVerificationListSerializer,
@@ -14,15 +16,38 @@ from .serializers import (
     FreelancerProfileCompleteSerializer,
     PortfolioItemSerializer,
     PublicProfileSerializer,
+    SkillCreateSerializer,
     SkillSerializer,
     SubmitVerificationSerializer,
 )
 
 
-class SkillListView(generics.ListAPIView):
+class SkillListView(generics.ListCreateAPIView):
     queryset = Skill.objects.all()
-    serializer_class = SkillSerializer
-    permission_classes = [permissions.AllowAny]
+
+    throttle_scope = 'skill_create'
+
+    def get_permissions(self):
+        if self.request.method == 'POST':
+            return [permissions.IsAuthenticated()]
+        return [permissions.AllowAny()]
+
+    def get_throttles(self):
+        # Only creating skills is rate limited; listing them stays unthrottled.
+        if self.request.method == 'POST':
+            return [ScopedRateThrottle()]
+        return []
+
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return SkillCreateSerializer
+        return SkillSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        skill = serializer.save()
+        return Response(SkillSerializer(skill).data, status=status.HTTP_201_CREATED)
 
 
 class ProfileCompleteView(APIView):
@@ -117,3 +142,12 @@ class AdminVerificationDetailView(generics.UpdateAPIView):
     serializer_class = AdminVerificationUpdateSerializer
     permission_classes = [permissions.IsAuthenticated, IsAdminRole]
     http_method_names = ['patch']
+
+
+class CountyListView(APIView):
+    """Read-only list of Kenya's counties, from profiles.counties (the one source of truth)."""
+
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        return Response([{'value': name, 'label': label} for name, label in COUNTY_CHOICES])

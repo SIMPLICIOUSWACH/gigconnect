@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from . import skills as skill_names
 from .models import ClientProfile, FreelancerProfile, PortfolioItem, Skill
 
 
@@ -7,6 +8,33 @@ class SkillSerializer(serializers.ModelSerializer):
     class Meta:
         model = Skill
         fields = ['id', 'name', 'category']
+
+
+class SkillCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Skill
+        fields = ['id', 'name', 'category']
+        # No unique validator on name: posting an existing skill (or an alias of one) is a
+        # get-or-create that returns the canonical skill, not an error.
+        extra_kwargs = {
+            'name': {'validators': []},
+            'category': {'required': False, 'allow_blank': True},
+        }
+
+    def validate_name(self, value):
+        error = skill_names.validation_error(value)
+        if error:
+            raise serializers.ValidationError(error)
+        return skill_names.display_name(value)
+
+    def create(self, validated_data):
+        name = validated_data['name']
+        # Resolves case/spacing variants and aliases (ReactJS -> React) to the existing skill.
+        existing = skill_names.find_skill(name)
+        if existing:
+            return existing
+        category = (validated_data.get('category') or 'Other').strip() or 'Other'
+        return Skill.objects.create(name=name, category=category)
 
 
 class PortfolioItemSerializer(serializers.ModelSerializer):
@@ -37,7 +65,10 @@ class FreelancerProfileCompleteSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = FreelancerProfile
-        fields = ['bio', 'profile_photo', 'skills']
+        fields = ['bio', 'county', 'profile_photo', 'skills']
+
+    def validate_county(self, value):
+        return value or None
 
 
 class FreelancerProfileSerializer(serializers.ModelSerializer):
@@ -49,7 +80,7 @@ class FreelancerProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = FreelancerProfile
         fields = [
-            'bio', 'profile_photo', 'skills', 'portfolio_items',
+            'bio', 'county', 'profile_photo', 'skills', 'portfolio_items',
             'verification_status', 'verified',
         ]
 

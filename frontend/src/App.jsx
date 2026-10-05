@@ -17,6 +17,7 @@ import PublicProfile from './pages/PublicProfile'
 import Dashboard from './pages/Dashboard'
 import GigForm from './pages/gigs/GigForm'
 import GigDetail from './pages/gigs/GigDetail'
+import BrowseGigs from './pages/gigs/BrowseGigs'
 import MyGigs from './pages/gigs/MyGigs'
 import AccountSettings from './pages/settings/AccountSettings'
 import SecuritySettings from './pages/settings/SecuritySettings'
@@ -45,6 +46,7 @@ function App() {
           <Route element={<Layout />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/profile/:id" element={<PublicProfile />} />
+            <Route path="/gigs" element={<BrowseGigs />} />
             <Route path="/gigs/:id" element={<GigDetail />} />
 
             <Route element={<RoleRoute role="client" />}>

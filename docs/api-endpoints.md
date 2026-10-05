@@ -46,9 +46,9 @@ All endpoints are prefixed with `/api/`. Auth uses JWT bearer tokens
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
 | GET | `/api/categories/` | None | List gig categories |
-| GET | `/api/gigs/` | None | List all **open** gigs (lightweight payload, no full description) |
-| POST | `/api/gigs/` | Required (client, email-verified) | Create a gig |
-| GET | `/api/gigs/<id>/` | None | Full gig detail; increments `view_count` |
+| GET | `/api/gigs/` | None | List gigs — paginated, filtered, searched (see below) |
+| POST | `/api/gigs/` | Required (client, email-verified) | Create a gig. `currency` must be `KES` if given at all (any other value is a 400) |
+| GET | `/api/gigs/<id>/` | None | Full gig detail; increments `view_count`. Reachable by id regardless of status or deadline |
 | PUT | `/api/gigs/<id>/` | Required (owning client) | Update a gig — only while `status = open` |
 | DELETE | `/api/gigs/<id>/` | Required (owning client) | Delete a gig |
 | PATCH | `/api/gigs/<id>/status/` | Required (owning client) | Change status — restricted to valid transitions (see below); disabled on the main detail route, this is the only way to change status |
@@ -56,6 +56,37 @@ All endpoints are prefixed with `/api/`. Auth uses JWT bearer tokens
 
 **Status transitions:** `open → in_progress → completed`, or `open`/`in_progress → closed`
 (cancellation). No direct `open → completed`; no changes once `completed` or `closed`.
+
+### `GET /api/gigs/` query parameters
+
+By default the feed only returns gigs where `status = open` and `application_deadline` has not
+passed. All parameters below are optional and combine with AND. Invalid values (an unknown
+category slug, `budget_min > budget_max`, an out-of-range `posted_within`, an unrecognised
+`sort`) return `400` with a field-level error rather than a silent no-op or a 500.
+
+| Param | Type | Notes |
+|---|---|---|
+| `q` | string | Full-text search (title weight A, skills weight B, description weight C) via PostgreSQL `websearch_to_tsquery`, so stray punctuation can't cause a syntax error |
+| `category` | string | Category slug, exact match |
+| `skills` | string | Comma-separated skill ids or names (case-insensitive) |
+| `skills_mode` | string | `any` (default): the gig has at least one of the skills. `all`: it has every one; a skill that doesn't exist means no results |
+| `budget_min`, `budget_max` | decimal | Range **overlap**, not containment — a gig matches if its own budget range overlaps the requested one at all |
+| `negotiable` | bool | `true`/`false`; omit to not filter on it |
+| `include_closed` | bool | `true` lifts the default `status=open` + unexpired-deadline restriction entirely, returning every gig regardless of status or application deadline. Default `false` |
+| `deadline_before` | date (`YYYY-MM-DD`) | Project deadline on or before this date |
+| `posted_within` | int | One of `1`, `7`, `30` (days) |
+| `sort` | string | `newest` (default), `deadline`, `budget_high`, `budget_low`, `relevance` |
+| `page`, `page_size` | int | Default page size 12, max 50 |
+
+**`sort=relevance`:** ranks by the number of matched `skills` first (when given), then by the text
+search rank (when `q` is given), then newest. With neither `q` nor `skills` there is nothing to
+rank by, so rather than erroring or returning an arbitrary order the request silently falls back
+to `sort=newest` — the same behaviour as omitting
+`sort` entirely. This is deliberate (see `GigFilterSerializer.validate()` in `gigs/filters.py`),
+not a bug: a client that lets the user pick "Best match" before typing anything should still get
+a sensible, stable order rather than a 400 or undefined ordering.
+
+Response shape: `{count, page, page_size, total_pages, next, previous, results: [...]}`.
 
 ## Not yet built
 

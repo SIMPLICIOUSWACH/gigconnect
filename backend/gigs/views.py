@@ -1,16 +1,26 @@
+from datetime import date
+
+from django.conf import settings
 from django.db.models import F
+from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions
-from rest_framework.response import Response
 from rest_framework import status as http_status
+from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
+from rest_framework.views import APIView
 
 from accounts.permissions import IsClientRole, IsEmailVerified
 
-from .models import Category, Gig
+from .filters import GigFilterSerializer, apply_gig_filters
+from .interactions import record_view_if_new, viewer_identity
+from .models import Category, Gig, GigInteraction
+from .pagination import GigPagination
 from .permissions import IsOwnerClient
 from .serializers import (
     CategorySerializer,
     GigCreateSerializer,
     GigDetailSerializer,
+    GigInteractionCreateSerializer,
     GigListSerializer,
     GigStatusUpdateSerializer,
     GigUpdateSerializer,
@@ -24,6 +34,8 @@ class CategoryListView(generics.ListAPIView):
 
 
 class GigListCreateView(generics.ListCreateAPIView):
+    pagination_class = GigPagination
+
     def get_permissions(self):
         if self.request.method == 'POST':
             return [permissions.IsAuthenticated(), IsClientRole(), IsEmailVerified()]
@@ -34,8 +46,31 @@ class GigListCreateView(generics.ListCreateAPIView):
             return GigCreateSerializer
         return GigListSerializer
 
-    def get_queryset(self):
-        return Gig.objects.filter(status=Gig.Status.OPEN)
+    def get_queryset(self, include_closed=False):
+        # Public feed: open gigs only, and never anything past its application deadline —
+        # those are still reachable directly by ID (see GigDetailView) but shouldn't show up
+        # here by default. ?include_closed=true (see list()) lifts that restriction entirely.
+        # select_related/prefetch_related avoid N+1s across client/category/skills either way.
+        queryset = (
+            Gig.objects.select_related('client', 'client__client_profile', 'category')
+            .prefetch_related('skills')
+        )
+        if not include_closed:
+            queryset = queryset.filter(status=Gig.Status.OPEN, application_deadline__gte=date.today())
+        if not settings.SHOW_SYNTHETIC:
+            queryset = queryset.filter(is_synthetic=False)
+        return queryset
+
+    def list(self, request, *args, **kwargs):
+        filters = GigFilterSerializer(data=request.query_params)
+        filters.is_valid(raise_exception=True)
+
+        include_closed = bool(filters.validated_data.get('include_closed'))
+        queryset = apply_gig_filters(self.get_queryset(include_closed=include_closed), filters.validated_data)
+
+        page = self.paginate_queryset(queryset)
+        serializer = self.get_serializer(page, many=True)
+        return self.get_paginated_response(serializer.data)
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -50,11 +85,17 @@ class MyGigsView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated, IsClientRole]
 
     def get_queryset(self):
-        return Gig.objects.filter(client=self.request.user)
+        return (
+            Gig.objects.filter(client=self.request.user)
+            .select_related('client', 'client__client_profile', 'category')
+            .prefetch_related('skills')
+        )
 
 
 class GigDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Gig.objects.all()
+    queryset = Gig.objects.all().select_related(
+        'client', 'client__client_profile', 'category'
+    ).prefetch_related('skills')
     http_method_names = ['get', 'put', 'delete']
 
     def get_permissions(self):
@@ -69,8 +110,9 @@ class GigDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
-        Gig.objects.filter(pk=instance.pk).update(view_count=F('view_count') + 1)
-        instance.refresh_from_db(fields=['view_count'])
+        if record_view_if_new(request, instance):
+            Gig.objects.filter(pk=instance.pk).update(view_count=F('view_count') + 1)
+            instance.refresh_from_db(fields=['view_count'])
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
 
@@ -94,3 +136,26 @@ class GigStatusUpdateView(generics.UpdateAPIView):
         serializer.is_valid(raise_exception=True)
         gig = serializer.save()
         return Response(GigDetailSerializer(gig, context=self.get_serializer_context()).data)
+
+
+class GigInteractionCreateView(APIView):
+    """Logs that the visitor opened this gig from a list of search results."""
+
+    permission_classes = [permissions.AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'gig_interaction'
+
+    def post(self, request, gig_id):
+        gig = get_object_or_404(Gig, pk=gig_id)
+        serializer = GigInteractionCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        GigInteraction.objects.create(
+            gig=gig,
+            type=data['type'],
+            query=data.get('query') or None,
+            position=data.get('position'),
+            **viewer_identity(request),
+        )
+        return Response(status=http_status.HTTP_201_CREATED)
+
