@@ -9,6 +9,9 @@ vi.mock('../../api/gigs', () => ({
   fetchCategories: vi.fn(),
   fetchGigsPaged: vi.fn(),
 }))
+vi.mock('../../api/meta', () => ({
+  fetchCounties: vi.fn().mockResolvedValue([]),
+}))
 vi.mock('../../api/auth', () => ({
   fetchSkills: vi.fn(),
   createSkill: vi.fn(),

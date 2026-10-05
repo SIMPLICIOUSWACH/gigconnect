@@ -11,7 +11,7 @@ const POSTED_WITHIN_OPTIONS = [
 const fieldClass =
   'w-full px-3 py-2.5 border border-border rounded-lg text-body text-ink bg-surface placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors'
 
-export default function FilterSidebar({ categories, skills, filters, onChange, onClear }) {
+export default function FilterSidebar({ categories, counties = [], skills, filters, onChange, onClear }) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -51,6 +51,32 @@ export default function FilterSidebar({ categories, skills, filters, onChange, o
             </label>
           ))}
         </div>
+      </div>
+
+      <div>
+        <Label>County</Label>
+        <select
+          value={filters.county}
+          onChange={(e) => onChange({ county: e.target.value })}
+          className={fieldClass}
+          aria-label="County"
+        >
+          <option value="">Any county</option>
+          {counties.map((c) => (
+            <option key={c.value} value={c.value}>
+              {c.label}
+            </option>
+          ))}
+        </select>
+        <label className="flex items-center gap-2.5 cursor-pointer mt-3">
+          <input
+            type="checkbox"
+            checked={filters.remote}
+            onChange={(e) => onChange({ remote: e.target.checked })}
+            className="w-4 h-4 rounded border-border text-primary focus:ring-2 focus:ring-primary/30"
+          />
+          <span className="text-body text-ink">Remote gigs only</span>
+        </label>
       </div>
 
       <div>

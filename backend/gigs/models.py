@@ -6,6 +6,7 @@ from django.contrib.postgres.search import SearchVectorField
 from django.db import models
 from django.utils.text import slugify
 
+from profiles.counties import COUNTY_CHOICES
 from profiles.models import Skill
 
 
@@ -56,6 +57,8 @@ class Gig(models.Model):
     # functionally never null once persisted.
     application_deadline = models.DateField(null=True, blank=True)
     is_negotiable = models.BooleanField(default=True)
+    county = models.CharField(max_length=40, choices=COUNTY_CHOICES, null=True, blank=True)
+    is_remote = models.BooleanField(default=False)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.OPEN)
     skills = models.ManyToManyField(Skill, through='GigSkill', related_name='gigs')
     view_count = models.PositiveIntegerField(default=0)

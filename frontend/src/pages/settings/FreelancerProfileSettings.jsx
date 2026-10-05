@@ -9,13 +9,17 @@ import Card from '../../components/Card'
 import ImageUpload from '../../components/ImageUpload'
 import Label from '../../components/Label'
 import PortfolioManager from '../../components/PortfolioManager'
+import Select from '../../components/Select'
 import SkillPicker from '../../components/SkillPicker'
+import useCounties from '../../hooks/useCounties'
 
 export default function FreelancerProfileSettings() {
   const { user, refreshUser } = useAuth()
   const profile = user.profile || {}
   const [allSkills, setAllSkills] = useState([])
   const [bio, setBio] = useState(profile.bio || '')
+  const [county, setCounty] = useState(profile.county || '')
+  const counties = useCounties()
   const [photo, setPhoto] = useState(null)
   const [selectedSkills, setSelectedSkills] = useState((profile.skills || []).map((s) => s.id))
   const [message, setMessage] = useState('')
@@ -35,7 +39,7 @@ export default function FreelancerProfileSettings() {
     setMessage('')
     setSubmitting(true)
     try {
-      await completeProfile({ bio, profile_photo: photo, skills: selectedSkills })
+      await completeProfile({ bio, county, profile_photo: photo, skills: selectedSkills })
       await refreshUser()
       setMessage('Profile updated.')
     } catch (err) {
@@ -67,6 +71,12 @@ export default function FreelancerProfileSettings() {
                 className="w-full px-4 py-3 border border-border rounded-lg text-body text-ink focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
               />
             </label>
+            <Select
+              label="County (optional)"
+              options={[{ value: '', label: 'Prefer not to say' }, ...counties]}
+              value={county}
+              onChange={(e) => setCounty(e.target.value)}
+            />
             <ImageUpload label="Profile photo" currentUrl={profile.profile_photo} onChange={setPhoto} round />
             <div>
               <Label>Skills</Label>

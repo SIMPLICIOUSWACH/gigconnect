@@ -3,6 +3,8 @@ import uuid
 from django.conf import settings
 from django.db import models
 
+from .counties import COUNTY_CHOICES
+
 
 class Skill(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -53,6 +55,7 @@ class FreelancerProfile(models.Model):
     )
     skills = models.ManyToManyField(Skill, related_name='freelancers', blank=True)
     bio = models.CharField(max_length=300, blank=True)
+    county = models.CharField(max_length=40, choices=COUNTY_CHOICES, null=True, blank=True)
     profile_photo = models.ImageField(upload_to='profile_photos/', blank=True, null=True)
     # write-only in every serializer — never include in a response, even to the owner
     id_number = models.CharField(max_length=20, blank=True)

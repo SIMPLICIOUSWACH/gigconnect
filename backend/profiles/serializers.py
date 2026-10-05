@@ -58,7 +58,10 @@ class FreelancerProfileCompleteSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = FreelancerProfile
-        fields = ['bio', 'profile_photo', 'skills']
+        fields = ['bio', 'county', 'profile_photo', 'skills']
+
+    def validate_county(self, value):
+        return value or None
 
 
 class FreelancerProfileSerializer(serializers.ModelSerializer):
@@ -70,7 +73,7 @@ class FreelancerProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = FreelancerProfile
         fields = [
-            'bio', 'profile_photo', 'skills', 'portfolio_items',
+            'bio', 'county', 'profile_photo', 'skills', 'portfolio_items',
             'verification_status', 'verified',
         ]
 

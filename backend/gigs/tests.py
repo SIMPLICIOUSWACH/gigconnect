@@ -562,6 +562,57 @@ class TypoToleranceTests(GigTestBase):
         self.assertNotIn('Python developer for a REST API', self.titles(q='pyhton'))
 
 
+class LocationTests(GigTestBase):
+    def setUp(self):
+        super().setUp()
+        self.nairobi_gig = self.create_gig(title='Nairobi gig', county='Nairobi')
+        self.remote_gig = self.create_gig(title='Remote gig', is_remote=True)
+        self.unplaced_gig = self.create_gig(title='Unplaced gig')
+
+    def titles(self, **params):
+        response = self.client.get('/api/gigs/', params)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return [g['title'] for g in response.data['results']]
+
+    def test_filter_by_county(self):
+        self.assertEqual(self.titles(county='Nairobi'), ['Nairobi gig'])
+
+    def test_unknown_county_is_a_400(self):
+        response = self.client.get('/api/gigs/', {'county': 'Atlantis'})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('county', response.data)
+
+    def test_remote_true_only_returns_remote_gigs(self):
+        self.assertEqual(self.titles(remote='true'), ['Remote gig'])
+
+    def test_remote_false_excludes_remote_gigs(self):
+        self.assertEqual(set(self.titles(remote='false')), {'Nairobi gig', 'Unplaced gig'})
+
+    def test_county_and_remote_combine_with_and(self):
+        self.assertEqual(self.titles(county='Nairobi', remote='true'), [])
+
+    def test_create_gig_with_county_and_remote(self):
+        self.client.force_authenticate(user=self.client_user)
+        response = self.client.post(
+            '/api/gigs/', self.valid_payload(county='Mombasa', is_remote=True), format='json'
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['county'], 'Mombasa')
+        self.assertTrue(response.data['is_remote'])
+
+    def test_create_gig_rejects_unknown_county(self):
+        self.client.force_authenticate(user=self.client_user)
+        response = self.client.post('/api/gigs/', self.valid_payload(county='Atlantis'), format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('county', response.data)
+
+    def test_listing_includes_location_fields(self):
+        response = self.client.get('/api/gigs/', {'county': 'Nairobi'})
+        gig = response.data['results'][0]
+        self.assertEqual(gig['county'], 'Nairobi')
+        self.assertFalse(gig['is_remote'])
+
+
 class IncludeClosedFilterTests(GigTestBase):
     def setUp(self):
         super().setUp()

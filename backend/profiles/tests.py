@@ -238,3 +238,42 @@ class SkillCreateTests(APITestCase):
         self.client.force_authenticate(user=self.user)
         response = self.client.post('/api/skills/', {'name': '   '})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class CountyTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email='county-freelancer@example.com', password='StrongPass123!',
+            full_name='County Freelancer', phone='254700000077', role='freelancer',
+        )
+
+    def test_counties_endpoint_lists_all_47_without_auth(self):
+        response = self.client.get('/api/meta/counties/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        values = [c['value'] for c in response.data]
+        self.assertEqual(len(values), 47)
+        self.assertEqual(len(set(values)), 47)
+        self.assertIn('Nairobi', values)
+        self.assertIn("Murang'a", values)
+
+    def test_freelancer_can_set_county(self):
+        self.client.force_authenticate(user=self.user)
+        response = self.client.patch('/api/profile/complete/', {'county': 'Kisumu'}, format='multipart')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.freelancer_profile.refresh_from_db()
+        self.assertEqual(self.user.freelancer_profile.county, 'Kisumu')
+
+    def test_unknown_county_is_rejected(self):
+        self.client.force_authenticate(user=self.user)
+        response = self.client.patch('/api/profile/complete/', {'county': 'Atlantis'}, format='multipart')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('county', response.data)
+
+    def test_blank_county_clears_it(self):
+        self.user.freelancer_profile.county = 'Nairobi'
+        self.user.freelancer_profile.save()
+        self.client.force_authenticate(user=self.user)
+        response = self.client.patch('/api/profile/complete/', {'county': ''}, format='multipart')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.freelancer_profile.refresh_from_db()
+        self.assertIsNone(self.user.freelancer_profile.county)

@@ -6,6 +6,7 @@ from rest_framework.views import APIView
 from accounts.models import User
 from accounts.permissions import IsAdminRole, IsFreelancer
 
+from .counties import COUNTY_CHOICES
 from .models import FreelancerProfile, PortfolioItem, Skill
 from .serializers import (
     AdminVerificationListSerializer,
@@ -132,3 +133,12 @@ class AdminVerificationDetailView(generics.UpdateAPIView):
     serializer_class = AdminVerificationUpdateSerializer
     permission_classes = [permissions.IsAuthenticated, IsAdminRole]
     http_method_names = ['patch']
+
+
+class CountyListView(APIView):
+    """Read-only list of Kenya's counties, from profiles.counties (the one source of truth)."""
+
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        return Response([{'value': name, 'label': label} for name, label in COUNTY_CHOICES])

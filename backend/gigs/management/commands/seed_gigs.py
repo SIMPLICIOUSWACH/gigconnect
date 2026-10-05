@@ -10,7 +10,8 @@ from profiles.models import Skill
 
 from ...models import Category, Gig
 
-LOCATIONS = ['Nairobi', 'Mombasa', 'Kisumu', 'Nakuru', 'Eldoret', 'remote']
+# Seeded gigs are placed in real counties (Eldoret is in Uasin Gishu) or marked remote.
+LOCATIONS = ['Nairobi', 'Mombasa', 'Kisumu', 'Nakuru', 'Uasin Gishu', 'remote']
 
 TITLE_TEMPLATES = [
     'Need a {skill} expert for a {location} based project',
@@ -108,6 +109,8 @@ class Command(BaseCommand):
                 deadline=deadline,
                 application_deadline=application_deadline,
                 is_negotiable=random.random() < 0.7,
+                county=None if location == 'remote' else location,
+                is_remote=location == 'remote',
                 status=Gig.Status.OPEN,
             )
             gig.skills.set(skill_sample)

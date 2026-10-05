@@ -8,6 +8,7 @@ from django.db.models.functions import Greatest
 from django.utils import timezone
 from rest_framework import serializers
 
+from profiles.counties import KENYA_COUNTIES
 from profiles.models import Skill
 
 from .models import Category, Gig
@@ -27,6 +28,8 @@ class GigFilterSerializer(serializers.Serializer):
     # "don't filter on this" rather than "filter for non-negotiable gigs only".
     negotiable = serializers.BooleanField(required=False, allow_null=True, default=None)
     include_closed = serializers.BooleanField(required=False, allow_null=True, default=None)
+    county = serializers.ChoiceField(choices=KENYA_COUNTIES, required=False)
+    remote = serializers.BooleanField(required=False, allow_null=True, default=None)
     deadline_before = serializers.DateField(required=False)
     posted_within = serializers.IntegerField(required=False)
     sort = serializers.ChoiceField(choices=SORT_CHOICES, required=False, default='newest')
@@ -136,6 +139,14 @@ def apply_gig_filters(queryset, data):
     negotiable = data.get('negotiable')
     if negotiable is not None:
         queryset = queryset.filter(is_negotiable=negotiable)
+
+    county = data.get('county')
+    if county:
+        queryset = queryset.filter(county=county)
+
+    remote = data.get('remote')
+    if remote is not None:
+        queryset = queryset.filter(is_remote=remote)
 
     deadline_before = data.get('deadline_before')
     if deadline_before is not None:

@@ -7,6 +7,12 @@ const STATUS_LABELS = {
   closed: 'Closed',
 }
 
+function locationLabel(gig) {
+  if (gig.is_remote && gig.county) return `${gig.county} or remote`
+  if (gig.is_remote) return 'Remote'
+  return gig.county || ''
+}
+
 export default function GigCard({ gig }) {
   const location = useLocation()
   const urgent = isUrgent(gig.application_deadline)
@@ -40,6 +46,7 @@ export default function GigCard({ gig }) {
 
       <p className="text-body text-muted mb-3">
         {gig.client_name} · {gig.category.name}
+        {locationLabel(gig) && ` · ${locationLabel(gig)}`}
       </p>
 
       <div className="flex flex-wrap gap-2 mb-4">
