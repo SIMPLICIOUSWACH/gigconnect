@@ -68,7 +68,8 @@ category slug, `budget_min > budget_max`, an out-of-range `posted_within`, an un
 |---|---|---|
 | `q` | string | Full-text search (title weight A, skills weight B, description weight C) via PostgreSQL `websearch_to_tsquery`, so stray punctuation can't cause a syntax error |
 | `category` | string | Category slug, exact match |
-| `skills` | string | Comma-separated skill ids or names (case-insensitive); matches **any** of them |
+| `skills` | string | Comma-separated skill ids or names (case-insensitive) |
+| `skills_mode` | string | `any` (default): the gig has at least one of the skills. `all`: it has every one; a skill that doesn't exist means no results |
 | `budget_min`, `budget_max` | decimal | Range **overlap**, not containment — a gig matches if its own budget range overlaps the requested one at all |
 | `negotiable` | bool | `true`/`false`; omit to not filter on it |
 | `include_closed` | bool | `true` lifts the default `status=open` + unexpired-deadline restriction entirely, returning every gig regardless of status or application deadline. Default `false` |
@@ -77,9 +78,10 @@ category slug, `budget_min > budget_max`, an out-of-range `posted_within`, an un
 | `sort` | string | `newest` (default), `deadline`, `budget_high`, `budget_low`, `relevance` |
 | `page`, `page_size` | int | Default page size 12, max 50 |
 
-**`sort=relevance` with no `q`:** relevance ranks by PostgreSQL's `ts_rank` against the search
-query, which is meaningless with an empty query. Rather than erroring or returning an arbitrary
-order, this combination silently falls back to `sort=newest` — the same behaviour as omitting
+**`sort=relevance`:** ranks by the number of matched `skills` first (when given), then by the text
+search rank (when `q` is given), then newest. With neither `q` nor `skills` there is nothing to
+rank by, so rather than erroring or returning an arbitrary order the request silently falls back
+to `sort=newest` — the same behaviour as omitting
 `sort` entirely. This is deliberate (see `GigFilterSerializer.validate()` in `gigs/filters.py`),
 not a bug: a client that lets the user pick "Best match" before typing anything should still get
 a sensible, stable order rather than a 400 or undefined ordering.

@@ -562,6 +562,55 @@ class TypoToleranceTests(GigTestBase):
         self.assertNotIn('Python developer for a REST API', self.titles(q='pyhton'))
 
 
+class SkillsModeTests(GigTestBase):
+    def setUp(self):
+        super().setUp()
+        self.react = Skill.objects.create(name='React', category='Technology')
+        self.python = Skill.objects.create(name='Python', category='Technology')
+        self.both = self.create_gig(title='Needs both')
+        self.both.skills.set([self.react, self.python])
+        self.react_only = self.create_gig(title='React only')
+        self.react_only.skills.set([self.react])
+        self.python_only = self.create_gig(title='Python only')
+        self.python_only.skills.set([self.python])
+
+    def titles(self, **params):
+        response = self.client.get('/api/gigs/', params)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return [g['title'] for g in response.data['results']]
+
+    def test_default_mode_is_any(self):
+        titles = self.titles(skills='React,Python')
+        self.assertEqual(set(titles), {'Needs both', 'React only', 'Python only'})
+        self.assertEqual(len(titles), 3)  # a gig with two matching skills is still listed once
+
+    def test_all_mode_requires_every_skill(self):
+        self.assertEqual(self.titles(skills='React,Python', skills_mode='all'), ['Needs both'])
+
+    def test_all_mode_with_a_single_skill_matches_like_any(self):
+        self.assertEqual(set(self.titles(skills='React', skills_mode='all')), {'Needs both', 'React only'})
+
+    def test_all_mode_with_an_unknown_skill_returns_nothing(self):
+        self.assertEqual(self.titles(skills='React,Cobol', skills_mode='all'), [])
+
+    def test_any_mode_ignores_an_unknown_skill(self):
+        self.assertEqual(set(self.titles(skills='React,Cobol')), {'Needs both', 'React only'})
+
+    def test_relevance_ranks_by_number_of_matched_skills(self):
+        titles = self.titles(skills='React,Python', sort='relevance')
+        self.assertEqual(titles[0], 'Needs both')
+        self.assertEqual(set(titles[1:]), {'React only', 'Python only'})
+
+    def test_relevance_with_skills_but_no_q_does_not_fall_back_to_newest(self):
+        # newest-first would put 'Python only' first; matched-skill ranking puts 'Needs both' first.
+        self.assertEqual(self.titles(skills='React,Python', sort='relevance')[0], 'Needs both')
+
+    def test_invalid_skills_mode_is_a_400(self):
+        response = self.client.get('/api/gigs/', {'skills': 'React', 'skills_mode': 'some'})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('skills_mode', response.data)
+
+
 class LocationTests(GigTestBase):
     def setUp(self):
         super().setUp()
