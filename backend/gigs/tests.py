@@ -1048,3 +1048,64 @@ class RebuildSearchVectorsTests(TestCase):
         call_command('rebuild_search_vectors')
         call_command('rebuild_search_vectors')  # must not error or duplicate anything
         self.assertEqual(Gig.objects.count(), 1)
+
+
+@override_settings(DEBUG=True)  # Django forces DEBUG=False during tests by default.
+class PerfSeedCommandTests(TestCase):
+    def run_command(self, **options):
+        call_command('perf_seed', stdout=StringIO(), **options)
+
+    @override_settings(DEBUG=False)
+    def test_refuses_to_run_when_debug_is_false(self):
+        with self.assertRaises(CommandError):
+            self.run_command(size=5)
+        self.assertEqual(Gig.objects.count(), 0)
+
+    def test_creates_exactly_the_requested_number_of_gigs(self):
+        self.run_command(size=30)
+        self.assertEqual(Gig.objects.count(), 30)
+
+    def test_running_again_replaces_rather_than_adds(self):
+        self.run_command(size=30)
+        self.run_command(size=12)
+        self.assertEqual(Gig.objects.count(), 12)
+
+    def test_every_gig_is_synthetic_has_skills_and_a_search_vector(self):
+        self.run_command(size=30)
+        self.assertFalse(Gig.objects.filter(is_synthetic=False).exists())
+        self.assertFalse(Gig.objects.filter(search_vector__isnull=True).exists())
+        for gig in Gig.objects.all():
+            self.assertGreaterEqual(gig.skills.count(), 1)
+
+    def test_same_seed_gives_the_same_gigs(self):
+        self.run_command(size=25, seed=7)
+        first = sorted(Gig.objects.values_list('title', 'description', 'budget_min'))
+        self.run_command(size=25, seed=7)
+        self.assertEqual(sorted(Gig.objects.values_list('title', 'description', 'budget_min')), first)
+
+    def test_data_exercises_the_filters(self):
+        self.run_command(size=200)
+        self.assertTrue(Gig.objects.filter(is_remote=True).exists())
+        self.assertTrue(Gig.objects.exclude(status=Gig.Status.OPEN).exists())
+        self.assertTrue(Gig.objects.filter(application_deadline__lt=date.today()).exists())
+        self.assertTrue(Gig.objects.filter(county='Nairobi').exists())
+
+    def test_created_at_is_spread_out(self):
+        self.run_command(size=50)
+        newest = Gig.objects.order_by('-created_at').first().created_at
+        oldest = Gig.objects.order_by('created_at').first().created_at
+        self.assertGreater(newest - oldest, timedelta(days=5))
+
+    def test_delete_removes_only_perf_gigs(self):
+        owner = User.objects.create_user(
+            email='real-owner@example.com', password='StrongPass123!',
+            full_name='Owner', phone='254700000021', role='client',
+        )
+        real = Gig.objects.create(
+            client=owner, category=Category.objects.first(), title='Real gig', description='Keep me.',
+            budget_min=1000, budget_max=2000, deadline=date.today() + timedelta(days=30),
+        )
+        self.run_command(size=20)
+        self.run_command(delete=True)
+        self.assertEqual(list(Gig.objects.all()), [real])
+        self.assertFalse(User.objects.filter(email__startswith='perf-client-').exists())
