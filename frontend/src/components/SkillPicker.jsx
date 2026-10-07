@@ -37,6 +37,7 @@ export default function SkillPicker({ skills, selected, onToggle, onCreate }) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search skills…"
+          aria-label="Search skills"
           className="w-full px-4 py-2.5 mb-3 border border-border rounded-lg text-body text-ink placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
         />
       )}
@@ -47,6 +48,7 @@ export default function SkillPicker({ skills, selected, onToggle, onCreate }) {
             type="button"
             key={skill.id}
             onClick={() => onToggle(skill.id)}
+            aria-pressed={selected.includes(skill.id)}
             className={`text-caption font-medium px-3 py-1.5 rounded-full border transition-colors ${
               selected.includes(skill.id)
                 ? 'bg-primary text-white border-primary'
