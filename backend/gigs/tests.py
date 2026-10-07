@@ -638,6 +638,61 @@ class SyntheticFlagTests(GigTestBase):
         self.assertIn('Synthetic gig', titles)
 
 
+class MyApplicationFieldTests(GigTestBase):
+    LETTER = 'I have five years of experience building exactly this kind of thing for small businesses.'
+
+    def setUp(self):
+        super().setUp()
+        self.gig = self.create_gig()
+        self.url = f'/api/gigs/{self.gig.id}/'
+
+    def apply(self, user, **overrides):
+        from applications.models import Application
+
+        return Application.objects.create(gig=self.gig, freelancer=user, cover_letter=self.LETTER, **overrides)
+
+    def test_is_null_for_a_freelancer_who_has_not_applied(self):
+        self.client.force_authenticate(user=self.freelancer)
+        self.assertIsNone(self.client.get(self.url).data['my_application'])
+
+    def test_shows_the_id_and_status_for_a_freelancer_who_applied(self):
+        application = self.apply(self.freelancer)
+        self.client.force_authenticate(user=self.freelancer)
+        self.assertEqual(
+            self.client.get(self.url).data['my_application'],
+            {'id': str(application.id), 'status': 'pending'},
+        )
+
+    def test_reflects_the_current_status(self):
+        self.apply(self.freelancer, status='shortlisted')
+        self.client.force_authenticate(user=self.freelancer)
+        self.assertEqual(self.client.get(self.url).data['my_application']['status'], 'shortlisted')
+
+    def test_only_ever_shows_the_viewers_own_application(self):
+        other = User.objects.create_user(
+            email='second-freelancer@example.com', password='StrongPass123!',
+            full_name='Second', phone='254700000047', role='freelancer',
+        )
+        self.apply(other)
+        self.client.force_authenticate(user=self.freelancer)
+        self.assertIsNone(self.client.get(self.url).data['my_application'])
+
+    def test_is_null_for_anonymous_visitors(self):
+        self.apply(self.freelancer)
+        self.assertIsNone(self.client.get(self.url).data['my_application'])
+
+    def test_is_null_for_clients_even_the_gigs_owner(self):
+        self.apply(self.freelancer)
+        self.client.force_authenticate(user=self.client_user)
+        self.assertIsNone(self.client.get(self.url).data['my_application'])
+
+    def test_the_create_response_includes_the_field_as_null(self):
+        self.client.force_authenticate(user=self.client_user)
+        response = self.client.post('/api/gigs/', self.valid_payload(), format='json')
+        self.assertIn('my_application', response.data)
+        self.assertIsNone(response.data['my_application'])
+
+
 class GigInteractionEndpointTests(GigTestBase):
     def setUp(self):
         super().setUp()
