@@ -44,6 +44,18 @@ class GigDetailSerializer(serializers.ModelSerializer):
     category = CategorySerializer(read_only=True)
     skills = SkillSerializer(many=True, read_only=True)
     client = GigClientSummarySerializer(read_only=True)
+    my_application = serializers.SerializerMethodField()
+
+    def get_my_application(self, obj):
+        """The signed-in freelancer's own application to this gig, so the page can say "Applied"."""
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if user is None or not user.is_authenticated or user.role != user.Role.FREELANCER:
+            return None
+        application = obj.applications.filter(freelancer=user).only('id', 'status').first()
+        if application is None:
+            return None
+        return {'id': str(application.id), 'status': application.status}
 
     class Meta:
         model = Gig
@@ -51,6 +63,7 @@ class GigDetailSerializer(serializers.ModelSerializer):
             'id', 'title', 'description', 'client', 'category',
             'budget_min', 'budget_max', 'currency', 'deadline', 'application_deadline',
             'is_negotiable', 'county', 'is_remote', 'status', 'skills', 'view_count', 'created_at', 'updated_at',
+            'my_application',
         ]
 
 

@@ -9,6 +9,7 @@ urlpatterns = [
     path('api/', include('profiles.urls')),
     path('api/', include('usersettings.urls')),
     path('api/', include('gigs.urls')),
+    path('api/', include('applications.urls')),
 ]
 
 if settings.DEBUG:
