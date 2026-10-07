@@ -1,7 +1,7 @@
 from datetime import date
 
 from django.conf import settings
-from django.db.models import F
+from django.db.models import Count, F, Q
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions
 from rest_framework import status as http_status
@@ -24,6 +24,7 @@ from .serializers import (
     GigListSerializer,
     GigStatusUpdateSerializer,
     GigUpdateSerializer,
+    MyGigListSerializer,
 )
 
 
@@ -81,14 +82,22 @@ class GigListCreateView(generics.ListCreateAPIView):
 
 
 class MyGigsView(generics.ListAPIView):
-    serializer_class = GigListSerializer
+    serializer_class = MyGigListSerializer
     permission_classes = [permissions.IsAuthenticated, IsClientRole]
 
     def get_queryset(self):
+        # application_count is every application received, withdrawn ones included;
+        # pending_application_count is the ones the client has not acted on yet.
         return (
             Gig.objects.filter(client=self.request.user)
             .select_related('client', 'client__client_profile', 'category')
             .prefetch_related('skills')
+            .annotate(
+                application_count=Count('applications', distinct=True),
+                pending_application_count=Count(
+                    'applications', filter=Q(applications__status='pending'), distinct=True
+                ),
+            )
         )
 
 

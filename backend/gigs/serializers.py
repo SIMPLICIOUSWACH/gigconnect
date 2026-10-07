@@ -29,6 +29,16 @@ class GigListSerializer(serializers.ModelSerializer):
         ]
 
 
+class MyGigListSerializer(GigListSerializer):
+    """A client's own gigs. The counts come from annotations set in MyGigsView."""
+
+    application_count = serializers.IntegerField(read_only=True)
+    pending_application_count = serializers.IntegerField(read_only=True)
+
+    class Meta(GigListSerializer.Meta):
+        fields = GigListSerializer.Meta.fields + ['application_count', 'pending_application_count']
+
+
 class GigClientSummarySerializer(serializers.Serializer):
     id = serializers.UUIDField(read_only=True)
     full_name = serializers.CharField(read_only=True)
