@@ -2,6 +2,7 @@ from django.urls import path
 
 from .views import (
     ApplicationDetailView,
+    ApplicationStatusView,
     GigApplicationsView,
     MyApplicationsView,
     WithdrawApplicationView,
@@ -15,5 +16,10 @@ urlpatterns = [
         'applications/<uuid:application_id>/withdraw/',
         WithdrawApplicationView.as_view(),
         name='application-withdraw',
+    ),
+    path(
+        'applications/<uuid:application_id>/status/',
+        ApplicationStatusView.as_view(),
+        name='application-status',
     ),
 ]

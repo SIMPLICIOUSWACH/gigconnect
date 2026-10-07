@@ -2,10 +2,12 @@
 applications/views.py
 
 Endpoints:
-    POST /api/gigs/<gig_id>/applications/             GigApplicationsView
-    GET  /api/applications/mine/                      MyApplicationsView
-    GET  /api/applications/<pk>/                      ApplicationDetailView
-    POST /api/applications/<application_id>/withdraw/ WithdrawApplicationView
+    POST  /api/gigs/<gig_id>/applications/             GigApplicationsView (freelancer applies)
+    GET   /api/gigs/<gig_id>/applications/             GigApplicationsView (client lists applicants)
+    GET   /api/applications/mine/                      MyApplicationsView
+    GET   /api/applications/<pk>/                      ApplicationDetailView
+    POST  /api/applications/<application_id>/withdraw/ WithdrawApplicationView
+    PATCH /api/applications/<application_id>/status/   ApplicationStatusView
 """
 
 import datetime
@@ -20,7 +22,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from accounts.permissions import IsEmailVerified, IsFreelancer
+from accounts.permissions import IsClientRole, IsEmailVerified, IsFreelancer
 from gigs.models import Gig, GigInteraction
 from gigs.pagination import GigPagination
 
@@ -30,6 +32,7 @@ from .serializers import (
     ApplicationDetailSerializer,
     ApplicationFilterSerializer,
     ApplicationListSerializer,
+    ApplicationStatusUpdateSerializer,
 )
 from .transitions import Actor, InvalidTransition, Status
 
@@ -58,6 +61,7 @@ def _has_passed(cutoff):
 
 class GigApplicationsView(APIView):
     """
+    GET:  the gig's client lists its applicants (see get()).
     POST: a verified freelancer applies to a gig.
 
     Rules, checked in order (the first failure wins):
@@ -71,7 +75,43 @@ class GigApplicationsView(APIView):
       7. The request body is valid                        -> 400 (serializer errors)
     """
 
-    permission_classes = [IsAuthenticated, IsFreelancer, IsEmailVerified]
+    def get_permissions(self):
+        if self.request.method == "POST":
+            return [IsAuthenticated(), IsFreelancer(), IsEmailVerified()]
+        return [IsAuthenticated(), IsClientRole()]
+
+    def get(self, request, gig_id):
+        """The gig owner's view of who applied. Nobody else can see them."""
+        gig = get_object_or_404(Gig, pk=gig_id)
+        if gig.client_id != request.user.id:
+            raise PermissionDenied("You can only see applicants for your own gigs.")
+
+        filters = ApplicationFilterSerializer(data=request.query_params)
+        filters.is_valid(raise_exception=True)
+        params = filters.validated_data
+
+        base_qs = Application.objects.filter(gig=gig)
+
+        # Counts ignore the status filter so the filter tabs always show every total.
+        status_counts = {choice.value: 0 for choice in Status}
+        for row in base_qs.order_by().values("status").annotate(n=Count("id")):
+            status_counts[row["status"]] = row["n"]
+        status_counts["total"] = sum(status_counts.values())
+
+        qs = (
+            base_qs.select_related("gig", "gig__client", "freelancer", "freelancer__freelancer_profile")
+            .prefetch_related("events__changed_by", "freelancer__freelancer_profile__skills")
+            .order_by("-created_at", "-id")
+        )
+        if params.get("status"):
+            qs = qs.filter(status=params["status"])
+
+        paginator = GigPagination()
+        page = paginator.paginate_queryset(qs, request, view=self)
+        serializer = ApplicationDetailSerializer(page, many=True, context={"request": request})
+        response = paginator.get_paginated_response(serializer.data)
+        response.data["status_counts"] = status_counts
+        return response
 
     def post(self, request, gig_id):
         # 1. Gig exists
@@ -279,6 +319,82 @@ class WithdrawApplicationView(APIView):
                     "An application can only be withdrawn while it is pending or under review.",
                     code="invalid_transition",
                 )
+
+        out = ApplicationDetailSerializer(application, context={"request": request})
+        return Response(out.data, status=status.HTTP_200_OK)
+
+
+# ---------------------------------------------------------------------------
+# Client review
+# ---------------------------------------------------------------------------
+
+class ApplicationStatusView(APIView):
+    """
+    PATCH: the gig's client moves an application along the allowed transitions.
+
+    Hiring also moves an open gig to in_progress, in the same transaction. Other
+    applications are left alone: the client rejects them when ready. Anyone who
+    isn't the gig's client gets 404, so the endpoint doesn't reveal the application.
+    """
+
+    permission_classes = [IsAuthenticated, IsClientRole]
+    http_method_names = ["patch", "options"]
+
+    def patch(self, request, application_id):
+        body = ApplicationStatusUpdateSerializer(data=request.data)
+        body.is_valid(raise_exception=True)
+        new_status = body.validated_data["status"]
+        note = body.validated_data.get("note", "").strip()
+
+        application = get_object_or_404(
+            Application.objects.select_related(
+                "gig", "gig__client", "freelancer", "freelancer__freelancer_profile"
+            ),
+            pk=application_id,
+            gig__client=request.user,
+        )
+
+        with transaction.atomic():
+            # Lock the gig so two decisions on the same gig are handled one at a time.
+            gig = Gig.objects.select_for_update().get(pk=application.gig_id)
+            application.gig = gig
+
+            hiring = new_status == Status.HIRED
+            if hiring:
+                if gig.status not in (Gig.Status.OPEN, Gig.Status.IN_PROGRESS):
+                    raise ApplicationRuleError(
+                        "You can only hire for a gig that is open or in progress.",
+                        code="gig_not_hireable",
+                    )
+                already_hired = (
+                    Application.objects.filter(gig=gig, status=Status.HIRED)
+                    .exclude(pk=application.pk)
+                    .exists()
+                )
+                if already_hired:
+                    raise ApplicationRuleError(
+                        "You have already hired someone for this gig.", code="already_hired"
+                    )
+
+            try:
+                application.change_status(
+                    new_status, actor=Actor.CLIENT, changed_by=request.user, note=note
+                )
+            except InvalidTransition:
+                current = Status(application.status).label.lower()
+                raise ApplicationRuleError(
+                    f"An application that is {current} cannot be moved to {Status(new_status).label.lower()}.",
+                    code="invalid_transition",
+                )
+            except IntegrityError:
+                # The one-hired-per-gig constraint, if the check above was somehow beaten.
+                raise ApplicationRuleError(
+                    "You have already hired someone for this gig.", code="already_hired"
+                )
+
+            if hiring and gig.status == Gig.Status.OPEN:
+                gig.status = Gig.Status.IN_PROGRESS
+                gig.save(update_fields=["status", "updated_at"])
 
         out = ApplicationDetailSerializer(application, context={"request": request})
         return Response(out.data, status=status.HTTP_200_OK)
