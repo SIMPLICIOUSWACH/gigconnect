@@ -96,3 +96,21 @@ class ApplicationDetailSerializer(ApplicationListSerializer):
 
 class ApplicationFilterSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=Status.choices, required=False)
+
+
+class ApplicationStatusUpdateSerializer(serializers.Serializer):
+    """Body of PATCH /api/applications/<id>/status/. Whether the move is allowed is the view's job."""
+
+    NOTE_MAX_LENGTH = 500
+
+    status = serializers.ChoiceField(
+        choices=Status.choices,
+        error_messages={
+            'required': 'Choose the status to move this application to.',
+            'invalid_choice': 'That is not a valid status.',
+        },
+    )
+    note = serializers.CharField(
+        required=False, allow_blank=True, max_length=NOTE_MAX_LENGTH,
+        error_messages={'max_length': f'A note can be at most {NOTE_MAX_LENGTH} characters.'},
+    )
