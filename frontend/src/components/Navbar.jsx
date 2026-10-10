@@ -38,6 +38,11 @@ export default function Navbar() {
                 My Gigs
               </NavLink>
             )}
+            {user.role === 'freelancer' && (
+              <NavLink to="/applications" className={navLinkClass}>
+                My Applications
+              </NavLink>
+            )}
             <NavLink to="/settings/account" className={navLinkClass}>
               Settings
             </NavLink>
