@@ -20,6 +20,7 @@ import GigDetail from './pages/gigs/GigDetail'
 import BrowseGigs from './pages/gigs/BrowseGigs'
 import MyGigs from './pages/gigs/MyGigs'
 import ApplicationDetail from './pages/applications/ApplicationDetail'
+import MyApplications from './pages/applications/MyApplications'
 import AccountSettings from './pages/settings/AccountSettings'
 import SecuritySettings from './pages/settings/SecuritySettings'
 import NotificationSettings from './pages/settings/NotificationSettings'
@@ -50,6 +51,10 @@ function App() {
             <Route path="/gigs" element={<BrowseGigs />} />
             <Route path="/gigs/:id" element={<GigDetail />} />
             <Route path="/applications/:id" element={<ApplicationDetail />} />
+
+            <Route element={<RoleRoute role="freelancer" />}>
+              <Route path="/applications" element={<MyApplications />} />
+            </Route>
 
             <Route element={<RoleRoute role="client" />}>
               <Route path="/gigs/new" element={<GigForm />} />

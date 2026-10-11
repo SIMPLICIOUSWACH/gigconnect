@@ -64,6 +64,17 @@ export default function Dashboard() {
         </dl>
       </Card>
 
+      {user.role === 'freelancer' && (
+        <div className="mt-6 flex gap-3">
+          <Link to="/gigs">
+            <Button>Browse gigs</Button>
+          </Link>
+          <Link to="/applications">
+            <Button variant="secondary">My applications</Button>
+          </Link>
+        </div>
+      )}
+
       {user.role === 'client' && (
         <div className="mt-6 flex gap-3">
           <Link to="/gigs/new">
