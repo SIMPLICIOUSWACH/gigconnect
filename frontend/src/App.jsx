@@ -20,6 +20,7 @@ import GigDetail from './pages/gigs/GigDetail'
 import BrowseGigs from './pages/gigs/BrowseGigs'
 import MyGigs from './pages/gigs/MyGigs'
 import ApplicationDetail from './pages/applications/ApplicationDetail'
+import GigApplicants from './pages/applications/GigApplicants'
 import MyApplications from './pages/applications/MyApplications'
 import AccountSettings from './pages/settings/AccountSettings'
 import SecuritySettings from './pages/settings/SecuritySettings'
@@ -60,6 +61,7 @@ function App() {
               <Route path="/gigs/new" element={<GigForm />} />
               <Route path="/gigs/mine" element={<MyGigs />} />
               <Route path="/gigs/:id/edit" element={<GigForm />} />
+              <Route path="/gigs/:id/applicants" element={<GigApplicants />} />
             </Route>
 
             <Route path="/settings" element={<SettingsLayout />}>
