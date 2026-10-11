@@ -79,6 +79,8 @@ class Gig(models.Model):
             # is what `search_vector` below is for.
             GinIndex(fields=['description'], name='gig_description_gin', opclasses=['gin_trgm_ops']),
             GinIndex(fields=['search_vector'], name='gig_search_vector_gin'),
+            # Lets the typo-tolerant search match titles through the index instead of scanning.
+            GinIndex(fields=['title'], name='gig_title_trgm_gin', opclasses=['gin_trgm_ops']),
             # Covers the default public feed query: WHERE status='open' ORDER BY created_at DESC.
             models.Index(fields=['status', '-created_at'], name='gig_status_created_idx'),
             # Covers browsing/filtering by category within open gigs.

@@ -3,6 +3,7 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.postgres.search import SearchQuery, SearchRank, TrigramWordSimilarity
+from django.db import connection
 from django.db.models import Case, Count, F, FloatField, Q, When
 from django.db.models.functions import Greatest
 from django.utils import timezone
@@ -12,7 +13,7 @@ from profiles.counties import KENYA_COUNTIES
 from profiles.models import Skill
 from profiles.skills import find_skill
 
-from .models import Category, Gig
+from .models import Category, Gig, GigSkill
 
 SORT_CHOICES = ['newest', 'deadline', 'budget_high', 'budget_low', 'relevance']
 
@@ -87,6 +88,17 @@ def _resolve_skills(raw):
     return ids, unresolved
 
 
+def _use_trigram_threshold(threshold):
+    """Point pg_trgm's word-similarity operator at our threshold for this connection.
+
+    The `%>` operator (the trigram_word_similar lookup) is what lets Postgres use the trigram GIN
+    indexes, but its cut-off is a session setting, not an argument. It is set immediately before
+    the query is built, on the same connection that will run it.
+    """
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT set_config('pg_trgm.word_similarity_threshold', %s, false)", [str(threshold)])
+
+
 def _apply_text_search(queryset, q):
     """Full-text search on `q`, topped up with trigram matches when it finds too few gigs.
 
@@ -99,10 +111,17 @@ def _apply_text_search(queryset, q):
     if exact.count() >= settings.SEARCH_FALLBACK_MIN_RESULTS:
         return exact.annotate(rank=SearchRank(F('search_vector'), search_query))
 
+    _use_trigram_threshold(settings.SEARCH_TRIGRAM_THRESHOLD)
+    # The lookups pick the candidate rows through the indexes; the similarity score is then only
+    # computed for those rows, to rank them.
     similarity = Greatest(TrigramWordSimilarity(q, 'title'), TrigramWordSimilarity(q, 'description'))
     return (
-        queryset.annotate(similarity=similarity)
-        .filter(Q(search_vector=search_query) | Q(similarity__gte=settings.SEARCH_TRIGRAM_THRESHOLD))
+        queryset.filter(
+            Q(search_vector=search_query)
+            | Q(title__trigram_word_similar=q)
+            | Q(description__trigram_word_similar=q)
+        )
+        .annotate(similarity=similarity)
         .annotate(
             rank=Case(
                 When(search_vector=search_query, then=SearchRank(F('search_vector'), search_query) + 2.0),
@@ -122,14 +141,24 @@ def apply_gig_filters(queryset, data):
     skills_raw = data.get('skills')
     if skills_raw:
         skill_ids, unresolved = _resolve_skills(skills_raw)
-        if data.get('skills_mode') == 'all' and (unresolved or not skill_ids):
-            queryset = queryset.none()  # a skill that doesn't exist can't be matched by any gig
+        if data.get('skills_mode') == 'all':
+            if unresolved or not skill_ids:
+                queryset = queryset.none()  # a skill that doesn't exist can't be matched by any gig
+            else:
+                # Find the qualifying gigs through the GigSkill index, then fetch only those, instead
+                # of joining and aggregating across every gig.
+                gigs_with_every_skill = (
+                    GigSkill.objects.filter(skill_id__in=skill_ids)
+                    .values('gig_id')
+                    .annotate(matched=Count('skill_id', distinct=True))
+                    .filter(matched=len(skill_ids))
+                    .values('gig_id')
+                )
+                queryset = queryset.filter(pk__in=gigs_with_every_skill)
         else:
             queryset = queryset.filter(skills__id__in=skill_ids).annotate(
                 matched_skills=Count('skills', distinct=True)
             )
-            if data.get('skills_mode') == 'all':
-                queryset = queryset.filter(matched_skills=len(skill_ids))
 
     budget_min = data.get('budget_min')
     budget_max = data.get('budget_max')
@@ -173,8 +202,8 @@ def apply_gig_filters(queryset, data):
         # Skills matched first, then text rank, then newest. Either part is skipped when the
         # request has no skills / no q.
         order = []
-        if data.get('skills'):
-            order.append('-matched_skills')
+        if data.get('skills') and data.get('skills_mode') != 'all':
+            order.append('-matched_skills')  # with mode=all every result matches every skill
         if q:
             order.append('-rank')
         queryset = queryset.order_by(*order, '-created_at')

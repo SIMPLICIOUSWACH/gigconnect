@@ -7,3 +7,16 @@ body {
   background-color: #F7F8FA;
   color: #1A1F2B;
 }
+
+/* Visible keyboard focus everywhere. !important because several form controls set
+   `focus:outline-none` and rely on a faint ring, which is not enough to see. */
+a:focus-visible,
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid #1f3864 !important;
+  outline-offset: 2px;
+}

@@ -9,6 +9,7 @@ import useCounties from '../../hooks/useCounties'
 import useDebouncedValue from '../../hooks/useDebouncedValue'
 import Alert from '../../components/Alert'
 import Button from '../../components/Button'
+import FilterDrawer from '../../components/gigs/FilterDrawer'
 import FilterSidebar from '../../components/gigs/FilterSidebar'
 import GigCard from '../../components/gigs/GigCard'
 import GigCardSkeleton from '../../components/gigs/GigCardSkeleton'
@@ -130,6 +131,8 @@ export default function BrowseGigs() {
   const [retryTick, setRetryTick] = useState(0)
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
 
+  const filtersButtonRef = useRef(null)
+  const closeFilters = useCallback(() => setMobileFiltersOpen(false), [])
   const requestIdRef = useRef(0)
   const hasLoadedRef = useRef(false)
 
@@ -261,11 +264,13 @@ export default function BrowseGigs() {
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Search gigs by title, skill, or description"
+            aria-label="Search gigs"
             className="w-full pl-11 pr-4 py-3 border border-border rounded-lg text-body text-ink bg-surface placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
           />
         </div>
         <select
           value={filters.sort}
+          aria-label="Sort gigs"
           onChange={(e) => updateParams({ sort: e.target.value }, { resetPage: true })}
           className="px-4 py-3 border border-border rounded-lg text-body text-ink bg-surface focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors sm:w-56"
         >
@@ -276,11 +281,14 @@ export default function BrowseGigs() {
           ))}
         </select>
         <button
+          ref={filtersButtonRef}
           type="button"
+          aria-haspopup="dialog"
+          aria-expanded={mobileFiltersOpen}
           onClick={() => setMobileFiltersOpen(true)}
           className="md:hidden inline-flex items-center justify-center gap-2 px-4 py-3 border border-border rounded-lg text-body text-ink bg-surface"
         >
-          <SlidersHorizontal size={18} />
+          <SlidersHorizontal size={18} aria-hidden="true" />
           Filters
         </button>
       </div>
@@ -305,10 +313,11 @@ export default function BrowseGigs() {
                   key={chip.key}
                   type="button"
                   onClick={chip.onRemove}
+                  aria-label={`Remove filter: ${chip.label}`}
                   className="inline-flex items-center gap-1.5 text-caption font-medium px-3 py-1.5 rounded-full bg-primary-light text-primary"
                 >
                   {chip.label}
-                  <X size={13} />
+                  <X size={13} aria-hidden="true" />
                 </button>
               ))}
             </div>
@@ -329,11 +338,14 @@ export default function BrowseGigs() {
             </div>
           )}
 
-          {!error && result && (
-            <p className="text-caption text-muted mb-4">
-              {result.count} gig{result.count === 1 ? '' : 's'} found
-            </p>
-          )}
+          {/* Always rendered so screen readers register changes to it. */}
+          <p
+            role="status"
+            aria-live="polite"
+            className={error || !result ? 'sr-only' : 'text-caption text-muted mb-4'}
+          >
+            {error ? '' : result ? `${result.count} gig${result.count === 1 ? '' : 's'} found` : 'Loading gigs'}
+          </p>
 
           {loading && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -404,30 +416,19 @@ export default function BrowseGigs() {
         </div>
       </div>
 
-      {mobileFiltersOpen && (
-        <div className="fixed inset-0 z-50 md:hidden">
-          <div className="absolute inset-0 bg-black/30" onClick={() => setMobileFiltersOpen(false)} />
-          <div className="absolute right-0 top-0 bottom-0 w-[85%] max-w-sm bg-surface p-6 overflow-y-auto">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-section-title text-ink">Filters</h2>
-              <button type="button" onClick={() => setMobileFiltersOpen(false)} aria-label="Close filters">
-                <X size={20} className="text-muted" />
-              </button>
-            </div>
-            <FilterSidebar
-              categories={categories}
-            counties={counties}
-              skills={skills}
-              filters={filters}
-              onChange={handleFilterChange}
-              onClear={handleClearAll}
-            />
-            <Button className="w-full mt-6" onClick={() => setMobileFiltersOpen(false)}>
-              Show results
-            </Button>
-          </div>
-        </div>
-      )}
+      <FilterDrawer open={mobileFiltersOpen} onClose={closeFilters} returnFocusRef={filtersButtonRef}>
+        <FilterSidebar
+          categories={categories}
+          counties={counties}
+          skills={skills}
+          filters={filters}
+          onChange={handleFilterChange}
+          onClear={handleClearAll}
+        />
+        <Button className="w-full mt-6" onClick={closeFilters}>
+          Show results
+        </Button>
+      </FilterDrawer>
     </div>
   )
 }
