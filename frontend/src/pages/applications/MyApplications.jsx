@@ -4,10 +4,9 @@ import { fetchMyApplications } from '../../api/applications'
 import Alert from '../../components/Alert'
 import ApplicationRow from '../../components/applications/ApplicationRow'
 import ApplicationRowSkeleton from '../../components/applications/ApplicationRowSkeleton'
+import StatusTabs, { STATUSES } from '../../components/applications/StatusTabs'
 import Button from '../../components/Button'
 import { STATUS_INFO } from '../../utils/applicationStatus'
-
-const STATUSES = Object.keys(STATUS_INFO)
 
 // The boxes along the top, as in the proposal wireframe. Every number comes from the API.
 const SUMMARY_BOXES = [
@@ -89,30 +88,7 @@ export default function MyApplications() {
         </dl>
       )}
 
-      <nav aria-label="Filter applications by status" className="flex flex-wrap gap-2 mb-6">
-        {[{ value: '', label: 'All' }, ...STATUSES.map((s) => ({ value: s, label: STATUS_INFO[s].label }))].map(
-          (tab) => {
-            const active = tab.value === status
-            const count = counts ? (tab.value ? counts[tab.value] : counts.total) : null
-            return (
-              <button
-                key={tab.value || 'all'}
-                type="button"
-                onClick={() => selectStatus(tab.value)}
-                aria-current={active ? 'true' : undefined}
-                className={`px-4 py-2 rounded-full text-nav transition-colors duration-150 border ${
-                  active
-                    ? 'bg-primary text-white border-primary'
-                    : 'bg-surface text-muted border-border hover:text-ink hover:bg-bg'
-                }`}
-              >
-                {tab.label}
-                {count !== null && ` (${count})`}
-              </button>
-            )
-          }
-        )}
-      </nav>
+      <StatusTabs value={status} counts={counts} onSelect={selectStatus} />
 
       {error && (
         <div className="mb-4">
