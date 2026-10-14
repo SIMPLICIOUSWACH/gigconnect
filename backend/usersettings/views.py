@@ -1,5 +1,6 @@
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import transaction
 from django.utils import timezone
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
@@ -9,6 +10,7 @@ from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, Ou
 from accounts.email import send_verification_email
 from accounts.otp import issue_otp
 from accounts.serializers import UserSerializer
+from applications.privacy import erase_applications, export_applications
 from gigs.models import GigInteraction
 
 from .models import NotificationPreference, UserSession
@@ -119,10 +121,10 @@ class ExportDataView(APIView):
         user = request.user
         preference, _ = NotificationPreference.objects.get_or_create(user=user)
         interactions = GigInteraction.objects.filter(user=user).select_related('gig').order_by('created_at')
-        # Applications are left out rather than faked as an empty list: that feature isn't built yet.
         return Response({
             'user': UserSerializer(user).data,
             'notification_preferences': NotificationPreferenceSerializer(preference).data,
+            'applications': export_applications(user),
             'gig_interactions': [
                 {
                     'type': i.type,
@@ -147,17 +149,22 @@ class DeleteAccountView(APIView):
         if not user.check_password(password):
             return Response({'password': 'Incorrect password.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Browsing history is personal data and has no use once the account is gone, so it is
-        # deleted outright rather than anonymised.
-        GigInteraction.objects.filter(user=user).delete()
+        with transaction.atomic():
+            # Browsing history is personal data and has no use once the account is gone, so it is
+            # deleted outright rather than anonymised.
+            GigInteraction.objects.filter(user=user).delete()
 
-        user.full_name = 'Deleted User'
-        user.email = f'deleted-{user.id}@gigconnect.invalid'
-        user.phone = ''
-        user.is_active = False
-        user.deleted_at = timezone.now()
-        user.set_unusable_password()
-        user.save()
+            # Applications are shared with the client reviewing them, so they are emptied of
+            # personal text and closed rather than deleted. See applications/privacy.py.
+            erase_applications(user)
+
+            user.full_name = 'Deleted User'
+            user.email = f'deleted-{user.id}@gigconnect.invalid'
+            user.phone = ''
+            user.is_active = False
+            user.deleted_at = timezone.now()
+            user.set_unusable_password()
+            user.save()
 
         _blacklist_all_tokens(user)
 
