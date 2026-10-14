@@ -9,6 +9,17 @@ export const STATUS_INFO = {
   withdrawn: { label: 'Withdrawn', className: 'bg-bg text-muted' },
 }
 
+// What a client's button says for each move. Which moves are offered comes from the server.
+export const ACTION_LABELS = {
+  under_review: 'Start review',
+  shortlisted: 'Shortlist',
+  hired: 'Hire',
+  rejected: 'Reject',
+}
+
+// Moves that are hard to undo ask for confirmation first (and take an optional note).
+export const CONFIRMED_ACTIONS = ['hired', 'rejected']
+
 export function statusLabel(status) {
   return STATUS_INFO[status]?.label ?? status
 }
