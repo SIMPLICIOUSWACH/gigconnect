@@ -19,7 +19,7 @@ Epic: #21.
 | 4 | Apply flow on Gig Detail and the application page | 5 | #40 | #47 | Merged |
 | 5 | Freelancer applications dashboard | 3 | #41 | #48 | Merged |
 | 6 | Client applicants page | 5 | #42 | #49 | Open, CI green |
-| 7 | Privacy, docs, seed data and tests | 8 | #43 | #50 | Open, CI running at time of writing |
+| 7 | Privacy, docs, seed data and tests | 8 | #43 | #50 | Open, CI green |
 
 Total planned: 36 points.
 
@@ -70,7 +70,7 @@ How these were counted: the backend figures count test functions in `backend/` a
 before Sprint 4 and at the tip of the Story 7 branch. The frontend figures are Vitest's own totals.
 The full backend suite was not run to completion on a developer machine, because it is slow
 (about 3.5 minutes for the 90 application tests alone). CI ran the whole suite and passed on #45,
-#46, #47, #48 and #49. #50 was still running when this was written.
+#46, #47, #48, #49 and #50.
 
 New tests by story: model and rules 35 (#44), apply and list endpoints 48 (#45), client review 37
 (#46), privacy 17 and seed 11 (#50). Frontend: apply flow 21 (#47), dashboard 12 (#48), applicants
