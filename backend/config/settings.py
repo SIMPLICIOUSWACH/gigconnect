@@ -3,6 +3,7 @@ Django settings for the GigConnect backend.
 """
 
 import os
+import sys
 from datetime import timedelta
 from pathlib import Path
 
@@ -34,6 +35,7 @@ INSTALLED_APPS = [
     'usersettings',
     'gigs',
     'applications',
+    'recommendations',
 ]
 
 MIDDLEWARE = [
@@ -85,6 +87,12 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
+
+# Django's default password hasher is deliberately slow. The tests create hundreds of users, and with
+# it the suite took about 20 minutes. They only need a hasher that works, so use a fast one when the
+# command is `manage.py test`. Every other command, including runserver, keeps the strong default.
+if sys.argv[1:2] == ['test']:
+    PASSWORD_HASHERS = ['django.contrib.auth.hashers.MD5PasswordHasher']
 
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'Africa/Nairobi'
@@ -138,3 +146,9 @@ SEARCH_FALLBACK_MIN_RESULTS = int(os.environ.get('SEARCH_FALLBACK_MIN_RESULTS', 
 # 0.25 rather than pg_trgm's 0.3 default: a one-transposition typo like "pyhton" vs "python"
 # only scores about 0.27-0.29, so 0.3 would miss the most common kind of typo.
 SEARCH_TRIGRAM_THRESHOLD = float(os.environ.get('SEARCH_TRIGRAM_THRESHOLD', '0.25'))
+
+# Recommendation engine (Sprint 5). Everything it is trained on lives in one visible folder at the
+# root of the repo, so the data can be opened and checked. See datasets/README.md.
+RECOMMENDER_DATA_DIR = Path(os.environ.get('RECOMMENDER_DATA_DIR', BASE_DIR.parent / 'datasets'))
+# The most rows kept from each external job-posting source, so no single source drowns the others.
+RECOMMENDER_CORPUS_MAX_ROWS = {'upwork': 15000, 'linkedin': 15000, 'freelancer': 3000}
