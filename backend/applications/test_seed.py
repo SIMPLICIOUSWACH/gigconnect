@@ -60,10 +60,27 @@ class SeedApplicationsTests(TestCase):
         self.assertEqual(Application.objects.count(), len(self.gigs) * len(self.freelancers))
         self.assertIn('Stopped early', output)
 
+    def follow_the_chain(self, application):
+        """The events in the order they happened, found by following from_status to to_status.
+
+        Sorting by time is not reliable here: on Windows two events created back to back can share
+        a timestamp. A status is never visited twice, so each from_status appears once.
+        """
+        events = list(application.events.all())
+        by_from = {event.from_status: event for event in events}
+        self.assertEqual(len(by_from), len(events), 'a status was left twice')
+        chain = []
+        current = by_from.get('')
+        while current is not None:
+            chain.append(current)
+            current = by_from.get(current.to_status)
+        self.assertEqual(len(chain), len(events), 'the history is not one unbroken chain')
+        return chain
+
     def test_every_application_has_a_history_that_follows_the_rules(self):
         run('--count', '20')
         for application in Application.objects.prefetch_related('events'):
-            events = list(application.events.order_by('created_at', 'id'))
+            events = self.follow_the_chain(application)
             self.assertEqual((events[0].from_status, events[0].to_status), ('', Status.PENDING))
             self.assertEqual(events[-1].to_status, application.status)
             for earlier, later in zip(events, events[1:]):

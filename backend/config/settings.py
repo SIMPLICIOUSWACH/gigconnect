@@ -3,6 +3,7 @@ Django settings for the GigConnect backend.
 """
 
 import os
+import sys
 from datetime import timedelta
 from pathlib import Path
 
@@ -85,6 +86,12 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
+
+# Django's default password hasher is deliberately slow. The tests create hundreds of users, and with
+# it the suite took about 20 minutes. They only need a hasher that works, so use a fast one when the
+# command is `manage.py test`. Every other command, including runserver, keeps the strong default.
+if sys.argv[1:2] == ['test']:
+    PASSWORD_HASHERS = ['django.contrib.auth.hashers.MD5PasswordHasher']
 
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'Africa/Nairobi'
