@@ -1,6 +1,4 @@
-from datetime import date
 
-from django.conf import settings
 from django.db.models import Count, F, Q
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions
@@ -11,6 +9,7 @@ from rest_framework.views import APIView
 
 from accounts.permissions import IsClientRole, IsEmailVerified
 
+from .feed import apply_feed_rules
 from .filters import GigFilterSerializer, apply_gig_filters
 from .interactions import record_view_if_new, viewer_identity
 from .models import Category, Gig, GigInteraction
@@ -56,11 +55,7 @@ class GigListCreateView(generics.ListCreateAPIView):
             Gig.objects.select_related('client', 'client__client_profile', 'category')
             .prefetch_related('skills')
         )
-        if not include_closed:
-            queryset = queryset.filter(status=Gig.Status.OPEN, application_deadline__gte=date.today())
-        if not settings.SHOW_SYNTHETIC:
-            queryset = queryset.filter(is_synthetic=False)
-        return queryset
+        return apply_feed_rules(queryset, include_closed=include_closed)
 
     def list(self, request, *args, **kwargs):
         filters = GigFilterSerializer(data=request.query_params)
