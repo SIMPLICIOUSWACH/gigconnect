@@ -152,3 +152,10 @@ SEARCH_TRIGRAM_THRESHOLD = float(os.environ.get('SEARCH_TRIGRAM_THRESHOLD', '0.2
 RECOMMENDER_DATA_DIR = Path(os.environ.get('RECOMMENDER_DATA_DIR', BASE_DIR.parent / 'datasets'))
 # The most rows kept from each external job-posting source, so no single source drowns the others.
 RECOMMENDER_CORPUS_MAX_ROWS = {'upwork': 15000, 'linkedin': 15000, 'freelancer': 3000}
+# The share of documents the content model's vocabulary is fitted on that come from GigConnect's own gigs.
+# The platform's gigs are repeated until they make up this share next to the external job postings, so a
+# few hundred Kenyan gigs are not drowned out by tens of thousands of foreign ones.
+RECOMMENDER_PLATFORM_SHARE = 0.3
+# Words in fewer than this many documents, or in more than this share of them, are ignored by the vectoriser.
+RECOMMENDER_TFIDF_MIN_DF = 3
+RECOMMENDER_TFIDF_MAX_DF = 0.8
