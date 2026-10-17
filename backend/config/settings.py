@@ -159,3 +159,19 @@ RECOMMENDER_PLATFORM_SHARE = 0.3
 # Words in fewer than this many documents, or in more than this share of them, are ignored by the vectoriser.
 RECOMMENDER_TFIDF_MIN_DF = 3
 RECOMMENDER_TFIDF_MAX_DF = 0.8
+
+# The collaborative model learns from how much each freelancer has shown interest in each gig. Every kind of
+# interaction has a weight, and a freelancer and gig pair is worth the strongest one (not the sum), so
+# opening a gig fifty times counts the same as opening it once. A rejected or withdrawn application still
+# counts as an application: the freelancer did apply.
+RECOMMENDER_INTERACTION_WEIGHTS = {'view': 1, 'search_click': 1, 'save': 2, 'apply': 3}
+RECOMMENDER_APPLICATION_WEIGHTS = {
+    'pending': 3, 'under_review': 3, 'shortlisted': 4, 'hired': 5, 'rejected': 3, 'withdrawn': 3,
+}
+# The most latent factors the SVD learns (fewer if the data is smaller). Below any of these three minimums
+# the collaborative model is skipped altogether and the recommender uses content scores only.
+RECOMMENDER_SVD_COMPONENTS = 20
+RECOMMENDER_SVD_MIN_FREELANCERS = 10
+RECOMMENDER_SVD_MIN_GIGS = 20
+RECOMMENDER_SVD_MIN_INTERACTIONS = 100
+RECOMMENDER_RANDOM_SEED = 42
