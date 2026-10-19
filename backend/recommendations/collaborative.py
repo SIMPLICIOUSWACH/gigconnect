@@ -120,14 +120,17 @@ def fit(weights, n_components=None):
     Learn the hidden factors from {(user_id, gig_id): weight}.
 
     Raises NotEnoughData, with the reason, if the data is below the settings' minimums. The number of
-    factors is capped so it is always smaller than both sides of the matrix.
+    factors is capped at half the smaller side of the matrix, so the model has to compress the data.
     """
     matrix, user_index, gig_index = build_matrix(weights)
     reason = too_little_data(matrix)
     if reason:
         raise NotEnoughData(reason)
     wanted = settings.RECOMMENDER_SVD_COMPONENTS if n_components is None else n_components
-    components = max(1, min(wanted, min(matrix.shape) - 1))
+    # Never more than half the smaller side. With nearly as many factors as the matrix has rows, the model
+    # simply reproduces the data it was given, so a gig a freelancer has not touched scores about zero and
+    # the scores are noise. Fewer factors force it to find the pattern instead of copying the cells.
+    components = max(1, min(wanted, min(matrix.shape) // 2))
     svd = TruncatedSVD(n_components=components, random_state=settings.RECOMMENDER_RANDOM_SEED)
     user_factors = svd.fit_transform(matrix)
     scale = _scale(svd, user_factors, matrix)

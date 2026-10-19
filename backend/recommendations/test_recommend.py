@@ -17,6 +17,9 @@ class RoundTripTests(RecommenderTestBase):
 
     def setUp(self):
         super().setUp()
+        # The test world has exactly two groups of freelancers with different tastes, so two hidden factors is
+        # the right model for it. (The default is a larger number for real data, and is tuned in Sprint 6.)
+        self.enterContext(self.settings(RECOMMENDER_SVD_COMPONENTS=2))
         train(include_synthetic=True, data_dir=self.data_dir, artifact_dir=self.artifact_dir)
         self.model = registry.availability().model
 
@@ -61,7 +64,11 @@ class RoundTripTests(RecommenderTestBase):
         other_group = [
             results[gig.id].collaborative_score for gig in self.gigs['X'][:10]
         ]
-        self.assertGreater(own_group, max(other_group))
+        # The two groups share no gigs, so the other group's gigs score about zero. The exact value for the
+        # gig this group viewed depends on which of several equally sized factors the model keeps (the two
+        # groups are built identically, so those tie), so only "clearly above zero" is asserted.
+        self.assertGreater(own_group, 0.3)
+        self.assertLess(max(other_group), 0.1)
 
     def test_a_gig_posted_after_training_is_scored_on_its_text_with_no_collaborative_score(self):
         new_gig = self.make_gig('ptask-brand-new', 'P')

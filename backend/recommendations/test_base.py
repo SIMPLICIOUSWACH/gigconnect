@@ -78,12 +78,16 @@ class RecommenderTestBase(TestCase):
         return gig
 
     def add_history(self):
+        # The Python-ish group only views gigs and the Excel-ish group saves them (a stronger signal). That
+        # makes the two groups' patterns different in strength. Built identically they would tie exactly,
+        # and the SVD may then return an arbitrary mix of the two, which real data would never do.
+        kind = {'P': 'view', 'X': 'save'}
         rows = []
         for group in ('P', 'X'):
             for position, user in enumerate(self.freelancers[group]):
                 for step in range(VIEWED_EACH):
                     gig = self.gigs[group][(position + step) % INTERACTED]
-                    rows.append(GigInteraction(user=user, gig=gig, type='view'))
+                    rows.append(GigInteraction(user=user, gig=gig, type=kind[group]))
         GigInteraction.objects.bulk_create(rows)
 
     def unseen_in_group(self, group, position):
