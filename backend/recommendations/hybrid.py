@@ -31,19 +31,26 @@ def normalise_collaborative(raw, scale):
     return float(min(1.0, max(0.0, raw / scale)))
 
 
-def collaborative_scale(reconstructed, observed_mask, percentile=95):
+def unseen_positive_scores(reconstructed, observed_mask):
     """
-    The raw score that counts as 1.0, taken from a trained model.
-
-    reconstructed is the full matrix of raw scores and observed_mask marks the cells a freelancer has
-    actually interacted with. Only the other cells are used, because those are the ones the model scores
-    when it recommends. Returns None if there is nothing positive to scale by.
+    The positive raw scores the model gave to gigs a freelancer has not interacted with. These are the
+    scores it produces when it recommends, so they are the ones the scale is taken from. Works on a block
+    of the matrix, so a big matrix can be handled a piece at a time.
     """
     unseen = reconstructed[~observed_mask]
-    positive = unseen[unseen > 0]
-    if positive.size == 0:
+    return unseen[unseen > 0]
+
+
+def scale_from_scores(positive_scores, percentile=95):
+    """The raw score that counts as 1.0: a high percentile of the positive scores, or None if there are none."""
+    if positive_scores.size == 0:
         return None
-    return float(np.percentile(positive, percentile))
+    return float(np.percentile(positive_scores, percentile))
+
+
+def collaborative_scale(reconstructed, observed_mask, percentile=95):
+    """The scale for a whole matrix at once: reconstructed holds the raw scores, observed_mask the cells touched."""
+    return scale_from_scores(unseen_positive_scores(reconstructed, observed_mask), percentile)
 
 
 def blend_weight(gigs_interacted_with):

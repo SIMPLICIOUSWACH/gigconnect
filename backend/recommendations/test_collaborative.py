@@ -195,9 +195,26 @@ class EdgeCaseTests(SimpleTestCase):
 
     @override_settings(**SMALL)
     def test_two_freelancers_and_two_gigs_is_the_smallest_matrix_that_is_fitted(self):
-        model = collab.fit({('u1', 'g1'): 3, ('u1', 'g2'): 1, ('u2', 'g1'): 5, ('u2', 'g2'): 3})
-        scores = collab.score(model, 'u1', ['g1', 'g2'])
+        # u2 has not touched g2, so there is something to score for them.
+        model = collab.fit({('u1', 'g1'): 3, ('u1', 'g2'): 1, ('u2', 'g1'): 5})
+        scores = collab.score(model, 'u2', ['g1', 'g2'])
         self.assertTrue(all(value is not None and abs(value) < 100 for value in scores.values()))
+        self.assertGreater(model.scale, 0)
+
+    @override_settings(**SMALL)
+    def test_when_everyone_has_touched_every_gig_there_is_nothing_to_recommend_and_it_says_so(self):
+        everything = {('u1', 'g1'): 3, ('u1', 'g2'): 1, ('u2', 'g1'): 5, ('u2', 'g2'): 3}
+        with self.assertRaises(collab.NotEnoughData) as raised:
+            collab.fit(everything)
+        self.assertIn('every gig', str(raised.exception))
+
+    def test_the_fitted_model_keeps_the_scale_it_was_trained_with(self):
+        with override_settings(**SMALL):
+            model = collab.fit(TWO_GROUPS, n_components=2)
+        self.assertGreater(model.scale, 0)
+        # The scale is a high percentile of the untouched cells' scores, so it is near what A scored g3 (about 1.7).
+        self.assertGreater(model.scale, 1.0)
+        self.assertLess(model.scale, 3.0)
 
     def test_a_matrix_below_the_default_limits_is_refused(self):
         with self.assertRaises(collab.NotEnoughData):

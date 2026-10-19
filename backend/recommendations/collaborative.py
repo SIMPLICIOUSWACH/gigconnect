@@ -28,6 +28,7 @@ from django.conf import settings
 from scipy.sparse import csr_matrix
 from sklearn.decomposition import TruncatedSVD
 
+from . import hybrid
 from .platform import applications_for_training, interactions_for_training
 
 
@@ -42,6 +43,7 @@ class CollaborativeModel:
     gig_index: dict  # gig id -> column
     user_factors: np.ndarray  # one row of hidden-factor values per freelancer
     n_interactions: int
+    scale: float  # the raw score that counts as 1.0, fixed at training time (see hybrid.py)
 
     @property
     def n_components(self):
@@ -128,9 +130,25 @@ def fit(weights, n_components=None):
     components = max(1, min(wanted, min(matrix.shape) - 1))
     svd = TruncatedSVD(n_components=components, random_state=settings.RECOMMENDER_RANDOM_SEED)
     user_factors = svd.fit_transform(matrix)
+    scale = _scale(svd, user_factors, matrix)
+    if scale is None:
+        raise NotEnoughData('no freelancer has a gig left to recommend: every gig in the data has been touched')
     return CollaborativeModel(
-        svd=svd, user_index=user_index, gig_index=gig_index, user_factors=user_factors, n_interactions=matrix.nnz,
+        svd=svd, user_index=user_index, gig_index=gig_index, user_factors=user_factors,
+        n_interactions=matrix.nnz, scale=scale,
     )
+
+
+def _scale(svd, user_factors, matrix, block=500):
+    """The 95th percentile of the positive scores on untouched cells, worked out a block of rows at a time."""
+    pieces = []
+    for start in range(0, matrix.shape[0], block):
+        rows = slice(start, start + block)
+        reconstructed = user_factors[rows] @ svd.components_
+        observed = matrix[rows].toarray() > 0
+        pieces.append(hybrid.unseen_positive_scores(reconstructed, observed))
+    scores = np.concatenate(pieces) if pieces else np.zeros(0)
+    return hybrid.scale_from_scores(scores)
 
 
 def score(model, user_id, gig_ids):
