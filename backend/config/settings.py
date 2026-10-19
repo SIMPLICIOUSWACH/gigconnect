@@ -175,3 +175,22 @@ RECOMMENDER_SVD_MIN_FREELANCERS = 10
 RECOMMENDER_SVD_MIN_GIGS = 20
 RECOMMENDER_SVD_MIN_INTERACTIONS = 100
 RECOMMENDER_RANDOM_SEED = 42
+
+# Whether recommendations are switched on at all. Off by default: with no trained model there is nothing
+# honest to show, and the pages say so instead of guessing. Set RECOMMENDATIONS_ENABLED=True to turn on.
+RECOMMENDATIONS_ENABLED = os.environ.get('RECOMMENDATIONS_ENABLED', 'False') == 'True'
+# Where trained models are saved (not tracked by git).
+RECOMMENDER_ARTIFACT_DIR = Path(
+    os.environ.get('RECOMMENDER_ARTIFACT_DIR', BASE_DIR / 'recommendations' / 'artifacts')
+)
+# Whether training uses the synthetic seed rows by default. On in development, off otherwise, and the
+# share of synthetic data is recorded on every trained model either way.
+RECOMMENDER_INCLUDE_SYNTHETIC = os.environ.get('RECOMMENDER_INCLUDE_SYNTHETIC', str(DEBUG)) == 'True'
+# Cold start: a freelancer who has interacted with fewer than this many different gigs gets content scores
+# only. From there the weight on the collaborative score ramps up over the next RAMP gigs, to the maximum.
+# These are starting values for Sprint 6 to tune on a validation split.
+RECOMMENDER_COLD_START_MIN_GIGS = 5
+RECOMMENDER_BLEND_RAMP_GIGS = 20
+RECOMMENDER_BLEND_MAX_WEIGHT = 0.5
+# How long a loaded model is trusted before the database is asked whether a newer one was trained.
+RECOMMENDER_MODEL_CACHE_SECONDS = 60

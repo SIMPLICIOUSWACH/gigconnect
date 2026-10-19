@@ -158,9 +158,9 @@ class FitAndScoreTests(SimpleTestCase):
         self.assertLessEqual(self.model.explained_variance, 1.0)
         self.assertEqual(self.model.n_interactions, len(TWO_GROUPS))
 
-    def test_more_factors_than_the_data_has_are_cut_back(self):
+    def test_more_factors_than_the_data_has_are_cut_back_to_half_the_smaller_side(self):
         model = collab.fit(TWO_GROUPS, n_components=50)
-        self.assertLess(model.n_components, 6)  # always fewer than the smaller side of a 6 by 6 matrix
+        self.assertEqual(model.n_components, 3)  # a 6 by 6 matrix: half of 6
 
     def test_the_number_of_factors_defaults_to_the_setting(self):
         with override_settings(RECOMMENDER_SVD_COMPONENTS=3):
@@ -195,10 +195,84 @@ class EdgeCaseTests(SimpleTestCase):
 
     @override_settings(**SMALL)
     def test_two_freelancers_and_two_gigs_is_the_smallest_matrix_that_is_fitted(self):
-        model = collab.fit({('u1', 'g1'): 3, ('u1', 'g2'): 1, ('u2', 'g1'): 5, ('u2', 'g2'): 3})
-        scores = collab.score(model, 'u1', ['g1', 'g2'])
+        # u2 has not touched g2, so there is something to score for them.
+        model = collab.fit({('u1', 'g1'): 3, ('u1', 'g2'): 1, ('u2', 'g1'): 5})
+        scores = collab.score(model, 'u2', ['g1', 'g2'])
         self.assertTrue(all(value is not None and abs(value) < 100 for value in scores.values()))
+        self.assertGreater(model.scale, 0)
+
+    @override_settings(**SMALL)
+    def test_when_everyone_has_touched_every_gig_there_is_nothing_to_recommend_and_it_says_so(self):
+        everything = {('u1', 'g1'): 3, ('u1', 'g2'): 1, ('u2', 'g1'): 5, ('u2', 'g2'): 3}
+        with self.assertRaises(collab.NotEnoughData) as raised:
+            collab.fit(everything)
+        self.assertIn('every gig', str(raised.exception))
+
+    def test_the_fitted_model_keeps_the_scale_it_was_trained_with(self):
+        with override_settings(**SMALL):
+            model = collab.fit(TWO_GROUPS, n_components=2)
+        self.assertGreater(model.scale, 0)
+        # The scale is a high percentile of the untouched cells' scores, so it is near what A scored g3 (about 1.7).
+        self.assertGreater(model.scale, 1.0)
+        self.assertLess(model.scale, 3.0)
 
     def test_a_matrix_below_the_default_limits_is_refused(self):
         with self.assertRaises(collab.NotEnoughData):
             collab.fit(TWO_GROUPS)
+
+
+class TooManyFactorsRegressionTests(SimpleTestCase):
+    """
+    A matrix just big enough for the real default limits (12 freelancers, 20 gigs, 108 pairs), in two groups
+    that each viewed 9 of their own 10 gigs. This failed in CI once, because the model was allowed almost as
+    many factors as the matrix has rows: it reproduced the data it was given, a gig a freelancer had not seen
+    scored about zero, and the scores were numerical noise that happened to pass on one machine.
+    """
+
+    def setUp(self):
+        # Group X's signal is stronger (2 against 1), so the two groups' strongest patterns differ and cannot
+        # tie. Built identically, the SVD may return an arbitrary mix of them.
+        self.weights = {}
+        for group in 'PX':
+            for position in range(6):
+                for step in range(9):
+                    self.weights[(f'{group}{position}', f'{group}gig{(position + step) % 10}')] = (
+                        1 if group == 'P' else 2
+                    )
+        self.unseen_by_p0 = next(f'Pgig{n}' for n in range(10) if ('P0', f'Pgig{n}') not in self.weights)
+        self.other_group = [f'Xgig{n}' for n in range(10)]
+
+    def test_the_factors_are_capped_at_half_the_smaller_side_with_the_real_defaults(self):
+        model = collab.fit(self.weights)
+        self.assertEqual(model.n_components, 6)  # half of 12, although 20 are wanted
+
+    # The two groups are built identically, so several of their small factors tie exactly, and which of them
+    # the model keeps can differ between machines. The exact score for the gig the group viewed therefore
+    # varies (about 0.5 to 0.8 here), so these check what the structure guarantees: clearly above zero for
+    # that gig, and about zero for the other group's gigs, which share nothing with this freelancer.
+    def test_a_gig_the_group_viewed_but_this_freelancer_did_not_scores_clearly_above_zero(self):
+        model = collab.fit(self.weights)
+        scores = collab.score(model, 'P0', [self.unseen_by_p0] + self.other_group)
+        self.assertGreater(scores[self.unseen_by_p0], 0.2)
+        for gig in self.other_group:
+            self.assertLess(abs(scores[gig]), 0.1)
+
+    def test_after_scaling_the_gap_is_wide_and_does_not_depend_on_noise(self):
+        from . import hybrid
+
+        model = collab.fit(self.weights)
+        scores = collab.score(model, 'P0', [self.unseen_by_p0] + self.other_group)
+        own = hybrid.normalise_collaborative(scores[self.unseen_by_p0], model.scale)
+        others = [hybrid.normalise_collaborative(scores[gig], model.scale) for gig in self.other_group]
+        self.assertGreater(own, 0.3)
+        self.assertLess(max(others), 0.1)
+
+    def test_with_nearly_as_many_factors_as_rows_the_scores_are_noise_which_is_why_the_cap_exists(self):
+        # Not the default: this shows the problem the cap prevents, using the largest the old rule allowed.
+        from sklearn.decomposition import TruncatedSVD
+
+        matrix, users, gigs = collab.build_matrix(self.weights)
+        svd = TruncatedSVD(n_components=11, random_state=42)
+        factors = svd.fit_transform(matrix)
+        unseen = float(factors[users['P0']] @ svd.components_[:, gigs[self.unseen_by_p0]])
+        self.assertLess(abs(unseen), 0.1)  # the model has simply copied the data, gap included

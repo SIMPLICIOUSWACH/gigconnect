@@ -86,9 +86,9 @@ class LoadWeightsTests(TestCase):
     def test_the_weights_feed_straight_into_the_model(self):
         # Two freelancers and two gigs is enough to fit once the limits are lowered.
         other = self.make_user('collab-other@example.com', 'freelancer')
-        for user in (self.real, other):
-            self.interact(user, self.gig_one, 'view')
-            self.interact(user, self.gig_two, 'apply')
+        self.interact(self.real, self.gig_one, 'view')
+        self.interact(self.real, self.gig_two, 'apply')
+        self.interact(other, self.gig_one, 'view')  # other has not touched gig two, so there is something to score
         with override_settings(**SMALL):
             model = collab.fit(collab.load_weights())
         scores = collab.score(model, self.real.id, [self.gig_one.id, self.gig_two.id])
