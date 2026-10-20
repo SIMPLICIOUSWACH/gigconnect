@@ -36,6 +36,9 @@ const makeApplicant = (n, overrides = {}) => ({
     { id: `e${n}`, from_status: '', to_status: 'pending', changed_by_name: `Applicant ${n}`, note: '', created_at: '2026-10-01T09:00:00Z' },
   ],
   allowed_next_statuses: ['under_review', 'rejected'],
+  match_score: null,
+  match_band: null,
+  match_reasons: [],
   ...overrides,
 })
 
@@ -99,11 +102,84 @@ describe('GigApplicants page', () => {
     expect(screen.getAllByText('Verified')).toHaveLength(1)
   })
 
-  it('leaves a clearly marked spot for the match score and shows no score', async () => {
-    fetchGigApplicants.mockResolvedValue(makePage([makeApplicant(1)]))
-    renderAt()
-    expect(await screen.findByText(/Match scores arrive with the recommendation engine/)).toBeInTheDocument()
-    expect(screen.queryByText(/\d+\s*%/)).not.toBeInTheDocument()
+  describe('skill match', () => {
+    const strong = { match_score: 0.62, match_band: 'strong', match_reasons: ['Django', 'PostgreSQL'] }
+
+    it('shows the band and the shared skills when the model scored this applicant', async () => {
+      fetchGigApplicants.mockResolvedValue(makePage([makeApplicant(1, strong)]))
+      renderAt()
+      expect(await screen.findByText('Strong skill overlap')).toBeInTheDocument()
+      expect(screen.getByText('Shared skills: Django, PostgreSQL')).toBeInTheDocument()
+    })
+
+    it.each([
+      ['strong', 'Strong skill overlap'],
+      ['good', 'Good skill overlap'],
+      ['some', 'Some skill overlap'],
+    ])('describes the %s band in words', async (band, label) => {
+      fetchGigApplicants.mockResolvedValue(
+        makePage([makeApplicant(1, { match_score: 0.2, match_band: band, match_reasons: ['Django'] })])
+      )
+      renderAt()
+      expect(await screen.findByText(label)).toBeInTheDocument()
+    })
+
+    it('never shows the number behind the band, or a percentage', async () => {
+      fetchGigApplicants.mockResolvedValue(makePage([makeApplicant(1, strong)]))
+      renderAt()
+      await screen.findByText('Strong skill overlap')
+      expect(screen.queryByText(/0\.62|62/)).not.toBeInTheDocument()
+      expect(screen.queryByText(/%/)).not.toBeInTheDocument()
+    })
+
+    it('says plainly when there is no score, and does not turn that into a low one', async () => {
+      fetchGigApplicants.mockResolvedValue(
+        makePage([makeApplicant(1, { match_score: null, match_band: null, match_reasons: [] })])
+      )
+      renderAt()
+      expect(await screen.findByText('Match score not available')).toBeInTheDocument()
+      expect(screen.queryByText(/skill overlap/)).not.toBeInTheDocument()
+      expect(screen.queryByText(/No shared skills/)).not.toBeInTheDocument()
+    })
+
+    it('says so when the model scored the applicant and found no shared skill', async () => {
+      fetchGigApplicants.mockResolvedValue(
+        makePage([makeApplicant(1, { match_score: 0, match_band: null, match_reasons: [] })])
+      )
+      renderAt()
+      expect(await screen.findByText('No shared skills with this gig')).toBeInTheDocument()
+      expect(screen.queryByText(/skill overlap/)).not.toBeInTheDocument()
+    })
+
+    it('does not show a shared-skills line when the band is missing', async () => {
+      fetchGigApplicants.mockResolvedValue(
+        makePage([makeApplicant(1, { match_score: null, match_band: null, match_reasons: ['Django'] })])
+      )
+      renderAt()
+      await screen.findByText('Match score not available')
+      expect(screen.queryByText(/Shared skills/)).not.toBeInTheDocument()
+    })
+
+    it('has no leftover promise that scores arrive later', async () => {
+      fetchGigApplicants.mockResolvedValue(makePage([makeApplicant(1)]))
+      renderAt()
+      await screen.findByText('Applicant 1')
+      expect(screen.queryByText(/arrive with the recommendation engine/)).not.toBeInTheDocument()
+    })
+
+    it('uses the same plain styling for every band', async () => {
+      fetchGigApplicants.mockResolvedValue(
+        makePage([
+          makeApplicant(1, { match_score: 0.6, match_band: 'strong', match_reasons: ['A'] }),
+          makeApplicant(2, { match_score: 0.05, match_band: 'some', match_reasons: ['A'] }),
+        ])
+      )
+      renderAt()
+      const strongBox = (await screen.findByText('Strong skill overlap')).closest('div')
+      const someBox = screen.getByText('Some skill overlap').closest('div')
+      expect(strongBox.className).toBe(someBox.className)
+      expect(strongBox.className).not.toMatch(/green|red|amber|accent/)
+    })
   })
 
   it('offers exactly the moves the server allows', async () => {

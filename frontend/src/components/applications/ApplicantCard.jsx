@@ -12,6 +12,36 @@ const CONSEQUENCES = {
   rejected: 'The applicant will see that they were not selected.',
 }
 
+const BAND_LABELS = {
+  strong: 'Strong skill overlap',
+  good: 'Good skill overlap',
+  some: 'Some skill overlap',
+}
+
+/**
+ * How well the applicant's skills match this gig, as worked out by the trained model for this exact
+ * applicant and gig. Nothing is shown unless the API sent it: with no score the card says so plainly, and
+ * it never turns a missing score into a low one. The styling is the same for every band, so no colour
+ * suggests more certainty than the model has.
+ */
+function SkillMatch({ application }) {
+  const { match_score: score, match_band: band, match_reasons: shared } = application
+  let text
+  if (band) text = <span className="font-medium text-ink">{BAND_LABELS[band]}</span>
+  else if (score !== null && score !== undefined) text = <span>No shared skills with this gig</span>
+  else text = <span>Match score not available</span>
+
+  return (
+    <div className="text-caption text-muted border border-border rounded-lg px-3 py-2 mb-4">
+      <p>
+        Skill match: {text}
+      </p>
+      {band && shared?.length > 0 && <p className="mt-0.5">Shared skills: {shared.join(', ')}</p>}
+      {band && <p className="mt-0.5">Based on how closely their skills match this gig.</p>}
+    </div>
+  )
+}
+
 /**
  * One applicant on the client's page. The buttons are exactly the moves the server says are
  * allowed (allowed_next_statuses); nothing about the rules is worked out here.
@@ -97,10 +127,7 @@ export default function ApplicantCard({ application, onChangeStatus }) {
         </div>
       )}
 
-      {/* Reserved for the recommendation engine. No score is calculated or shown until it exists. */}
-      <p className="text-caption text-muted border border-dashed border-border rounded-lg px-3 py-2 mb-4">
-        Skill match score: Match scores arrive with the recommendation engine
-      </p>
+      <SkillMatch application={application} />
 
       <details className="mb-4">
         <summary className="text-label text-muted cursor-pointer">Status history ({application.events.length})</summary>
