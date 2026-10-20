@@ -102,7 +102,7 @@ Response shape: `{count, page, page_size, total_pages, next, previous, results: 
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
 | POST | `/api/gigs/<gig_id>/applications/` | Required (freelancer, email-verified) | Apply to a gig. Body: `cover_letter` (50 to 3000 characters), optional `portfolio_link`, optional `proposed_rate` (KES, more than 0). Returns `201` with the application |
-| GET | `/api/gigs/<gig_id>/applications/` | Required (the gig's client) | The gig's applicants, newest first, each with the applicant's name, skills, verification, cover letter, link, rate and status history. Query: `status`, `page`, `page_size`. Anyone else gets `403` |
+| GET | `/api/gigs/<gig_id>/applications/` | Required (the gig's client) | The gig's applicants, newest first, each with the applicant's name, skills, verification, cover letter, link, rate, status history and a skill match (`match_score`, `match_reasons`, `match_band`, see Recommendations below). Query: `status`, `page`, `page_size`. Anyone else gets `403` |
 | GET | `/api/applications/mine/` | Required (freelancer) | The freelancer's own applications, newest first. Query: `status`, `page`, `page_size` |
 | GET | `/api/applications/<id>/` | Required (applicant or the gig's client) | One application with its status history. Anyone else gets `404`, so the endpoint does not reveal that it exists |
 | POST | `/api/applications/<id>/withdraw/` | Required (the applicant) | Withdraw while `pending` or `under_review`. Optional `reason` (text, kept to 500 characters) |
@@ -156,16 +156,93 @@ is rejected automatically. Hiring is refused with `400` on a `closed` or `comple
 only hire for a gig that is open or in progress."), and a second hire on the same gig is refused
 ("You have already hired someone for this gig.").
 
+## Recommendations (`/api/`)
+
+How the scores are made is in `docs/recommender.md`. This section is what the API returns.
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| GET | `/api/recommendations/` | Required (freelancer, email-verified) | Gigs recommended for the signed-in freelancer, best first. Query: `page`, `page_size` (default 12, max 50) |
+| POST | `/api/gigs/<gig_id>/interactions/` | None (throttled) | Log that a gig was opened from a list. Body: `type` of `search_click` or `recommendation_click`, optional `position` (its place in the list, 1 to 10000). Other types (`view`, `save`, `apply`) are written by the server and are refused here with `400` |
+
+**`GET /api/recommendations/`** returns the gig list's page shape,
+`{count, page, page_size, total_pages, next, previous, results}`, and also:
+
+- `available`: whether recommendations could be served at all.
+- `reason`: why not, or why the list is empty (see the table below), otherwise `null`.
+- `cold_start`: `true` while the freelancer has interacted with fewer than 5 different gigs, so their scores
+  come from skills only. `null` when `available` is false.
+- `model`: `{version, trained_at, collaborative}`, where `collaborative` says whether that model has a
+  collaborative part. `null` when `available` is false.
+
+Each result is the gig card fields of the gig list plus `score`, `match_reasons` and `source`:
+
+- `score` is from 0 to 1 and is computed by the trained model for this freelancer and this gig. It is for
+  ordering, and it is not shown to users as a percentage.
+- `match_reasons` is the skills the freelancer and the gig really share, named as the gig names them. It is
+  never worked out from the score, and it can be empty.
+- `source` is `content` (from skills and text only) or `hybrid` (blended with what freelancers with
+  similar history showed interest in).
+
+Only gigs the freelancer could apply to are scored: open, application deadline not passed, not their own,
+and no application of theirs in any status. A gig that scores exactly 0 shares nothing with the freelancer
+and is not recommended. Nothing about what was recommended is stored.
+
+**Every empty state is a plain `200`, with the same response shape as a full one.** Permission problems are
+the usual `401` and `403`.
+
+| `available` | `reason` | When |
+|---|---|---|
+| false | `disabled` | `RECOMMENDATIONS_ENABLED` is off (the default) |
+| false | `model_unavailable` | no trained model could be loaded: none trained, files missing or corrupt |
+| true | `no_skills` | the freelancer has no skills and no bio, so there is nothing to compare gigs with |
+| true | `null`, empty `results` | no gig the freelancer could apply to scores above zero |
+
+**Skill match for clients.** Each applicant in `GET /api/gigs/<gig_id>/applications/` also has:
+
+- `match_score`: the content model's score for that freelancer and that gig, from 0 to 1, or `null`.
+- `match_reasons`: the skills they share with the gig.
+- `match_band`: `strong` (score of 0.30 or more), `good` (0.15 or more) or `some`, and only when at least
+  one skill is really shared. `null` otherwise. The cut-offs are the settings `RECOMMENDER_BAND_STRONG` and
+  `RECOMMENDER_BAND_GOOD`, set from scores measured on development data and provisional.
+
+The response also has `match_scores: {available, reason}`. `match_score` is `null`, never 0, when it cannot be
+worked out: no model, or an applicant with no skills and no bio, or an applicant who deleted their account.
+A score of 0 means the model compared them and found nothing in common. Only the gig's owner can open this
+list, and an applicant's own views of their application never contain these fields.
+
 ## Seeding sample data (development only)
 
-`python manage.py seed_applications [--count N] [--delete]` creates clearly-fake applications on the
-seeded open gigs, in a spread of statuses with matching history, each marked `is_synthetic`, with a
-synthetic `apply` interaction. It refuses to run when `DEBUG` is `False`, and needs `seed_data` and
-`seed_gigs` to have run first. `--delete` removes only the seeded applications and puts gigs that a
-seeded hire moved on back to `open`.
+Every seed command refuses to run when `DEBUG` is `False`, marks what it creates `is_synthetic`, and needs
+the accounts and gigs from the commands before it.
+
+- `python manage.py seed_applications [--count N] [--delete]` creates clearly-fake applications on the
+  seeded open gigs, in a spread of statuses with matching history, with a synthetic `apply` interaction.
+  `--delete` removes only the seeded applications and puts gigs that a seeded hire moved on back to `open`.
+- `python manage.py seed_interactions [--per-freelancer N] [--seed N] [--delete]` creates clearly-fake views,
+  search clicks, saves and recommendation clicks from the seed freelancers on the seeded gigs (25 different
+  gigs each by default). Gigs that share a skill with the freelancer are about five times more likely to be
+  picked, so similar freelancers get similar histories, which is the pattern the collaborative model looks
+  for. It is made-up behaviour and says nothing about real freelancers. The same seed gives the same rows,
+  and running it again only adds pairs that are not there yet. `--delete` removes the seeded interactions
+  and leaves the seeded `apply` rows to `seed_applications`.
+
+To get a development database where both recommender models run:
+
+```
+python manage.py seed_data --count 30
+python manage.py seed_gigs
+python manage.py seed_applications --count 150
+python manage.py seed_interactions
+python manage.py import_job_corpus
+python manage.py train_recommender
+```
+
+`seed_gigs` is only needed once. With the defaults this gives 30 seed freelancers and about 890 pairs, well
+above the collaborative model's minimums (10 freelancers, 20 gigs and 100 pairs).
 
 ## Not yet built
 
-The recommendation engine (Sprint 5) and its evaluation (Sprint 6) have no endpoints yet. The
-applicants page leaves a marked spot for the skill match score, which says "Match scores arrive with
-the recommendation engine" until then.
+The evaluation of the recommender (the train, validation and test split, precision, recall and F1 at K, the
+random baseline, and tuning the blend weight) is Sprint 6. The scores here are not measured against
+anything yet, and no accuracy figure should be quoted from them.
