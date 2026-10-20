@@ -187,6 +187,9 @@ class SeedThenTrainTests(SeedInteractionsTests):
 
     def test_applications_seeded_alongside_still_count(self):
         run('--per-freelancer', '10')
-        Application.objects.create(gig=self.gigs[20], freelancer=self.freelancers[0], cover_letter='x' * 60)
+        # Which gigs were seeded for a freelancer depends on their random id, so pick one that has no interaction.
+        taken = self.pairs()
+        untouched = next(gig for gig in self.gigs if (self.freelancers[0].id, gig.id) not in taken)
+        Application.objects.create(gig=untouched, freelancer=self.freelancers[0], cover_letter='x' * 60)
         row = train(include_synthetic=True, data_dir=self.data_dir, artifact_dir=self.artifact_dir)
         self.assertEqual(row.interactions, 121)  # 120 interactions plus one application on a new pair
