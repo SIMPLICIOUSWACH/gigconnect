@@ -773,9 +773,11 @@ class GigInteractionModelTests(GigTestBase):
         interaction.refresh_from_db()
         self.assertEqual((interaction.query, interaction.position), ('logo', 3))
 
-    def test_type_choices_are_the_four_agreed_values(self):
+    def test_type_choices_are_the_five_agreed_values(self):
+        # recommendation_click was added in Sprint 5 for opening a gig from the "Recommended for You" list.
         self.assertEqual(
-            set(GigInteraction.Type.values), {'view', 'search_click', 'save', 'apply'}
+            set(GigInteraction.Type.values),
+            {'view', 'search_click', 'save', 'apply', 'recommendation_click'},
         )
 
     def test_indexes_for_the_collaborative_filter_exist(self):

@@ -25,6 +25,7 @@ from rest_framework.views import APIView
 from accounts.permissions import IsClientRole, IsEmailVerified, IsFreelancer
 from gigs.models import Gig, GigInteraction
 from gigs.pagination import GigPagination
+from recommendations.matching import EMPTY_MATCH, applicant_matches
 
 from .models import Application, ApplicationStatusEvent
 from .serializers import (
@@ -109,8 +110,17 @@ class GigApplicationsView(APIView):
         paginator = GigPagination()
         page = paginator.paginate_queryset(qs, request, view=self)
         serializer = ApplicationDetailSerializer(page, many=True, context={"request": request})
-        response = paginator.get_paginated_response(serializer.data)
+        rows = serializer.data
+
+        # The owner also sees a skill match score for each applicant, from the trained model. It is added
+        # here and not in the serializer, because the applicant's own views of their application never have it.
+        matches, availability = applicant_matches(gig.id, page)
+        for row, application in zip(rows, page):
+            row.update(matches.get(application.freelancer_id, EMPTY_MATCH))
+
+        response = paginator.get_paginated_response(rows)
         response.data["status_counts"] = status_counts
+        response.data["match_scores"] = availability
         return response
 
     def post(self, request, gig_id):
