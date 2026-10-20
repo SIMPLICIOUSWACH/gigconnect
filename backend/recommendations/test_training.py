@@ -156,9 +156,10 @@ class SnapshotTests(RecommenderTestBase):
             self.assertNotIn(private, everything, private)
 
     def test_a_freelancer_row_has_an_id_and_skills_only(self):
-        row = read_csv(self.platform / 'freelancers.csv')[0]
-        self.assertEqual(list(row), ['freelancer_id', 'skills', 'is_synthetic'])
-        self.assertIn('Pyskill', row['skills'] + read_csv(self.platform / 'freelancers.csv')[-1]['skills'])
+        rows = read_csv(self.platform / 'freelancers.csv')
+        self.assertEqual(list(rows[0]), ['freelancer_id', 'skills', 'is_synthetic'])
+        # The rows are in no fixed order, so check all of them: every freelancer has one of the two skill sets.
+        self.assertEqual({row['skills'] for row in rows}, {'Pyskill 1;Pyskill 2', 'Xlskill 1;Xlskill 2'})
 
 
 class ReportTests(RecommenderTestBase):

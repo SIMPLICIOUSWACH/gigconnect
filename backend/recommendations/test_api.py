@@ -207,9 +207,10 @@ class QueryCountTests(RecommendationsApiBase):
         self.assertEqual(self.queries_for(user), before)
 
     def test_the_count_is_small(self):
-        # authenticate, profile, skills, candidates, candidate skills, history (two), and the page's
-        # serializer needs nothing more because the gigs arrive with their client, category and skills
-        self.assertLessEqual(self.queries_for(self.newcomer()), 12)
+        # Measured at 6 on the dev data: the profile and its skills, the candidate gigs and their skills,
+        # and the freelancer's history. The page's serializer needs nothing more because the gigs arrive
+        # with their client, category and skills already loaded.
+        self.assertLessEqual(self.queries_for(self.newcomer()), 8)
 
 
 class ClickLoggingTests(RecommendationsApiBase):

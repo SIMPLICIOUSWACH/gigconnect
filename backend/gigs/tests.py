@@ -475,6 +475,9 @@ class GigFilterSearchTests(GigTestBase):
         self.assertEqual(response.data['count'], 2)
 
     def test_relevance_sort_without_query_falls_back_to_newest(self):
+        # The two gigs are created back to back in setUp, and on Windows their timestamps can tie, so
+        # say plainly which one is older instead of relying on the clock.
+        Gig.objects.filter(pk=self.bakery_gig.pk).update(created_at=timezone.now() - timedelta(days=1))
         response = self.client.get('/api/gigs/', {'sort': 'relevance'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         # Same order as an explicit sort=newest, not merely "didn't error": logo_gig was
