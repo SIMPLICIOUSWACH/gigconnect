@@ -17,6 +17,7 @@ from profiles.models import FreelancerProfile
 from . import collaborative as collab
 from . import content, hybrid
 from .candidates import candidate_gigs
+from .features import freelancer_document
 
 
 @dataclass
@@ -35,6 +36,8 @@ class Recommendations:
     cold_start: bool = True
     weight: float = 0.0
     gigs_interacted_with: int = 0
+    # False when the freelancer has no skills and no bio, so there is nothing to compare gigs with.
+    scorable: bool = True
 
 
 def gigs_interacted_with(user):
@@ -54,6 +57,7 @@ def recommend(model, user, candidates=None):
     profile = FreelancerProfile.objects.prefetch_related('skills').get(user=user)
     candidates = candidate_gigs(user) if candidates is None else candidates
     matches = content.rank_for_freelancer(model.vectoriser, profile, candidates)
+    scorable = bool(freelancer_document([skill.name for skill in profile.skills.all()], profile.bio))
 
     history = gigs_interacted_with(user)
     weight = hybrid.blend_weight(history)
@@ -73,5 +77,6 @@ def recommend(model, user, candidates=None):
         ))
     results.sort(key=lambda r: (-r.score, -r.gig.created_at.timestamp(), str(r.gig.id)))
     return Recommendations(
-        results=results, cold_start=hybrid.in_cold_start(history), weight=weight, gigs_interacted_with=history,
+        results=results, cold_start=hybrid.in_cold_start(history), weight=weight,
+        gigs_interacted_with=history, scorable=scorable,
     )

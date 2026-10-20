@@ -86,6 +86,34 @@ def match_reasons(freelancer_skill_names, gig_skill_names):
     return sorted((name for name in gig_skill_names if skill_token(name) in mine), key=str.casefold)
 
 
+def score_applicants(vectoriser, gig, profiles):
+    """
+    The content score and shared skills of each profile against one gig, as {user_id: ContentMatch}.
+
+    A profile with no skills and no bio cannot be compared with anything, so it is left out of the answer
+    (not given a score of 0). The gig's skills and category, and each profile's skills, should be
+    prefetched by the caller.
+    """
+    gig_skills = [skill.name for skill in gig.skills.all()]
+    gig_text = gig_document(gig.title, gig.description, gig_skills, gig.category.name)
+    scorable = []
+    for profile in profiles:
+        skills = [skill.name for skill in profile.skills.all()]
+        text = freelancer_document(skills, profile.bio)
+        if text:
+            scorable.append((profile, skills, text))
+    if not scorable:
+        return {}
+
+    gig_vector = vectoriser.transform([gig_text])
+    freelancer_vectors = vectoriser.transform([text for _, _, text in scorable])
+    scores = np.clip(np.asarray((freelancer_vectors @ gig_vector.T).todense()).ravel(), 0.0, 1.0)
+    return {
+        profile.user_id: ContentMatch(gig=gig, score=float(score), match_reasons=match_reasons(skills, gig_skills))
+        for (profile, skills, _), score in zip(scorable, scores)
+    }
+
+
 def rank_for_freelancer(vectoriser, profile, gigs):
     """
     Score every gig for this freelancer and return them best first as ContentMatch objects.

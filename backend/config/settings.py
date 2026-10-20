@@ -164,7 +164,9 @@ RECOMMENDER_TFIDF_MAX_DF = 0.8
 # interaction has a weight, and a freelancer and gig pair is worth the strongest one (not the sum), so
 # opening a gig fifty times counts the same as opening it once. A rejected or withdrawn application still
 # counts as an application: the freelancer did apply.
-RECOMMENDER_INTERACTION_WEIGHTS = {'view': 1, 'search_click': 1, 'save': 2, 'apply': 3}
+RECOMMENDER_INTERACTION_WEIGHTS = {
+    'view': 1, 'search_click': 1, 'recommendation_click': 1, 'save': 2, 'apply': 3,
+}
 RECOMMENDER_APPLICATION_WEIGHTS = {
     'pending': 3, 'under_review': 3, 'shortlisted': 4, 'hired': 5, 'rejected': 3, 'withdrawn': 3,
 }
@@ -194,3 +196,10 @@ RECOMMENDER_BLEND_RAMP_GIGS = 20
 RECOMMENDER_BLEND_MAX_WEIGHT = 0.5
 # How long a loaded model is trusted before the database is asked whether a newer one was trained.
 RECOMMENDER_MODEL_CACHE_SECONDS = 60
+
+# How a client's match score is described. These cut-offs come from the scores measured on the development
+# data in Sprint 5, where freelancers sharing a skill with a gig had a median score of 0.15 and a 90th
+# percentile of 0.31. That data is mostly synthetic, so they are provisional and Sprint 6 should recheck them.
+# A band is only given when the freelancer and the gig really share a skill.
+RECOMMENDER_BAND_STRONG = 0.30
+RECOMMENDER_BAND_GOOD = 0.15

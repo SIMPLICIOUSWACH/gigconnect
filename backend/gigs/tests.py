@@ -475,6 +475,9 @@ class GigFilterSearchTests(GigTestBase):
         self.assertEqual(response.data['count'], 2)
 
     def test_relevance_sort_without_query_falls_back_to_newest(self):
+        # The two gigs are created back to back in setUp, and on Windows their timestamps can tie, so
+        # say plainly which one is older instead of relying on the clock.
+        Gig.objects.filter(pk=self.bakery_gig.pk).update(created_at=timezone.now() - timedelta(days=1))
         response = self.client.get('/api/gigs/', {'sort': 'relevance'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         # Same order as an explicit sort=newest, not merely "didn't error": logo_gig was
@@ -773,9 +776,11 @@ class GigInteractionModelTests(GigTestBase):
         interaction.refresh_from_db()
         self.assertEqual((interaction.query, interaction.position), ('logo', 3))
 
-    def test_type_choices_are_the_four_agreed_values(self):
+    def test_type_choices_are_the_five_agreed_values(self):
+        # recommendation_click was added in Sprint 5 for opening a gig from the "Recommended for You" list.
         self.assertEqual(
-            set(GigInteraction.Type.values), {'view', 'search_click', 'save', 'apply'}
+            set(GigInteraction.Type.values),
+            {'view', 'search_click', 'save', 'apply', 'recommendation_click'},
         )
 
     def test_indexes_for_the_collaborative_filter_exist(self):
