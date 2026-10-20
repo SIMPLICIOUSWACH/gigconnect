@@ -185,10 +185,12 @@ class GigStatusUpdateSerializer(serializers.ModelSerializer):
 
 
 class GigInteractionCreateSerializer(serializers.Serializer):
-    """Body of POST /api/gigs/<id>/interactions/. Only search_click can be posted by the client:
+    """Body of POST /api/gigs/<id>/interactions/. Only the two kinds of click can be posted by the client:
     views are logged by the server (so they can't be inflated) and save/apply have their own flows."""
 
-    type = serializers.ChoiceField(choices=[GigInteraction.Type.SEARCH_CLICK])
+    type = serializers.ChoiceField(
+        choices=[GigInteraction.Type.SEARCH_CLICK, GigInteraction.Type.RECOMMENDATION_CLICK],
+    )
     query = serializers.CharField(required=False, allow_null=True, allow_blank=True, max_length=200)
     position = serializers.IntegerField(required=False, allow_null=True, min_value=1, max_value=10000)
 

@@ -120,6 +120,8 @@ class GigInteraction(models.Model):
         SEARCH_CLICK = 'search_click', 'Search click'
         SAVE = 'save', 'Save'
         APPLY = 'apply', 'Apply'  # written by the applications flow (Sprint 4)
+        # Opening a gig from the "Recommended for You" list. Position is its place in that list.
+        RECOMMENDATION_CLICK = 'recommendation_click', 'Recommendation click'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     # Null for anonymous visitors, who are identified by session_key instead.
