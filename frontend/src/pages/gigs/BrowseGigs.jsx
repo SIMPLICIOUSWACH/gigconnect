@@ -4,7 +4,6 @@ import { Search, SlidersHorizontal, X } from 'lucide-react'
 import { fetchSkills } from '../../api/auth'
 import { fetchCategories, fetchGigsPaged } from '../../api/gigs'
 import { useAuth } from '../../context/AuthContext'
-import { RECOMMENDATIONS_ENABLED } from '../../constants'
 import useCounties from '../../hooks/useCounties'
 import useDebouncedValue from '../../hooks/useDebouncedValue'
 import Alert from '../../components/Alert'
@@ -12,6 +11,7 @@ import Button from '../../components/Button'
 import FilterSidebar from '../../components/gigs/FilterSidebar'
 import GigCard from '../../components/gigs/GigCard'
 import GigCardSkeleton from '../../components/gigs/GigCardSkeleton'
+import RecommendedForYou from '../../components/recommendations/RecommendedForYou'
 
 const SORT_OPTIONS = [
   { value: 'newest', label: 'Newest' },
@@ -390,17 +390,7 @@ export default function BrowseGigs() {
             </div>
           )}
 
-          {user?.role === 'freelancer' && (
-            <div className="mt-12 pt-8 border-t border-border">
-              <h2 className="text-section-title text-ink mb-2">Recommended for You</h2>
-              {RECOMMENDATIONS_ENABLED ? null : (
-                <p className="text-body text-muted">
-                  We don't have personalized recommendations yet — that's coming in a future update.
-                  Use search and filters above to find gigs that match your skills.
-                </p>
-              )}
-            </div>
-          )}
+          {user?.role === 'freelancer' && <RecommendedForYou limit={6} />}
         </div>
       </div>
 
