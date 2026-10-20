@@ -14,7 +14,9 @@ function locationLabel(gig) {
   return gig.county || ''
 }
 
-export default function GigCard({ gig, position, query }) {
+// onOpen replaces the default search-click logging, for lists that are not search results (the
+// recommendations). It is called with the gig and its position in the list.
+export default function GigCard({ gig, position, query, onOpen }) {
   const location = useLocation()
   const urgent = isUrgent(gig.application_deadline)
   // Only reachable via the "Show closed gigs" toggle — the default feed never returns these.
@@ -29,7 +31,7 @@ export default function GigCard({ gig, position, query }) {
         <Link
           to={`/gigs/${gig.id}`}
           state={{ from: `${location.pathname}${location.search}` }}
-          onClick={() => logSearchClick(gig.id, { query, position })}
+          onClick={() => (onOpen ? onOpen(gig, position) : logSearchClick(gig.id, { query, position }))}
           className="text-section-title text-ink hover:text-primary"
         >
           {gig.title}

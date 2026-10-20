@@ -19,3 +19,8 @@ export const deleteGig = (id) => api.delete(`/gigs/${id}/`)
 
 export const updateGigStatus = (id, statusValue) =>
   api.patch(`/gigs/${id}/status/`, { status: statusValue }).then((r) => r.data)
+
+// Opening a gig from the "Recommended for You" list. Like the search click, a failure here must never get
+// in the way of opening the gig, so errors are swallowed.
+export const logRecommendationClick = (gigId, position) =>
+  api.post(`/gigs/${gigId}/interactions/`, { type: 'recommendation_click', position }).catch(() => {})

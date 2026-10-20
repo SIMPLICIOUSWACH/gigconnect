@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import Alert from '../components/Alert'
 import Button from '../components/Button'
 import Card from '../components/Card'
+import RecommendedForYou from '../components/recommendations/RecommendedForYou'
 
 export default function Dashboard() {
   const { user } = useAuth()
@@ -74,6 +75,8 @@ export default function Dashboard() {
           </Link>
         </div>
       )}
+
+      {user.role === 'freelancer' && <RecommendedForYou limit={4} />}
 
       {user.role === 'client' && (
         <div className="mt-6 flex gap-3">
