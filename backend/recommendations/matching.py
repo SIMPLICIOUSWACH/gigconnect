@@ -31,8 +31,12 @@ def applicant_matches(gig_id, applications):
         return {}, info
 
     gig = Gig.objects.select_related('category').prefetch_related('skills').get(pk=gig_id)
+    # A deleted account keeps its skills on the profile, but nothing is worked out from a deleted person's
+    # data, so they get no score.
     profiles = [
-        profile for profile in (getattr(a.freelancer, 'freelancer_profile', None) for a in applications)
+        profile for profile in (
+            getattr(a.freelancer, 'freelancer_profile', None) for a in applications if a.freelancer.deleted_at is None
+        )
         if profile is not None
     ]
     matches = content.score_applicants(availability.model.vectoriser, gig, profiles)
