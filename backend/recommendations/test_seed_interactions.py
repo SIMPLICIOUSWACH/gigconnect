@@ -50,6 +50,8 @@ class SeedInteractionsTests(TestCase):
             )
             gig.skills.set([self.skills['P' if number < 15 else 'X']])
             self.gigs.append(gig)
+        # The gigs were posted 40 days ago, so there is a month of room to date interactions in.
+        Gig.objects.update(created_at=timezone.now() - timedelta(days=40))
         self.group_p_gigs = {gig.id for gig in self.gigs[:15]}
 
     def make_user(self, email, role):
@@ -135,6 +137,19 @@ class SeedInteractionsTests(TestCase):
         self.assertGreaterEqual(min(ages), 0)
         self.assertLessEqual(max(ages), 30)
         self.assertGreater(len(set(ages)), 10)  # not all on one day
+
+    def test_no_interaction_is_dated_before_its_gig_existed(self):
+        # Gigs posted only 3 days ago leave only 3 days of room, so nothing may be dated earlier than that.
+        Gig.objects.update(created_at=timezone.now() - timedelta(days=3))
+        run('--per-freelancer', '15')
+        for row in GigInteraction.objects.select_related('gig'):
+            self.assertGreaterEqual(row.created_at, row.gig.created_at)
+
+    def test_gigs_posted_just_now_leave_no_room_so_everything_is_dated_now(self):
+        Gig.objects.update(created_at=timezone.now())
+        run('--per-freelancer', '5')
+        for row in GigInteraction.objects.select_related('gig'):
+            self.assertGreaterEqual(row.created_at, row.gig.created_at)
 
     def test_delete_removes_only_seeded_interactions_not_real_ones_or_seeded_applies(self):
         real = User.objects.create_user(

@@ -216,9 +216,15 @@ list, and an applicant's own views of their application never contain these fiel
 Every seed command refuses to run when `DEBUG` is `False`, marks what it creates `is_synthetic`, and needs
 the accounts and gigs from the commands before it.
 
-- `python manage.py seed_applications [--count N] [--delete]` creates clearly-fake applications on the
-  seeded open gigs, in a spread of statuses with matching history, with a synthetic `apply` interaction.
-  `--delete` removes only the seeded applications and puts gigs that a seeded hire moved on back to `open`.
+- `python manage.py seed_applications [--per-freelancer N] [--count N] [--seed N] [--delete]` creates
+  clearly-fake applications on the seeded open gigs, about 20 per seed freelancer by default (5 more or fewer),
+  in a spread of statuses with matching history and a synthetic `apply` interaction. Like the interactions
+  below, seeded freelancers favour gigs that share a skill with them, so the applications follow a pattern that
+  **favours the content model by construction**. Dates are within the last month and never before the gig
+  existed, and each later status comes hours or days after the one before. `--count` stops after that many in
+  total. The same seed gives the same rows after a `--delete`. Running again without `--delete` never repeats a
+  pair, and may add more if a seeded hire closed a gig. `--delete` removes only the seeded applications and
+  puts gigs that a seeded hire moved on back to `open`.
 - `python manage.py seed_interactions [--per-freelancer N] [--seed N] [--delete]` creates clearly-fake views,
   search clicks, saves and recommendation clicks from the seed freelancers on the seeded gigs (25 different
   gigs each by default). Gigs that share a skill with the freelancer are about five times more likely to be
@@ -232,7 +238,7 @@ To get a development database where both recommender models run:
 ```
 python manage.py seed_data --count 30
 python manage.py seed_gigs
-python manage.py seed_applications --count 150
+python manage.py seed_applications
 python manage.py seed_interactions
 python manage.py import_job_corpus
 python manage.py train_recommender
