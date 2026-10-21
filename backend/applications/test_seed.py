@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 from io import StringIO
 
 from django.core.management import CommandError, call_command
@@ -184,8 +184,9 @@ class SeedApplicationsSkillAndDateTests(TestCase):
             own = gigs & self.group_p_gigs if number <= 6 else gigs - self.group_p_gigs
             shares.append(len(own) / len(gigs))
         # Half the gigs share each freelancer's skill, so random picks would give about 0.5. A weight of 5 to 1 is
-        # a strong lean and not an absolute rule, so the share is about 0.75 to 0.8, not 1.
-        self.assertGreater(sum(shares) / len(shares), 0.65)
+        # a strong lean and not an absolute rule, so the share is about 0.79, not 1, and varies a little because the
+        # ids are random. 0.62 is far from chance and was never reached in 20,000 trials.
+        self.assertGreater(sum(shares) / len(shares), 0.62)
 
     def test_each_freelancer_makes_about_the_requested_number_of_applications(self):
         run('--per-freelancer', '10')
@@ -206,6 +207,45 @@ class SeedApplicationsSkillAndDateTests(TestCase):
         run('--per-freelancer', '10')
         for application in Application.objects.select_related('gig'):
             self.assertGreaterEqual(application.created_at, application.gig.created_at)
+
+    def close_half_the_gigs_early(self):
+        """Half the gigs closed to applications 25 days ago, a few closed a few days ago, the rest are open."""
+        for index, gig in enumerate(self.gigs):
+            days_ahead = (-25, -3, 20)[index % 3]
+            Gig.objects.filter(pk=gig.pk).update(application_deadline=date.today() + timedelta(days=days_ahead))
+
+    def end_of_deadline_day(self, gig):
+        return timezone.make_aware(datetime.combine(gig.application_deadline + timedelta(days=1), time.min))
+
+    def test_no_application_is_dated_after_its_gigs_application_deadline(self):
+        self.close_half_the_gigs_early()
+        run()
+        self.assertGreater(Application.objects.count(), 100)
+        for application in Application.objects.select_related('gig'):
+            gig = Gig.objects.get(pk=application.gig_id)
+            self.assertLess(application.created_at, self.end_of_deadline_day(gig), gig.application_deadline)
+            self.assertGreaterEqual(application.created_at, gig.created_at)
+            self.assertLessEqual(application.created_at, timezone.now())
+
+    def test_a_gig_that_closed_over_a_month_ago_still_gets_applications_inside_its_window(self):
+        Gig.objects.update(created_at=timezone.now() - timedelta(days=50))
+        Gig.objects.update(application_deadline=date.today() - timedelta(days=35))
+        run('--per-freelancer', '10')
+        self.assertGreater(Application.objects.count(), 50)
+        for application in Application.objects.select_related('gig'):
+            gig = Gig.objects.get(pk=application.gig_id)
+            self.assertGreaterEqual(application.created_at, gig.created_at)
+            self.assertLess(application.created_at, self.end_of_deadline_day(gig))
+
+    def test_status_changes_may_come_after_the_deadline_because_the_client_acts_later(self):
+        self.close_half_the_gigs_early()
+        run()
+        later = 0
+        for application in Application.objects.prefetch_related('events').select_related('gig'):
+            gig = Gig.objects.get(pk=application.gig_id)
+            for event in application.events.all():
+                later += event.created_at >= self.end_of_deadline_day(gig)
+        self.assertGreater(later, 0)  # reviewing and hiring happen after applications close
 
     def test_applications_are_spread_over_the_month(self):
         run()

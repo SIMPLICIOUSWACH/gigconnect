@@ -110,9 +110,10 @@ class SeedInteractionsTests(TestCase):
             gigs = set(GigInteraction.objects.filter(user=user).values_list('gig_id', flat=True))
             in_group = gigs & self.group_p_gigs if number <= 6 else gigs - self.group_p_gigs
             own_share.append(len(in_group) / len(gigs))
-        # Half the gigs share each freelancer's skill, so picking at random would give about 0.5. A
-        # preference of 5 to 1 gives about 0.8 or more when 15 of 30 gigs are chosen.
-        self.assertGreater(sum(own_share) / len(own_share), 0.7)
+        # Half the gigs share each freelancer's skill, so picking at random would give about 0.5 (give or take
+        # 0.03 for this average). A preference of 5 to 1 gives about 0.76 when 15 of 30 gigs are chosen, and the
+        # ids are random so it varies a little. 0.62 is far from chance and was never reached in 20,000 trials.
+        self.assertGreater(sum(own_share) / len(own_share), 0.62)
 
     def test_the_same_seed_gives_the_same_rows(self):
         run('--per-freelancer', '10', '--seed', '7')

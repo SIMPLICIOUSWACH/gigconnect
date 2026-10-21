@@ -8,7 +8,7 @@ from django.utils import timezone
 
 from accounts.models import User
 from gigs.models import Gig, GigInteraction
-from gigs.seed_helpers import ordered_by_preference, room_before_now, skill_ids_by_gig
+from gigs.seed_helpers import application_window_end, ordered_by_preference, skill_ids_by_gig
 
 from ...models import Application, ApplicationStatusEvent
 from ...transitions import Actor, Status
@@ -45,7 +45,7 @@ COVER_LETTERS = [
     'This is sample seed data, not a real application.',
 ]
 
-SPREAD_DAYS = 30  # applications are dated within the last month, and never before their gig existed
+SPREAD_DAYS = 30  # applications are dated within the last month, inside each gig's application window
 MAX_STEP_HOURS = 72  # the longest wait between two status changes
 SPREAD_OF_TARGET = 5  # each freelancer makes the target number of applications, give or take this many
 
@@ -162,15 +162,17 @@ class Command(BaseCommand):
 
     def _date(self, application, interaction, gig, rng):
         """
-        Give the application, its apply interaction and each status change believable times: applied some time
-        in the last month but never before the gig existed, and each later status a few hours to a few days
-        after the one before, never in the future.
+        Give the application, its apply interaction and each status change believable times. The application is
+        dated inside the gig's application window: after the gig was posted, no later than the end of its
+        application deadline day and never in the future, and within the last month where that allows. Each later
+        status comes a few hours to a few days after the one before, never in the future.
         """
         now = timezone.now()
-        back = min(
-            timedelta(days=rng.randint(0, SPREAD_DAYS - 1), hours=rng.randint(0, 23)), room_before_now(gig, now),
-        )
-        applied_at = now - back
+        latest = application_window_end(gig, now)
+        earliest = max(gig.created_at, now - timedelta(days=SPREAD_DAYS))
+        if earliest > latest:  # the window closed more than a month ago: use all of it
+            earliest = gig.created_at
+        applied_at = earliest + (latest - earliest) * rng.random()
 
         # The events in the order they happened, found by following from_status to to_status, because
         # two events made back to back can share a timestamp.

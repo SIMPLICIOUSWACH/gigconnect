@@ -6,7 +6,7 @@ histories. That is made-up behaviour put there so the recommender has a pattern 
 about real freelancers, and the evaluation report states that it favours the content model by construction.
 """
 
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 
 from django.utils import timezone
 
@@ -42,3 +42,14 @@ def room_before_now(gig, now=None):
     `now` that the date is worked out from, so the two readings of the clock cannot differ.
     """
     return max(timedelta(0), (now or timezone.now()) - gig.created_at)
+
+
+def application_window_end(gig, now):
+    """
+    The last moment someone could have applied to the gig: the end of its application deadline day, or now if
+    that is later (or there is no deadline). Applications dated after this could not have happened.
+    """
+    if gig.application_deadline is None:
+        return now
+    end_of_deadline_day = timezone.make_aware(datetime.combine(gig.application_deadline + timedelta(days=1), time.min))
+    return min(now, end_of_deadline_day)
