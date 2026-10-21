@@ -19,6 +19,9 @@ import GigForm from './pages/gigs/GigForm'
 import GigDetail from './pages/gigs/GigDetail'
 import BrowseGigs from './pages/gigs/BrowseGigs'
 import MyGigs from './pages/gigs/MyGigs'
+import ApplicationDetail from './pages/applications/ApplicationDetail'
+import GigApplicants from './pages/applications/GigApplicants'
+import MyApplications from './pages/applications/MyApplications'
 import AccountSettings from './pages/settings/AccountSettings'
 import SecuritySettings from './pages/settings/SecuritySettings'
 import NotificationSettings from './pages/settings/NotificationSettings'
@@ -48,11 +51,17 @@ function App() {
             <Route path="/profile/:id" element={<PublicProfile />} />
             <Route path="/gigs" element={<BrowseGigs />} />
             <Route path="/gigs/:id" element={<GigDetail />} />
+            <Route path="/applications/:id" element={<ApplicationDetail />} />
+
+            <Route element={<RoleRoute role="freelancer" />}>
+              <Route path="/applications" element={<MyApplications />} />
+            </Route>
 
             <Route element={<RoleRoute role="client" />}>
               <Route path="/gigs/new" element={<GigForm />} />
               <Route path="/gigs/mine" element={<MyGigs />} />
               <Route path="/gigs/:id/edit" element={<GigForm />} />
+              <Route path="/gigs/:id/applicants" element={<GigApplicants />} />
             </Route>
 
             <Route path="/settings" element={<SettingsLayout />}>

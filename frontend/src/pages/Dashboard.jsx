@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import Alert from '../components/Alert'
 import Button from '../components/Button'
 import Card from '../components/Card'
+import RecommendedForYou from '../components/recommendations/RecommendedForYou'
 
 export default function Dashboard() {
   const { user } = useAuth()
@@ -63,6 +64,19 @@ export default function Dashboard() {
           )}
         </dl>
       </Card>
+
+      {user.role === 'freelancer' && (
+        <div className="mt-6 flex gap-3">
+          <Link to="/gigs">
+            <Button>Browse gigs</Button>
+          </Link>
+          <Link to="/applications">
+            <Button variant="secondary">My applications</Button>
+          </Link>
+        </div>
+      )}
+
+      {user.role === 'freelancer' && <RecommendedForYou limit={4} />}
 
       {user.role === 'client' && (
         <div className="mt-6 flex gap-3">

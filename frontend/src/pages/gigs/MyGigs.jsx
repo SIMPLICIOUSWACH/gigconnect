@@ -104,6 +104,10 @@ export default function MyGigs() {
               </div>
 
               <div className="flex items-center gap-3 mt-4 pt-4 border-t border-border">
+                <Link to={`/gigs/${gig.id}/applicants`} className="text-body text-primary font-medium">
+                  {gig.application_count} applicant{gig.application_count === 1 ? '' : 's'}
+                  {gig.pending_application_count > 0 && ` (${gig.pending_application_count} pending)`}
+                </Link>
                 {gig.status === 'open' && (
                   <Link to={`/gigs/${gig.id}/edit`} className="text-body text-primary font-medium">
                     Edit

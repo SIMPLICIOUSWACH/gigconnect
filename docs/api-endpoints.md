@@ -38,8 +38,14 @@ All endpoints are prefixed with `/api/`. Auth uses JWT bearer tokens
 | DELETE | `/api/settings/sessions/<id>/` | Required | Revoke a single session |
 | POST | `/api/settings/sessions/logout-all/` | Required | Revoke every session |
 | GET/PATCH | `/api/settings/notifications/` | Required | View/update notification preferences |
-| GET | `/api/settings/export-data/` | Required | JSON export of the user's own data |
-| POST | `/api/settings/delete-account/` | Required | Soft-delete (anonymise + deactivate) the account |
+| GET | `/api/settings/export-data/` | Required | JSON export of the user's own data: account, notification preferences, gig interactions and `applications` (each with its cover letter, link, rate and status history) |
+| POST | `/api/settings/delete-account/` | Required | Soft-delete (anonymise + deactivate) the account. Also deletes the user's gig interactions and closes and empties their applications (see below) |
+
+**Deleting a freelancer's account and their applications:** pending, under review and shortlisted
+applications become `withdrawn` with a system status event, and the cover letter, portfolio link and
+proposed rate are cleared on all of them. The rows and history stay, so a client still reviewing
+sees "Deleted User" with no text rather than the application vanishing. A `hired` application stays
+`hired`. All of this happens in one transaction with the rest of the deletion.
 
 ## Gigs (`/api/`)
 
@@ -52,7 +58,10 @@ All endpoints are prefixed with `/api/`. Auth uses JWT bearer tokens
 | PUT | `/api/gigs/<id>/` | Required (owning client) | Update a gig — only while `status = open` |
 | DELETE | `/api/gigs/<id>/` | Required (owning client) | Delete a gig |
 | PATCH | `/api/gigs/<id>/status/` | Required (owning client) | Change status — restricted to valid transitions (see below); disabled on the main detail route, this is the only way to change status |
-| GET | `/api/gigs/mine/` | Required (client) | List the logged-in client's own gigs, all statuses |
+| GET | `/api/gigs/mine/` | Required (client) | List the logged-in client's own gigs, all statuses. Each gig has `application_count` (every application received, withdrawn ones included) and `pending_application_count` |
+
+`GET /api/gigs/<id>/` also returns `my_application` (`{id, status}`) for a signed-in freelancer who
+has applied to that gig, and `null` for everyone else.
 
 **Status transitions:** `open → in_progress → completed`, or `open`/`in_progress → closed`
 (cancellation). No direct `open → completed`; no changes once `completed` or `closed`.
@@ -88,7 +97,152 @@ a sensible, stable order rather than a 400 or undefined ordering.
 
 Response shape: `{count, page, page_size, total_pages, next, previous, results: [...]}`.
 
+## Applications (`/api/`)
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| POST | `/api/gigs/<gig_id>/applications/` | Required (freelancer, email-verified) | Apply to a gig. Body: `cover_letter` (50 to 3000 characters), optional `portfolio_link`, optional `proposed_rate` (KES, more than 0). Returns `201` with the application |
+| GET | `/api/gigs/<gig_id>/applications/` | Required (the gig's client) | The gig's applicants, newest first, each with the applicant's name, skills, verification, cover letter, link, rate, status history and a skill match (`match_score`, `match_reasons`, `match_band`, see Recommendations below). Query: `status`, `page`, `page_size`. Anyone else gets `403` |
+| GET | `/api/applications/mine/` | Required (freelancer) | The freelancer's own applications, newest first. Query: `status`, `page`, `page_size` |
+| GET | `/api/applications/<id>/` | Required (applicant or the gig's client) | One application with its status history. Anyone else gets `404`, so the endpoint does not reveal that it exists |
+| POST | `/api/applications/<id>/withdraw/` | Required (the applicant) | Withdraw while `pending` or `under_review`. Optional `reason` (text, kept to 500 characters) |
+| PATCH | `/api/applications/<id>/status/` | Required (the gig's client) | Move an application along the allowed transitions. Body: `status`, optional `note` (up to 500 characters). Anyone else gets `404` |
+
+**List responses** (`/applications/mine/` and the client's applicants list) use the gig list's page
+shape, `{count, page, page_size, total_pages, next, previous, results}`, plus
+`status_counts`: `{pending, under_review, shortlisted, hired, rejected, withdrawn, total}`. The
+counts ignore the `status` filter, so a set of tabs can always show every total. An unknown `status`
+returns `400`.
+
+**Each application** has `id`, `gig_id`, `gig_title`, `gig_status`, `client_name`, `status`,
+`proposed_rate`, `created_at`, `updated_at`. The detail form (single application and the client's
+list) also has `cover_letter`, `portfolio_link`, `applicant`, `events` and `allowed_next_statuses`.
+`allowed_next_statuses` is worked out on the server for whoever is asking (the applicant, or the gig's
+client), so a client of this API never has to copy the rules.
+
+**Apply rules**, checked in this order (the first failure wins). Errors are `{"detail": "..."}`:
+
+| # | Rule | Status | Message |
+|---|---|---|---|
+| 1 | The gig exists | 404 | This gig does not exist. |
+| 2 | Not your own gig | 403 | You cannot apply to your own gig. |
+| 3 | The gig is `open` | 400 | This gig is no longer accepting applications. |
+| 4 | The application deadline has not passed | 400 | The application deadline for this gig has passed. |
+| 5 | Not withdrawn before | 400 | You withdrew your application to this gig and cannot apply again. |
+| 6 | Not already applied | 400 | You have already applied to this gig. |
+| 7 | The body is valid | 400 | Field errors, for example `cover_letter` |
+
+Role and email checks come before all of these: a client gets `403`, and an unverified email gets
+`403` with "You must verify your email before performing this action." A successful application also
+writes its first status event and an `apply` gig interaction, in one transaction. Two requests at
+once cannot both succeed: the database's unique constraint is the backstop.
+
+**Status transitions** (one module, `applications/transitions.py`). `hired`, `rejected` and
+`withdrawn` are final.
+
+| Who | From | To |
+|---|---|---|
+| Client | `pending` | `under_review`, `rejected` |
+| Client | `under_review` | `shortlisted`, `rejected` |
+| Client | `shortlisted` | `hired`, `rejected` |
+| Freelancer | `pending`, `under_review` | `withdrawn` |
+
+An invalid move returns `400` with, for example, "An application that is pending cannot be moved to
+shortlisted." A client can review applications on a gig of any status.
+
+**Hiring:** moving an application to `hired` also moves an `open` gig to `in_progress`, in the same
+transaction. Other applications are left as they are, and the client rejects them when ready. Nothing
+is rejected automatically. Hiring is refused with `400` on a `closed` or `completed` gig ("You can
+only hire for a gig that is open or in progress."), and a second hire on the same gig is refused
+("You have already hired someone for this gig.").
+
+## Recommendations (`/api/`)
+
+How the scores are made is in `docs/recommender.md`. This section is what the API returns.
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| GET | `/api/recommendations/` | Required (freelancer, email-verified) | Gigs recommended for the signed-in freelancer, best first. Query: `page`, `page_size` (default 12, max 50) |
+| POST | `/api/gigs/<gig_id>/interactions/` | None (throttled) | Log that a gig was opened from a list. Body: `type` of `search_click` or `recommendation_click`, optional `position` (its place in the list, 1 to 10000). Other types (`view`, `save`, `apply`) are written by the server and are refused here with `400` |
+
+**`GET /api/recommendations/`** returns the gig list's page shape,
+`{count, page, page_size, total_pages, next, previous, results}`, and also:
+
+- `available`: whether recommendations could be served at all.
+- `reason`: why not, or why the list is empty (see the table below), otherwise `null`.
+- `cold_start`: `true` while the freelancer has interacted with fewer than 5 different gigs, so their scores
+  come from skills only. `null` when `available` is false.
+- `model`: `{version, trained_at, collaborative}`, where `collaborative` says whether that model has a
+  collaborative part. `null` when `available` is false.
+
+Each result is the gig card fields of the gig list plus `score`, `match_reasons` and `source`:
+
+- `score` is from 0 to 1 and is computed by the trained model for this freelancer and this gig. It is for
+  ordering, and it is not shown to users as a percentage.
+- `match_reasons` is the skills the freelancer and the gig really share, named as the gig names them. It is
+  never worked out from the score, and it can be empty.
+- `source` is `content` (from skills and text only) or `hybrid` (blended with what freelancers with
+  similar history showed interest in).
+
+Only gigs the freelancer could apply to are scored: open, application deadline not passed, not their own,
+and no application of theirs in any status. A gig that scores exactly 0 shares nothing with the freelancer
+and is not recommended. Nothing about what was recommended is stored.
+
+**Every empty state is a plain `200`, with the same response shape as a full one.** Permission problems are
+the usual `401` and `403`.
+
+| `available` | `reason` | When |
+|---|---|---|
+| false | `disabled` | `RECOMMENDATIONS_ENABLED` is off (the default) |
+| false | `model_unavailable` | no trained model could be loaded: none trained, files missing or corrupt |
+| true | `no_skills` | the freelancer has no skills and no bio, so there is nothing to compare gigs with |
+| true | `null`, empty `results` | no gig the freelancer could apply to scores above zero |
+
+**Skill match for clients.** Each applicant in `GET /api/gigs/<gig_id>/applications/` also has:
+
+- `match_score`: the content model's score for that freelancer and that gig, from 0 to 1, or `null`.
+- `match_reasons`: the skills they share with the gig.
+- `match_band`: `strong` (score of 0.30 or more), `good` (0.15 or more) or `some`, and only when at least
+  one skill is really shared. `null` otherwise. The cut-offs are the settings `RECOMMENDER_BAND_STRONG` and
+  `RECOMMENDER_BAND_GOOD`, set from scores measured on development data and provisional.
+
+The response also has `match_scores: {available, reason}`. `match_score` is `null`, never 0, when it cannot be
+worked out: no model, or an applicant with no skills and no bio, or an applicant who deleted their account.
+A score of 0 means the model compared them and found nothing in common. Only the gig's owner can open this
+list, and an applicant's own views of their application never contain these fields.
+
+## Seeding sample data (development only)
+
+Every seed command refuses to run when `DEBUG` is `False`, marks what it creates `is_synthetic`, and needs
+the accounts and gigs from the commands before it.
+
+- `python manage.py seed_applications [--count N] [--delete]` creates clearly-fake applications on the
+  seeded open gigs, in a spread of statuses with matching history, with a synthetic `apply` interaction.
+  `--delete` removes only the seeded applications and puts gigs that a seeded hire moved on back to `open`.
+- `python manage.py seed_interactions [--per-freelancer N] [--seed N] [--delete]` creates clearly-fake views,
+  search clicks, saves and recommendation clicks from the seed freelancers on the seeded gigs (25 different
+  gigs each by default). Gigs that share a skill with the freelancer are about five times more likely to be
+  picked, so similar freelancers get similar histories, which is the pattern the collaborative model looks
+  for. It is made-up behaviour and says nothing about real freelancers. The same seed gives the same rows,
+  and running it again only adds pairs that are not there yet. `--delete` removes the seeded interactions
+  and leaves the seeded `apply` rows to `seed_applications`.
+
+To get a development database where both recommender models run:
+
+```
+python manage.py seed_data --count 30
+python manage.py seed_gigs
+python manage.py seed_applications --count 150
+python manage.py seed_interactions
+python manage.py import_job_corpus
+python manage.py train_recommender
+```
+
+`seed_gigs` is only needed once. With the defaults this gives 30 seed freelancers and about 890 pairs, well
+above the collaborative model's minimums (10 freelancers, 20 gigs and 100 pairs).
+
 ## Not yet built
 
-Applications (Sprint 4) and the recommendation engine (Sprint 5) have no endpoints yet.
-`GigDetail` on the frontend shows a disabled "Apply" placeholder rather than a working button.
+The evaluation of the recommender (the train, validation and test split, precision, recall and F1 at K, the
+random baseline, and tuning the blend weight) is Sprint 6. The scores here are not measured against
+anything yet, and no accuracy figure should be quoted from them.

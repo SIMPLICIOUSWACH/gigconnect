@@ -7,6 +7,12 @@ backend/staticfiles/
 db.sqlite3
 .env
 
+# Recommender data and trained models. Only the README files in datasets/ are tracked.
+datasets/**
+!datasets/**/
+!datasets/**/README.md
+backend/recommendations/artifacts/
+
 # Node / React
 frontend/node_modules/
 frontend/dist/

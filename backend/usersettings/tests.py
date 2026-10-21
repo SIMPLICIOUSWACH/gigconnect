@@ -154,11 +154,11 @@ class PrivacyAndDataTests(APITestCase):
         self.user.freelancer_profile.skills.set([self.skill])
         self.client.force_authenticate(user=self.user)
 
-    def test_export_data_excludes_id_number_and_omits_unbuilt_features(self):
+    def test_export_data_excludes_id_number_and_unbuilt_features(self):
         response = self.client.get('/api/settings/export-data/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertNotIn('id_number', response.data['user']['profile'])
-        self.assertNotIn('applications', response.data)
+        self.assertEqual(response.data['applications'], [])  # built now; this user has none
         self.assertNotIn('gigs', response.data)
 
     def test_delete_account_requires_correct_password(self):
