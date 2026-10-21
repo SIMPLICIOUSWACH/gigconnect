@@ -216,9 +216,16 @@ list, and an applicant's own views of their application never contain these fiel
 Every seed command refuses to run when `DEBUG` is `False`, marks what it creates `is_synthetic`, and needs
 the accounts and gigs from the commands before it.
 
-- `python manage.py seed_applications [--count N] [--delete]` creates clearly-fake applications on the
-  seeded open gigs, in a spread of statuses with matching history, with a synthetic `apply` interaction.
-  `--delete` removes only the seeded applications and puts gigs that a seeded hire moved on back to `open`.
+- `python manage.py seed_applications [--per-freelancer N] [--count N] [--seed N] [--delete]` creates
+  clearly-fake applications on the seeded open gigs, about 20 per seed freelancer by default (5 more or fewer),
+  in a spread of statuses with matching history and a synthetic `apply` interaction. Like the interactions
+  below, seeded freelancers favour gigs that share a skill with them, so the applications follow a pattern that
+  **favours the content model by construction**. Each application is dated within the last month, after the
+  gig was posted and no later than the end of its application deadline day, and each later status comes hours
+  or days after the one before (a client can review and hire after the deadline). `--count` stops after that many in
+  total. The same seed gives the same rows after a `--delete`. Running again without `--delete` never repeats a
+  pair, and may add more if a seeded hire closed a gig. `--delete` removes only the seeded applications and
+  puts gigs that a seeded hire moved on back to `open`.
 - `python manage.py seed_interactions [--per-freelancer N] [--seed N] [--delete]` creates clearly-fake views,
   search clicks, saves and recommendation clicks from the seed freelancers on the seeded gigs (25 different
   gigs each by default). Gigs that share a skill with the freelancer are about five times more likely to be
@@ -232,7 +239,7 @@ To get a development database where both recommender models run:
 ```
 python manage.py seed_data --count 30
 python manage.py seed_gigs
-python manage.py seed_applications --count 150
+python manage.py seed_applications
 python manage.py seed_interactions
 python manage.py import_job_corpus
 python manage.py train_recommender
@@ -241,8 +248,21 @@ python manage.py train_recommender
 `seed_gigs` is only needed once. With the defaults this gives 30 seed freelancers and about 890 pairs, well
 above the collaborative model's minimums (10 freelancers, 20 gigs and 100 pairs).
 
+## Evaluation split
+
+`python manage.py build_evaluation_split [--include-synthetic | --no-include-synthetic] [--seed N]
+[--rebuild-split]` builds the 70/15/15 split used to evaluate the recommender and saves it to
+`datasets/platform/evaluation/` (gitignored, real user data). Each freelancer's applications are put in time
+order: the oldest 70% go to train, the next 15% to validation and the newest 15% to test. A freelancer needs at
+least 5 applications to be split (3, 1 and 1 at 5); those with fewer stay in train only and are counted
+separately. A saved split is loaded again on later runs so results stay comparable, until `--rebuild-split` is
+given or the synthetic setting changes. The command prints the counts for each part, how many are synthetic,
+how many freelancers can be evaluated, and how many candidate gigs each gets "as of" the held-out period. It
+trains and scores nothing. Each freelancer has their own cut-off, so one freelancer's training period can
+include events that happened after another freelancer's test event.
+
 ## Not yet built
 
-The evaluation of the recommender (the train, validation and test split, precision, recall and F1 at K, the
-random baseline, and tuning the blend weight) is Sprint 6. The scores here are not measured against
-anything yet, and no accuracy figure should be quoted from them.
+Scoring the recommender (precision, recall and F1 at K, the random and popularity baselines, and tuning the
+blend weight) is the rest of Sprint 6. The scores of the live feed are not measured against anything yet, and no
+accuracy figure should be quoted from them.
