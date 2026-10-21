@@ -1,9 +1,9 @@
 # Entity Relationship Diagram
 
-Core domain entities as of Sprint 4. `NotificationPreference`, `UserSession`, `OTP`, `SkillAlias`
-and `GigInteraction` (supporting tables) are omitted from the diagram to keep it readable, and some
-columns added since Sprint 2 (such as `county`, `is_remote` and `is_synthetic`) are only listed
-where they matter here. See `backend/*/models.py` for the full definitions.
+Core domain entities as of Sprint 5. `NotificationPreference`, `UserSession`, `OTP` and `SkillAlias`
+(supporting tables) are omitted from the diagram to keep it readable, and some columns added since
+Sprint 2 (such as `county`, `is_remote` and `is_synthetic`) are only listed where they matter here. See
+`backend/*/models.py` for the full definitions.
 
 ```mermaid
 erDiagram
@@ -106,6 +106,39 @@ erDiagram
         text note "optional"
         datetime created_at
     }
+
+    GIG_INTERACTION {
+        uuid id PK
+        uuid user_id FK "null for an anonymous visitor"
+        string session_key "set instead of user_id for anonymous visitors"
+        uuid gig_id FK
+        string type "view / search_click / save / apply / recommendation_click"
+        int position "place in the list, for the two click types"
+        bool is_synthetic
+        datetime created_at
+    }
+
+    RECOMMENDER_MODEL_VERSION {
+        uuid id PK
+        int version UK
+        string folder "where the trained files are"
+        datetime trained_at
+        bool include_synthetic
+        int platform_gigs
+        int synthetic_platform_gigs
+        int external_documents
+        int vocabulary_size
+        int freelancers
+        bool collaborative_fitted
+        string collaborative_skipped_reason
+        int interactions "freelancer and gig pairs"
+        int synthetic_interactions
+        float collaborative_scale
+        json parameters
+    }
+
+    GIG ||--o{ GIG_INTERACTION : "is interacted with"
+    USER |o--o{ GIG_INTERACTION : "does (null if anonymous)"
 ```
 
 Note: `User` does not have a single `Profile` — the profile is split into `ClientProfile` and
@@ -143,3 +176,20 @@ any reason they typed when withdrawing is cleared from the history. The rows and
 the client's records and counts still make sense, and a `hired` application stays `hired`. This
 is the one place a shortlisted application is withdrawn without going through the normal rules,
 because it is a system action and not a choice by the freelancer.
+
+## Interactions and the recommender
+
+**`GigInteraction`** is one thing a visitor did with a gig, and it is the training data for the collaborative
+model. The types are `view` (logged by the server, once per visitor and gig), `search_click` and
+`recommendation_click` (posted by the browser when a gig is opened from a list, with its position),
+`save`, and `apply` (written when an application is created). A freelancer's interactions are deleted when
+they delete their account.
+
+**`RecommenderModelVersion`** has one row per training run, and the newest row is the model in use. It
+holds no model: the trained files live in a gitignored folder (`RECOMMENDER_ARTIFACT_DIR`), and the row is
+written last, after the files are in place, so a row always has its files. It records what the model was
+trained on, so any score can be traced to its data: how many gigs, freelancers and pairs, how much of each
+was synthetic, why the collaborative part was skipped if it was, and every parameter used.
+
+Nothing is stored per person about what was recommended to them. Recommendations are worked out when
+they are asked for, from the loaded model.

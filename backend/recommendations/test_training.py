@@ -131,7 +131,7 @@ class SnapshotTests(RecommenderTestBase):
         Application.objects.create(
             gig=self.gigs['P'][11], freelancer=self.freelancers['P'][0],
             cover_letter='A very private cover letter that must never be copied anywhere',
-            portfolio_link='https://private.example.org/me', proposed_rate=1234, status='shortlisted',
+            portfolio_link='https://private.example.org/me', proposed_rate='987654.32', status='shortlisted',
         )
         train(include_synthetic=True, data_dir=self.data_dir, artifact_dir=self.artifact_dir)
         self.platform = self.data_dir / 'platform'
@@ -152,7 +152,7 @@ class SnapshotTests(RecommenderTestBase):
         for name in ('gigs', 'freelancers', 'interactions', 'applications'):
             everything += (self.platform / f'{name}.csv').read_text(encoding='utf-8-sig')
         for private in ('rec-p0', '@example.com', 'secret private biography', 'private cover letter',
-                        'private.example.org', '1234', '254700009'):
+                        'private.example.org', '987654.32', '254700009'):
             self.assertNotIn(private, everything, private)
 
     def test_a_freelancer_row_has_an_id_and_skills_only(self):
