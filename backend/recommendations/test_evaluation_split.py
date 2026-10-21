@@ -154,6 +154,51 @@ class BuildSplitTests(SimpleTestCase):
         self.assertEqual((empty.rows, empty.too_few), ([], set()))
 
 
+class DescribeTests(SimpleTestCase):
+    """Counts worked out by hand for two freelancers: one with 10 positives (6, 2, 2) and one with only 3."""
+
+    def setUp(self):
+        statuses = {1: 'hired', 7: 'shortlisted', 8: 'pending', 9: 'hired', 10: 'withdrawn'}
+        synthetic_days = {1, 2, 3, 7, 9}
+        first = [
+            positive(1, 100 + n, n, status=statuses.get(n, 'pending'), synthetic=n in synthetic_days)
+            for n in range(1, 11)
+        ]
+        # Days 1-6 are train, 7-8 validation, 9-10 test.
+        second = [positive(2, 200 + n, n, status='shortlisted', synthetic=True) for n in range(1, 4)]
+        self.split = ev.build_split(first + second)
+        self.counts = ev.describe(self.split)
+
+    def test_train_counts_include_the_freelancer_with_too_few_positives(self):
+        self.assertEqual(
+            self.counts[ev.TRAIN], {'freelancers': 2, 'positives': 9, 'synthetic': 6, 'strictly_relevant': 4},
+        )  # 1, 2, 3 synthetic and day 1 hired for freelancer 1, then all 3 of freelancer 2
+
+    def test_validation_counts(self):
+        self.assertEqual(
+            self.counts[ev.VALIDATION], {'freelancers': 1, 'positives': 2, 'synthetic': 1, 'strictly_relevant': 1},
+        )  # day 7 shortlisted and synthetic, day 8 pending
+
+    def test_test_counts(self):
+        self.assertEqual(
+            self.counts[ev.TEST], {'freelancers': 1, 'positives': 2, 'synthetic': 1, 'strictly_relevant': 1},
+        )  # day 9 hired and synthetic, day 10 withdrawn
+
+    def test_who_can_be_evaluated_and_who_is_train_only(self):
+        self.assertEqual(self.counts['evaluated_freelancers'], 1)
+        self.assertEqual(self.counts['too_few_freelancers'], 1)
+        self.assertEqual(self.counts['too_few_positives'], 3)
+
+    def test_every_positive_is_in_exactly_one_part(self):
+        total = sum(self.counts[part]['positives'] for part in (ev.TRAIN, ev.VALIDATION, ev.TEST))
+        self.assertEqual(total, 13)
+
+    def test_an_empty_split_describes_as_zeros(self):
+        counts = ev.describe(ev.build_split([]))
+        self.assertEqual(counts[ev.TEST], {'freelancers': 0, 'positives': 0, 'synthetic': 0, 'strictly_relevant': 0})
+        self.assertEqual((counts['evaluated_freelancers'], counts['too_few_freelancers']), (0, 0))
+
+
 class SaveAndLoadTests(SimpleTestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

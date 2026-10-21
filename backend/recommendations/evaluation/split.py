@@ -185,6 +185,26 @@ def build_split(positives, seed=42, include_synthetic=True, min_positives=MIN_PO
     )
 
 
+def describe(split):
+    """
+    Counts for each part of a split: how many freelancers and positives, how many positives are synthetic, and how
+    many are strictly relevant (shortlisted or hired). The report quotes these next to every result.
+    """
+    counts = {}
+    for part in (TRAIN, VALIDATION, TEST):
+        positives = split.in_part(part)
+        counts[part] = {
+            'freelancers': len({p.freelancer_id for p in positives}),
+            'positives': len(positives),
+            'synthetic': sum(1 for p in positives if p.is_synthetic),
+            'strictly_relevant': sum(1 for p in positives if p.strictly_relevant),
+        }
+    counts['evaluated_freelancers'] = len(split.evaluated_freelancers())
+    counts['too_few_freelancers'] = len(split.too_few)
+    counts['too_few_positives'] = sum(1 for row in split.rows if row.positive.freelancer_id in split.too_few)
+    return counts
+
+
 def default_directory():
     return Path(settings.RECOMMENDER_DATA_DIR) / 'platform' / 'evaluation'
 
