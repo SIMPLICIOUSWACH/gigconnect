@@ -192,6 +192,24 @@ class HandWorkedScenarioTests(LeakageBase):
         self.assertEqual(leaked, {7, 8, 9, 10})  # the ordinary matrix includes every held-out gig
         self.assertEqual({numbers[g] for (u, g) in self.result.weights if u == self.a.id} & {7, 8, 9, 10}, set())
 
+    def test_without_interactions_only_the_train_applications_count(self):
+        # Applications and hiring only. Freelancer A loses the views of gigs 11 and 12 and nothing else changes: the
+        # statuses are still those at the cut-off. Freelancer B loses the view of gig 4.
+        result = training_input(self.split, include_interactions=False)
+        numbers = {gig.id: n for n, gig in self.gigs.items()}
+
+        def by_number(user):
+            return {numbers[g]: w for (u, g), w in result.weights.items() if u == user.id}
+
+        self.assertEqual(by_number(self.a), {1: 4, 2: 3, 3: 3, 4: 3, 5: 3, 6: 3})
+        self.assertEqual(by_number(self.b), {1: 3, 2: 3, 3: 4})
+        self.assertEqual(result.stats['interactions_seen'], 0)
+        self.assertEqual(result.stats['statuses_taken_as_of_cutoff'], 2)
+
+    def test_leaving_interactions_in_is_the_default(self):
+        explicit = training_input(self.split, include_interactions=True)
+        self.assertEqual(training_input(self.split).weights, explicit.weights)
+
     def test_the_vocabulary_only_uses_gigs_that_existed_before_the_earliest_cutoff(self):
         early = self.make_gig('Posted before the cutoff')
         late = self.make_gig('Posted after the cutoff')

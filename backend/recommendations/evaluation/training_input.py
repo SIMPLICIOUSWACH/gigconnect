@@ -67,8 +67,14 @@ def load_status_events(freelancer_ids):
     return events
 
 
-def training_input(split, include_synthetic=True):
-    """The weights the collaborative model may learn from, given this split, plus counts of what was left out."""
+def training_input(split, include_synthetic=True, include_interactions=True):
+    """
+    The weights the collaborative model may learn from, given this split, plus counts of what was left out.
+
+    With include_interactions=False only the train applications count (with their status as of the cut-off), which
+    is the "applications and hiring only" reading of the proposal. The default also counts views, clicks and
+    saves, as the live system does.
+    """
     evaluated = split.evaluated_freelancers()
     cutoffs = {f: split.cutoff(f) for f in evaluated}
     held_out = {f: split.held_out_gigs(f) for f in evaluated}
@@ -80,7 +86,7 @@ def training_input(split, include_synthetic=True):
     interactions = []
     rows = interactions_for_training(include_synthetic).exclude(type='apply').values_list(
         'user_id', 'gig_id', 'type', 'created_at',
-    )
+    ) if include_interactions else []
     for user_id, gig_id, kind, when in rows:
         stats['interactions_seen'] += 1
         if user_id in evaluated:
