@@ -81,7 +81,7 @@ live in `backend/config/recommender_profiles.json`, not in code.
 
 How the demo blends: a freelancer below 10 different gigs gets content scores only. From 10 gigs the collaborative
 share rises by 0.5 / 50 = 1 point per gig, so 0 at 0 or 5 gigs, 1% at 10, 11% at 20 and 31% at 40, until it reaches
-50%. The planted freelancers have 15 to 25 applications, so their share is between 3% and 16%.
+50%. The planted freelancers have 15 to 25 applications, so their share is between 6% and 16%.
 
 ### Running the demo
 
