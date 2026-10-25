@@ -14,6 +14,7 @@ from profiles.models import Skill
 
 from . import registry
 from .recommend import recommend
+from .testing import HYBRID_MECHANICS
 from .training import train
 
 NON_APPLY_TYPES = {'view', 'search_click', 'save', 'recommendation_click'}
@@ -166,7 +167,10 @@ class SeedInteractionsTests(TestCase):
         self.assertEqual(set(GigInteraction.objects.all()), {real_row, seeded_apply})
 
 
-@override_settings(DEBUG=True, RECOMMENDER_TFIDF_MIN_DF=1, RECOMMENDER_TFIDF_MAX_DF=1.0, RECOMMENDATIONS_ENABLED=True)
+@override_settings(
+    DEBUG=True, RECOMMENDER_TFIDF_MIN_DF=1, RECOMMENDER_TFIDF_MAX_DF=1.0, RECOMMENDATIONS_ENABLED=True,
+    **HYBRID_MECHANICS,
+)
 class SeedThenTrainTests(SeedInteractionsTests):
     """The point of the command: seeded data plus training gives a model where both parts run."""
 

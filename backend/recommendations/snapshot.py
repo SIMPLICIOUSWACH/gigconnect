@@ -88,7 +88,7 @@ def application_rows(applications):
 
 def write_snapshot(data_dir, gigs, profiles, interactions, applications):
     """Write the four CSV files and return how many rows each has."""
-    folder = Path(data_dir) / 'platform'
+    folder = Path(data_dir) / settings.RECOMMENDER_SNAPSHOT_FOLDER
     return {
         'gigs': _write(folder / 'gigs.csv', GIG_COLUMNS, gig_rows(gigs)),
         'freelancers': _write(folder / 'freelancers.csv', FREELANCER_COLUMNS, freelancer_rows(profiles)),

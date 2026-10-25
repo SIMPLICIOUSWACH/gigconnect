@@ -10,6 +10,7 @@ from gigs.models import Gig, GigInteraction
 from . import registry
 from .models import RecommenderModelVersion
 from .test_base import RecommenderTestBase
+from .testing import HYBRID_MECHANICS
 from .training import train
 
 GIG_CARD_FIELDS = {
@@ -100,6 +101,7 @@ class EmptyStateTests(RecommendationsApiBase):
         self.assertEqual(empty, full)
 
 
+@override_settings(**HYBRID_MECHANICS)
 class ResultTests(RecommendationsApiBase):
     def test_a_newcomer_gets_content_recommendations_in_cold_start(self):
         response = self.get(self.newcomer())

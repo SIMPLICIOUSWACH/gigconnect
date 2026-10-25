@@ -14,6 +14,7 @@ from . import content
 from .evaluation import compare as cmp
 from .evaluation import fitting
 from .evaluation import split as ev
+from .testing import HYBRID_MECHANICS
 
 START = datetime(2026, 10, 1, 12, 0, tzinfo=dt_timezone.utc)
 
@@ -45,7 +46,7 @@ class BlockWorld(TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
-        override = override_settings(RECOMMENDER_DATA_DIR=self.tmp.name)
+        override = override_settings(RECOMMENDER_DATA_DIR=self.tmp.name, **HYBRID_MECHANICS)
         override.enable()
         self.addCleanup(override.disable)
 

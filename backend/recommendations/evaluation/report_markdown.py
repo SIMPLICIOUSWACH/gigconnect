@@ -276,7 +276,10 @@ def test_run_lines(run):
 def build_markdown(comparison, strict, split, models, run):
     """The whole report. run holds the command, how the split was made, the test runs and the file names."""
     mode = run.get('mode', modes.SKILL_OVERLAP)
-    lines = [f'# Recommender evaluation: {comparison.part} part, {run["date"]}', '', *modes.label_lines(mode)]
+    lines = [
+        f'# Recommender evaluation: {comparison.part} part, {run["date"]}', '', *modes.label_lines(mode),
+        *modes.profile_lines(),
+    ]
     lines += warning_lines(comparison, mode)
     lines += run_lines(comparison, split, run)
     lines += data_lines(comparison, split, models)

@@ -46,7 +46,8 @@ class Command(BaseCommand):
         folder.mkdir(parents=True, exist_ok=True)
         path = folder / f'{report.next_stem(folder, prefix=modes.report_prefix("readiness", mode))}.md'
         path.write_text(readiness.markdown(
-            found, split, modes.label_lines(mode), command, date.today().isoformat(), Gig.objects.count(),
+            found, split, modes.label_lines(mode) + modes.profile_lines(), command, date.today().isoformat(),
+            Gig.objects.count(),
         ), encoding='utf-8')
 
         rows, columns = found.shape

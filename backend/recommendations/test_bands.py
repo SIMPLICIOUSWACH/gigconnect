@@ -1,10 +1,12 @@
 from django.test import SimpleTestCase, override_settings
 
 from .bands import match_band
+from .testing import BAND_CUT_OFFS
 
 SHARED = ['Django']
 
 
+@override_settings(**BAND_CUT_OFFS)
 class MatchBandTests(SimpleTestCase):
     def test_no_score_gives_no_band(self):
         self.assertIsNone(match_band(None, SHARED))

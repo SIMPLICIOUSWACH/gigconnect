@@ -274,7 +274,10 @@ def build_markdown(
     references=(), recovery=None,
 ):
     counts = ev.describe(split)[ev.VALIDATION]
-    lines = [f'# Tuning on the validation part, {day}', '', *modes.label_lines(mode), *warning_lines(counts, mode)]
+    lines = [
+        f'# Tuning on the validation part, {day}', '', *modes.label_lines(mode), *modes.profile_lines(),
+        *warning_lines(counts, mode),
+    ]
     lines += method_lines(split, context, trials, counts, command, csv_name)
     lines += result_lines(trials, spread, decision)
     if mode == modes.SYNTHETIC_PLANTED:

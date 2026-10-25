@@ -46,6 +46,17 @@ def report_prefix(kind, mode=None):
     return f'{kind}-{SYNTHETIC_PLANTED}' if (mode or current_mode()) == SYNTHETIC_PLANTED else kind
 
 
+def profile_text(name, label):
+    """The active recommender profile in words, with the demo label when there is one."""
+    return f'{name} profile, {label}' if label else f'{name} profile'
+
+
+def profile_lines():
+    """The line every report carries about the recommender profile it was made under."""
+    text = profile_text(settings.RECOMMENDER_PROFILE, settings.RECOMMENDER_PROFILE_LABEL)
+    return [f'Recommender profile: **{text}**.', '']
+
+
 def label_lines(mode):
     """The line every planted report starts with. Other reports are left as they were."""
     return [f'**Data: {PLANTED_LABEL}.**', ''] if mode == SYNTHETIC_PLANTED else []
