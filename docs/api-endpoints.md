@@ -286,7 +286,65 @@ live model, and nothing is tuned.
 - A saved split is reused so results stay comparable. If the applications have changed since it was saved, the
   report says so and `--rebuild-split` uses the current data.
 
+## Tuning the hybrid
+
+`python manage.py tune_recommender [--include-synthetic | --no-include-synthetic] [--seed N] [--random-seeds N]
+[--rebuild-split] [--output-dir PATH]` tries 240 combinations of the hybrid settings on the **validation** part
+only: the largest collaborative weight (0, 0.25, 0.5, 0.75, 1), the ramp (5, 20, 50 gigs), the hidden factors (2,
+5, 10 and the cap) and the cold-start threshold (0, 3, 5, 10). Every combination goes into
+`tuning-YYYY-MM-DD.csv`, and `tuning-YYYY-MM-DD.md` says how the choice was made and what it decided, next to
+content only, collaborative only and the best hybrid. The interaction weights are not tuned. A combination is
+picked by the mean of F1@5 and F1@10, and the defaults should change only if it beats the current settings by
+more than the random baseline's spread and the paired 95% interval is above zero. The command never changes a
+setting and cannot reach the test part. It also re-derives the match band cut-offs, still provisional.
+
+## Is there anything for the collaborative model to learn?
+
+`python manage.py check_collaborative_readiness [--draws N] [--rebuild-split] [--output-dir PATH]` reads the train
+part of the split and reports the explained-variance curve of the collaborative matrix (the share k hidden factors
+explain) against two kinds of random matrix: the same shape and values in random cells, and the same number of
+cells per freelancer and per gig (which keeps popularity). Beating the second means freelancers share tastes, not
+just popular gigs. The data shows structure when, at some k, it beats the random mean by more than three standard
+deviations and by at least one percentage point. Writes `readiness-YYYY-MM-DD.md`.
+
+## The planted seed mode (synthetic_planted)
+
+A second seed mode beside the skill-overlap seed above, for checking that the pipeline finds a collaborative
+pattern when one exists. **It demonstrates pipeline mechanics, not real-world accuracy**, and every report made from
+it starts with that label. It never sets the live defaults.
+
+- About 250 freelancers, 300 gigs and 60 clients, with 15 to 25 applications per freelancer. A hidden popularity per
+  gig means the median gig has well over 5 applicants.
+- Each freelancer belongs to one of five hidden taste groups: quick_cash (short window or short job, lower budget),
+  premium (higher budget, negotiable, a client with a verified phone), remote_only, client_loyal (two favourite
+  clients among the ten that post the most) and cross_field (one neighbouring category whose skills they do not
+  have). About 40% of each freelancer's applications follow their group, 40% skill overlap and 20% chance.
+- Habits only use budget, urgency, client, location and posting date, which the content model does not read. Gig
+  text is made from the category and skills alone.
+- The groups are written to `datasets/synthetic_planted/ground_truth.csv`, never to the database. They are read only
+  after the models are fitted, to score how well the collaborative factors recover them.
+
+It lives in a database of its own, so it can never mix with other data or touch the ordinary split and its test
+part. `seed_planted` refuses to write into a database that holds any other account. In a planted database the split
+is saved in `datasets/platform/evaluation/synthetic_planted/`, reports are named `evaluation-synthetic_planted-...`,
+`tuning-synthetic_planted-...` and `readiness-synthetic_planted-...`, and test runs have their own log.
+
+To set it up once (PowerShell, from `backend/`), create an empty database called `gigconnect_planted` in PostgreSQL,
+then:
+
+```
+$env:DB_NAME = "gigconnect_planted"
+python manage.py migrate
+python manage.py seed_planted
+python manage.py check_collaborative_readiness
+python manage.py tune_recommender
+Remove-Item Env:DB_NAME
+```
+
+`seed_planted --seed N` makes the same world again for the same seed, and `seed_planted --delete` removes it and its
+ground truth.
+
 ## Not yet built
 
-Tuning the blend weight and the other settings on the validation part (Sprint 6, Story 4). The scores of the
-live feed have not been tuned, and no accuracy figure should be quoted from them.
+The final test run (`evaluate_recommender --split test --final`) after the live defaults are settled from the
+skill-overlap tuning. The scores of the live feed have not been measured on the test part yet.
