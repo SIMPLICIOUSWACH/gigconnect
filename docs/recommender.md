@@ -240,17 +240,41 @@ under `datasets/` are tracked.
 
 ## Performance
 
-Measured on the development database with the real model, through the real endpoint, after `seed_interactions`
-and a training run with both models:
+Measured in Sprint 6 with `python manage.py time_recommendations --extra-open-gigs N --requests 3`, through the
+full request stack, on the development database (production profile, content only), for the 33 verified
+freelancers with skills: 99 requests each time. The extra open gigs are added inside a transaction and rolled
+back, so nothing is left behind.
 
-- The first request after a restart loads the model from disk: about 0.5 seconds (494 ms measured).
-- Every request after that: median 53 ms, 95th percentile 59 ms, worst 154 ms over 660 requests from 33
-  freelancers, with 6 database queries, whatever the number of gigs.
+| Open gigs a freelancer could apply to | Before the gig cache (median / 95th / worst) | With the gig cache (median / 95th / worst) |
+|---|---|---|
+| 49 (the development data) | 49 / 66 / 143 ms | 36 / 42 / 92 ms |
+| 2,049 | 673 / 804 / 892 ms | 104 / 174 / 211 ms |
+| 2,999 | 1,019 / 1,155 / 1,237 ms | 136 / 209 / 244 ms |
+| 5,049 | 1,755 / 1,875 / 2,029 ms | 219 / 301 / 401 ms |
 
-**It scales linearly with the number of gigs a freelancer could apply to**, at roughly 0.1 to 0.15 ms each, so
-the 500 ms target would be passed at somewhere above 3,000 open gigs for one freelancer. It is comfortable at
-the current volume (about 60 candidates each). The fix when it matters is to compute gig vectors once and
-reuse them, instead of transforming every candidate's text on each request.
+Under the demo profile (which also blends the collaborative score) at 5,113 open gigs: median 211 ms, 95th
+percentile 290 ms, worst 366 ms.
+
+**Why it was slow.** A profile of one request showed the vectoriser was a small part of the time. Most of it went
+on loading every candidate gig with its category and skills, cleaning its text and turning its skills into tokens,
+on every request. Sprint 5's estimate of 0.1 to 0.15 ms per gig was too low: it was about 0.3 ms.
+
+**The gig cache** (`recommendations/gig_cache.py`) keeps, per gig, its TF-IDF vector, its skills with their tokens
+and when it was posted, keyed by the gig's id and `updated_at`. A request only reads the candidates' ids and
+`updated_at`, builds the entries that are missing or out of date in one batch, and loads full gigs only for the page
+it shows. The scores and reasons are exactly the ones the content model gave before (tested).
+
+- Editing a gig saves it, which changes `updated_at`, so the next request rebuilds its entry. No signals. Gig edits
+  set the skills before that save, in one transaction, so the new `updated_at` always comes with the new skills.
+- The cache belongs to the loaded model: a new model version starts empty. Each server process has its own.
+- If no model can be loaded, nothing is cached and the answer is "not available", as before.
+- **The first request after a model loads builds the whole cache**: 0.3 s at 49 open gigs, 1.3 s at 3,000 and 2.1 s
+  at 5,000 measured, once per process and model version. Every request after that is as in the table.
+- Not noticed until the gig is next edited or a new model is loaded: renaming a category, or renaming or merging a
+  skill, because neither changes a gig's `updated_at`.
+
+The proposal asks for API responses under 500 ms. With the cache every request after the first meets it up to
+5,000 open gigs.
 
 ## Limits found while building it
 
