@@ -3,6 +3,7 @@ import random
 import tempfile
 from io import StringIO
 from pathlib import Path
+from unittest import mock
 
 from django.core.management import CommandError, call_command
 from django.test import SimpleTestCase, TestCase, override_settings
@@ -110,6 +111,26 @@ class PlanTests(SimpleTestCase):
             for word in HABIT_WORDS:
                 self.assertNotIn(word, text, (word, text))
 
+    def test_the_timeline_changes_only_the_dates(self):
+        def without_dates(world):
+            return (
+                [dataclasses.replace(g, posted_days_ago=0) for g in world.gigs],
+                [dataclasses.replace(a, applied_days_ago=0) for a in world.applications],
+                world.freelancers, world.clients,
+            )
+
+        with mock.patch.object(planted, 'POSTED_DAYS_AGO', (10, 150)):
+            older = planted.plan_world(seed=42)
+        self.assertEqual(without_dates(older), without_dates(self.world))
+        self.assertNotEqual([g.posted_days_ago for g in older.gigs], [g.posted_days_ago for g in self.world.gigs])
+
+    def test_about_a_third_of_the_gigs_are_open_on_the_day_and_nearly_all_have_applicants(self):
+        open_gigs = [g for g in self.world.gigs if g.posted_days_ago < g.window_days]
+        self.assertGreaterEqual(len(open_gigs) / len(self.world.gigs), 0.30)
+        self.assertLessEqual(len(open_gigs) / len(self.world.gigs), 0.40)
+        applied = {a.gig for a in self.world.applications}
+        self.assertGreaterEqual(sum(1 for g in open_gigs if g.index in applied) / len(open_gigs), 0.9)
+
     def test_every_gig_skill_belongs_to_its_category(self):
         for gig in self.world.gigs:
             self.assertTrue(set(gig.skills) <= set(planted.CATEGORY_SKILLS[gig.category]))
@@ -149,6 +170,18 @@ class WriteWorldTests(TestCase):
         for application in Application.objects.select_related('gig'):
             self.assertGreaterEqual(application.created_at, application.gig.created_at)
             self.assertLessEqual(application.created_at.date(), application.gig.application_deadline)
+
+    def test_on_the_day_it_is_written_about_a_third_of_the_gigs_are_open_and_nothing_is_in_the_future(self):
+        from django.utils import timezone
+
+        before = timezone.now()
+        planted.write_world(planted.plan_world(seed=42))
+        today = timezone.localdate()
+        share = Gig.objects.filter(application_deadline__gte=today).count() / Gig.objects.count()
+        self.assertGreaterEqual(share, 0.30)
+        self.assertLessEqual(share, 0.40)
+        self.assertFalse(Application.objects.filter(created_at__gt=timezone.now()).exists())
+        self.assertFalse(Gig.objects.filter(created_at__gt=before).exists())
 
     def test_the_ground_truth_file_has_every_freelancer_and_their_group(self):
         ids = planted.write_world(self.world)

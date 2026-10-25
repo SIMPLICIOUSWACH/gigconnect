@@ -77,6 +77,11 @@ HIGH_BUDGET_MIN = 40000  # a budget_max at or above this is a higher budget
 APPLICATION_WINDOWS = (3, 5, 7, 10, 14, 21, 30)  # days a gig takes applications for
 URGENT_WINDOW = 7  # a window this short or shorter is urgent
 SHORT_JOB = 21  # a job this short or shorter (posting to deadline, in days) is short
+# The timeline, anchored to the moment the world is written: gigs were posted between 1 and 36 days before it. With the
+# application windows above, about a third of the gigs are still open on the day the world is made, and they already
+# have their applicants, so the live feed has something to show. It is drawn with a single random call, as the
+# earlier 10 to 150 day timeline was, so changing it changes the dates and nothing else in the world.
+POSTED_DAYS_AGO = (1, 36)
 
 # Neutral text: no budget, urgency, place, client or habit word, so the content model cannot see a habit.
 TITLE_TEMPLATES = (
@@ -198,7 +203,7 @@ def _plan_gigs(rng, text_rng, sizes, categories):
             title=text_rng.choice(TITLE_TEMPLATES).format(skill=skills[0]),
             description=DESCRIPTION_TEMPLATE.format(category=category, skills=' and '.join(skills)),
             budget_min=low, budget_max=high, negotiable=rng.random() < 0.5, remote=remote,
-            county=None if remote else rng.choice(COUNTIES), posted_days_ago=round(rng.uniform(10, 150), 4),
+            county=None if remote else rng.choice(COUNTIES), posted_days_ago=round(rng.uniform(*POSTED_DAYS_AGO), 4),
             window_days=window, job_days=window + rng.randint(3, 60), popularity=rng.lognormvariate(0, 1.0),
         ))
     return gigs
