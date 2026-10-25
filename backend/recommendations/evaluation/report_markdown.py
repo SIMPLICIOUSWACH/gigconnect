@@ -45,7 +45,8 @@ def run_lines(comparison, split, run):
     if comparison.part == ev.TEST:
         lines.append(
             f'- **This is a test run.** The test part has now been scored {len(runs)} time(s), and every run is '
-            'recorded in evaluation-test-runs.csv. Each look at the test part makes it less of an honest estimate.'
+            f'recorded in {modes.test_runs_name(run.get("mode"))}. Each look at the test part makes it less of an '
+            'honest estimate.'
         )
     else:
         lines.append(f'- The test part has been scored {len(runs)} time(s) so far. This run did not look at it.')

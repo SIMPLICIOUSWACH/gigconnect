@@ -54,6 +54,22 @@ class PlantedRunsTests(TestCase):
         self.assertEqual((self.ordinary / 'split.csv').read_text(encoding='utf-8'), 'the ordinary split')
         self.assertTrue((self.ordinary / 'synthetic_planted' / 'split.csv').is_file())
 
+    def test_a_planted_test_report_names_its_own_log(self):
+        run = run_evaluation(part='test', final=True, include_synthetic=True, random_seeds=2)
+        text = run.markdown_path.read_text(encoding='utf-8')
+        self.assertIn('recorded in evaluation-synthetic_planted-test-runs.csv', text)
+        self.assertNotIn('recorded in evaluation-test-runs.csv', text)
+
+    def test_the_command_prints_the_planted_warning_not_the_skill_overlap_one(self):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        out = StringIO()
+        call_command('evaluate_recommender', '--include-synthetic', '--random-seeds', '2', stdout=out)
+        self.assertIn('Planted synthetic data', out.getvalue())
+        self.assertNotIn('skill-preferring synthetic applications favour', out.getvalue())
+
     def test_a_planted_test_run_goes_to_its_own_log(self):
         run_evaluation(part='test', final=True, include_synthetic=True, random_seeds=2)
         self.assertEqual(len(report.read_test_runs(self.reports(), modes.SYNTHETIC_PLANTED)), 1)

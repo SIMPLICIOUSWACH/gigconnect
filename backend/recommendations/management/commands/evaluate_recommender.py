@@ -2,7 +2,7 @@ from argparse import BooleanOptionalAction
 
 from django.core.management.base import BaseCommand, CommandError
 
-from ...evaluation import report_markdown
+from ...evaluation import modes, report_markdown
 from ...evaluation import split as ev
 from ...evaluation.compare import DEFAULT_RANDOM_SEEDS
 from ...evaluation.fitting import EvaluationError
@@ -66,7 +66,7 @@ class Command(BaseCommand):
         comparison = run.comparison
         if run.split_note:
             self.stdout.write(self.style.WARNING(run.split_note))
-        for line in report_markdown.warning_lines(comparison):
+        for line in report_markdown.warning_lines(comparison, modes.current_mode()):
             if line:
                 self.stdout.write(self.style.WARNING(line.lstrip('> ').replace('**', '')))
         self.stdout.write(
