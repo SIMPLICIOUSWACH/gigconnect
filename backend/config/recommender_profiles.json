@@ -1,0 +1,30 @@
+{
+  "production": {
+    "description": "The ordinary database, with the settings picked by tuning on the skill-overlap data: the collaborative weight is 0, so recommendations are content only.",
+    "label": "",
+    "database": null,
+    "recommendations_enabled": null,
+    "blend_max_weight": 0.0,
+    "blend_ramp_gigs": 20,
+    "svd_components": 20,
+    "cold_start_min_gigs": 5,
+    "band_good": 0.13,
+    "band_strong": 0.27,
+    "artifact_folder": "",
+    "snapshot_folder": "platform"
+  },
+  "demo": {
+    "description": "The planted database, with the settings picked by tuning on the planted data.",
+    "label": "synthetic_planted - demonstrates pipeline mechanics, not real-world accuracy",
+    "database": "gigconnect_planted",
+    "recommendations_enabled": true,
+    "blend_max_weight": 0.5,
+    "blend_ramp_gigs": 50,
+    "svd_components": 2,
+    "cold_start_min_gigs": 10,
+    "band_good": 0.35,
+    "band_strong": 0.6,
+    "artifact_folder": "demo",
+    "snapshot_folder": "platform/demo"
+  }
+}

@@ -53,17 +53,21 @@ def collaborative_scale(reconstructed, observed_mask, percentile=95):
     return scale_from_scores(unseen_positive_scores(reconstructed, observed_mask), percentile)
 
 
-def blend_weight(gigs_interacted_with):
+def blend_weight(gigs_interacted_with, minimum=None, ramp=None, maximum=None):
     """
     The weight w on the collaborative score for a freelancer who has interacted with this many different
     gigs: 0 in cold start, then rising by equal steps to the maximum.
+
+    The cold-start minimum, the ramp length and the maximum default to the settings. They can be given so the
+    tuning can try other values without changing any setting.
     """
-    minimum = settings.RECOMMENDER_COLD_START_MIN_GIGS
+    minimum = settings.RECOMMENDER_COLD_START_MIN_GIGS if minimum is None else minimum
+    ramp = settings.RECOMMENDER_BLEND_RAMP_GIGS if ramp is None else ramp
+    maximum = settings.RECOMMENDER_BLEND_MAX_WEIGHT if maximum is None else maximum
     if gigs_interacted_with < minimum:
         return 0.0
-    ramp = max(1, settings.RECOMMENDER_BLEND_RAMP_GIGS)
     steps_in = gigs_interacted_with - minimum + 1
-    return float(settings.RECOMMENDER_BLEND_MAX_WEIGHT * min(1.0, steps_in / ramp))
+    return float(maximum * min(1.0, steps_in / max(1, ramp)))
 
 
 def in_cold_start(gigs_interacted_with):

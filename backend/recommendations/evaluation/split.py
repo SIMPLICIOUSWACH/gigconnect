@@ -29,7 +29,6 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-from django.conf import settings
 from django.utils import timezone
 
 from applications.transitions import Status
@@ -206,7 +205,10 @@ def describe(split):
 
 
 def default_directory():
-    return Path(settings.RECOMMENDER_DATA_DIR) / 'platform' / 'evaluation'
+    """datasets/platform/evaluation/, or its synthetic_planted folder for a planted database (see modes.py)."""
+    from .modes import split_directory
+
+    return split_directory()
 
 
 def save_split(split, directory=None):

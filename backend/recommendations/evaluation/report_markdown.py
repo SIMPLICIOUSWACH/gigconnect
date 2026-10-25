@@ -6,6 +6,7 @@ No section hides a bad number: every method appears in every table, and anything
 
 from django.conf import settings
 
+from . import modes
 from . import split as ev
 from .compare import COLLABORATIVE_METHODS
 from .report import LABELS, metric_columns, mostly_synthetic, results_table, share
@@ -15,7 +16,7 @@ HEADLINE_METRICS = ('precision', 'recall', 'f1')
 MIN_STRICT_FREELANCERS = 20  # below this the strict variant is shown with a warning, not as a finding
 
 
-def warning_lines(comparison):
+def warning_lines(comparison, mode=modes.SKILL_OVERLAP):
     """The warning at the top, and the synthetic share of the scored part either way."""
     info = comparison.info
     count, synthetic = info['positives'], info['synthetic_positives']
@@ -23,6 +24,8 @@ def warning_lines(comparison):
         f'{synthetic} of the {count} applications in the {comparison.part} part are synthetic '
         f'({share(synthetic, count)}).'
     )
+    if mode == modes.SYNTHETIC_PLANTED:
+        return [f'Synthetic data: {line}', '', *modes.PLANTED_WARNING]
     if not mostly_synthetic(comparison):
         return [f'Synthetic data: {line}', '']
     return [
@@ -42,7 +45,8 @@ def run_lines(comparison, split, run):
     if comparison.part == ev.TEST:
         lines.append(
             f'- **This is a test run.** The test part has now been scored {len(runs)} time(s), and every run is '
-            'recorded in evaluation-test-runs.csv. Each look at the test part makes it less of an honest estimate.'
+            f'recorded in {modes.test_runs_name(run.get("mode"))}. Each look at the test part makes it less of an '
+            'honest estimate.'
         )
     else:
         lines.append(f'- The test part has been scored {len(runs)} time(s) so far. This run did not look at it.')
@@ -272,8 +276,12 @@ def test_run_lines(run):
 
 def build_markdown(comparison, strict, split, models, run):
     """The whole report. run holds the command, how the split was made, the test runs and the file names."""
-    lines = [f'# Recommender evaluation: {comparison.part} part, {run["date"]}', '']
-    lines += warning_lines(comparison)
+    mode = run.get('mode', modes.SKILL_OVERLAP)
+    lines = [
+        f'# Recommender evaluation: {comparison.part} part, {run["date"]}', '', *modes.label_lines(mode),
+        *modes.profile_lines(),
+    ]
+    lines += warning_lines(comparison, mode)
     lines += run_lines(comparison, split, run)
     lines += data_lines(comparison, split, models)
     lines += model_lines(models, run['live_version'])

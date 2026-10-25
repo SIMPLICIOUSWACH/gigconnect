@@ -22,6 +22,7 @@ from django.utils import timezone
 
 from . import collaborative as collab
 from . import content, corpus, snapshot
+from .evaluation import modes
 from .features import drop_empty_and_duplicates
 from .models import RecommenderModelVersion
 from .platform import (
@@ -166,7 +167,7 @@ def write_report(data_dir, row, snapshot_counts):
     """A short Markdown report of the training run, with measured numbers only."""
     folder = Path(data_dir) / 'reports'
     folder.mkdir(parents=True, exist_ok=True)
-    stem = f'training-{date.today().isoformat()}'
+    stem = f'{modes.report_prefix("training")}-{date.today().isoformat()}'
     path = folder / f'{stem}.md'
     extra = 2
     while path.exists():
@@ -177,6 +178,10 @@ def write_report(data_dir, row, snapshot_counts):
     lines = [
         f'# Training run, model version {row.version}',
         '',
+        *modes.label_lines(modes.current_mode()),
+        *modes.profile_lines(),
+        f'- Models saved in: {settings.RECOMMENDER_ARTIFACT_DIR}',
+        f'- Snapshot written to: {Path(data_dir) / settings.RECOMMENDER_SNAPSHOT_FOLDER}',
         f'- Trained at: {row.trained_at:%Y-%m-%d %H:%M}',
         f'- Synthetic data included: {"yes" if row.include_synthetic else "no"}',
         '',

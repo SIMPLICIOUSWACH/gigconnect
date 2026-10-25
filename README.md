@@ -58,6 +58,64 @@ may listen on a different port. For example, a native Windows Postgres install c
 up on **3204**, not the default 5432. Whatever your actual port is, set `DB_PORT` in
 `backend/.env` to match; don't assume 5432 just because that's the Docker default.
 
+## Recommender profiles and the planted demo
+
+The recommender runs under one of two profiles, chosen by the `RECOMMENDER_PROFILE` environment variable. The values
+live in `backend/config/recommender_profiles.json`, not in code.
+
+| | production (the default) | demo |
+|---|---|---|
+| Database | the ordinary one (`DB_NAME`, normally `gigconnect`) | `gigconnect_planted`, always |
+| Largest collaborative weight | 0, so recommendations are content only | 0.5 |
+| Ramp, factors, cold start | 20 gigs, 20 factors, below 5 gigs | 50 gigs, 2 factors, below 10 gigs |
+| Match band cut-offs (good, strong) | 0.13, 0.27 | 0.35, 0.6 |
+| Trained models and snapshot | `recommendations/artifacts/`, `datasets/platform/` | `recommendations/artifacts/demo/`, `datasets/platform/demo/` |
+| Where the values come from | tuning on the skill-overlap seed data | tuning on the planted data |
+
+- If the variable is missing, production is used. Any other name is refused.
+- The demo profile refuses to start unless it is connected to the planted database, and only planted accounts are in
+  it. It is labelled **synthetic_planted - demonstrates pipeline mechanics, not real-world accuracy** in the admin
+  header and in every report. Every report also names the profile it was made under.
+- Recommendations are worked out on each request and never stored, so switching the profile and restarting the server
+  is all it takes. There is nothing to regenerate.
+
+How the demo blends: a freelancer below 10 different gigs gets content scores only. From 10 gigs the collaborative
+share rises by 0.5 / 50 = 1 point per gig, so 0 at 0 or 5 gigs, 1% at 10, 11% at 20 and 31% at 40, until it reaches
+50%. The planted freelancers have 15 to 25 applications, so their share is between 6% and 16%.
+
+### Running the demo
+
+Once, create an empty PostgreSQL database called `gigconnect_planted`, then from `backend/` (PowerShell):
+
+```powershell
+$env:RECOMMENDER_PROFILE = "demo"
+python manage.py migrate
+python manage.py refresh_planted_demo
+python manage.py runserver
+```
+
+`refresh_planted_demo` rebuilds the planted world dated up to today (the same seed, so the same world), retrains the
+demo model, makes the demo accounts and prints how many gigs are open today and each demo account's top 5. Run it the
+day before a presentation, because the planted gigs close as the days pass. `show_planted_demo` prints the same
+without rebuilding anything. To go back to production, close that terminal or run `Remove-Item Env:RECOMMENDER_PROFILE`
+and restart the server.
+
+### Demo accounts
+
+All of them sign in with the demo password `DemoPass123!`. They exist only in the planted database: a local demo on
+synthetic accounts, never real ones.
+
+| Account | Email | What it shows |
+|---|---|---|
+| Amina Wanjiru | `planted-amina@example.test` | A premium freelancer: higher budget, negotiable gigs from verified clients |
+| Brian Otieno | `planted-brian@example.test` | A quick_cash freelancer: short, urgent, lower budget gigs |
+| Cynthia Achieng | `planted-cynthia@example.test` | A remote_only freelancer: remote gigs |
+| David Kamau | `planted-david@example.test` | A brand-new freelancer with no applications: skill matches only (cold start) |
+
+Each of the first three is the member of their hidden group whose top 5 recommendations show the group's habit most
+clearly. The habit only shows in the gigs the collaborative part pulls in, which are often gigs that share no skill with
+them (a content score of 0). The groups themselves are only in `datasets/synthetic_planted/ground_truth.csv`.
+
 ## Tests
 
 ```bash

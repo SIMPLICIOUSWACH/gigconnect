@@ -1,6 +1,7 @@
 from datetime import date, timedelta
 
 from django.db import connection
+from django.test import override_settings
 from django.test.utils import CaptureQueriesContext
 
 from applications.models import Application
@@ -9,9 +10,11 @@ from gigs.models import Gig, GigInteraction
 from . import hybrid, registry
 from .recommend import gigs_interacted_with, recommend
 from .test_base import RecommenderTestBase
+from .testing import HYBRID_MECHANICS
 from .training import train
 
 
+@override_settings(**HYBRID_MECHANICS)
 class RoundTripTests(RecommenderTestBase):
     """Train, load, then score: the whole path a real request takes."""
 

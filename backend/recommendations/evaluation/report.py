@@ -17,8 +17,8 @@ from datetime import date, datetime
 from pathlib import Path
 
 from .compare import COLLABORATIVE_METHODS, METHODS
+from .modes import test_runs_name
 
-TEST_RUNS_FILE = 'evaluation-test-runs.csv'
 TEST_RUN_COLUMNS = ['when', 'split_fingerprint', 'include_synthetic', 'seed', 'random_seeds', 'freelancers', 'report']
 
 CSV_COLUMNS = [
@@ -76,18 +76,18 @@ def write_csv(path, comparisons):
                 writer.writerow(row)
 
 
-def read_test_runs(folder):
+def read_test_runs(folder, mode=None):
     """The test runs recorded so far, oldest first. Empty if the test part has never been scored."""
-    path = Path(folder) / TEST_RUNS_FILE
+    path = Path(folder) / test_runs_name(mode)
     if not path.is_file():
         return []
     with open(path, newline='', encoding='utf-8-sig') as handle:
         return list(csv.DictReader(handle))
 
 
-def record_test_run(folder, row):
+def record_test_run(folder, row, mode=None):
     """Append one test run to the log. This is called before the report is written, so the report counts it."""
-    path = Path(folder) / TEST_RUNS_FILE
+    path = Path(folder) / test_runs_name(mode)
     new_file = not path.is_file()
     with open(path, 'a', newline='', encoding='utf-8-sig') as handle:
         writer = csv.DictWriter(handle, fieldnames=TEST_RUN_COLUMNS)
@@ -96,10 +96,10 @@ def record_test_run(folder, row):
         writer.writerow({column: row.get(column, '') for column in TEST_RUN_COLUMNS})
 
 
-def next_stem(folder, day=None):
+def next_stem(folder, day=None, prefix='evaluation'):
     """evaluation-YYYY-MM-DD, or with -2, -3 and so on if a report from today is already there."""
     folder = Path(folder)
-    stem = f'evaluation-{(day or date.today()).isoformat()}'
+    stem = f'{prefix}-{(day or date.today()).isoformat()}'
     candidate, extra = stem, 2
     while (folder / f'{candidate}.md').exists() or (folder / f'{candidate}.csv').exists():
         candidate = f'{stem}-{extra}'
