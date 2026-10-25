@@ -60,6 +60,11 @@ class Command(BaseCommand):
                     f'  {reference.label}: F1@5 {reference.means[(5, "f1")]:.3f}, F1@10 '
                     f'{reference.means[(10, "f1")]:.3f}, selection {reference.selection:.3f}'
                 )
+        for label, c in run.against_content:
+            self.stdout.write(
+                f'  {label} against content only: gain {c.gain:+.3f}, paired 95% interval {c.low:+.3f} to '
+                f'{c.high:+.3f}, random spread {c.random_sd:.3f}.'
+            )
         if run.recovery:
             for row in run.recovery['rows']:
                 self.stdout.write(f'  Group recovery, {row["label"]}: pair AUC {row["auc"]:.3f}')

@@ -290,6 +290,58 @@ def suggested_bands(evidence):
 
 
 @dataclass
+class Paired:
+    """One trial against another over the same freelancers: the gain and how sure it is."""
+
+    better: Trial
+    baseline: Trial
+    gain: float
+    low: float  # the paired 95% bootstrap interval of the gain over freelancers
+    high: float
+    random_sd: float
+
+    @property
+    def beats_luck(self):
+        return self.gain > self.random_sd
+
+    @property
+    def above_zero(self):
+        return self.low > 0
+
+
+def paired(better, baseline, random_sd, seed=42):
+    """The gain of one trial over another, with the paired interval over the same freelancers."""
+    differences = [better.per_freelancer[f] - baseline.per_freelancer[f] for f in baseline.per_freelancer]
+    low, high = metrics.bootstrap_interval(differences, seed=seed)
+    return Paired(
+        better=better, baseline=baseline, gain=better.selection - baseline.selection, low=low, high=high,
+        random_sd=random_sd,
+    )
+
+
+def against_content(context, trials, current, random_sd, seed=42):
+    """
+    Hybrids against content only (a weight of 0), each paired over the same freelancers, as [(label, Paired)]:
+    the best combination with a collaborative weight above 0, and the current settings when they blend too and are
+    a different combination. Empty when nothing blends.
+    """
+    content_only = run_trial(context, Setting(0.0, current.setting.ramp, current.setting.factors,
+                                              current.setting.cold_start))
+    found = []
+    hybrids = [t for t in trials if t.setting.max_weight > 0]
+    if hybrids:
+        best = hybrids[min(
+            range(len(hybrids)), key=lambda i: (-round(hybrids[i].selection, 12), distance(hybrids[i], current), i),
+        )]
+        found.append(('Best hybrid', paired(best, content_only, random_sd, seed)))
+        if current.setting.max_weight > 0 and best.key() != current.key():
+            found.append(('Current settings', paired(current, content_only, random_sd, seed)))
+    elif current.setting.max_weight > 0:
+        found.append(('Current settings', paired(current, content_only, random_sd, seed)))
+    return found
+
+
+@dataclass
 class Reference:
     """A point to compare the combinations with. Not a candidate for the defaults."""
 
@@ -351,7 +403,7 @@ def references(context, trials, decision):
             best.components,
         ))
     found.append(Reference(
-        f'Best combination by the rule ({short_setting(decision.best)})', decision.best.means,
+        f'Best combination ({short_setting(decision.best)})', decision.best.means,
         decision.best.selection, decision.best.components,
     ))
     return found

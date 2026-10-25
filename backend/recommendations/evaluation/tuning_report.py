@@ -228,6 +228,30 @@ def reference_lines(references):
     return lines + ['']
 
 
+def paired_lines(comparisons):
+    """Hybrids against content only, each paired over the same freelancers."""
+    if not comparisons:
+        return []
+    baseline = comparisons[0][1].baseline
+    lines = [
+        '## Hybrids against content only', '',
+        'On the same validation freelancers and candidates. The interval is the paired 95% bootstrap interval of the '
+        'per-freelancer difference in the selection value (mean of F1@5 and F1@10). The random spread is one standard '
+        'deviation of the random baseline across seeds.', '',
+        '| | Settings | Selection value | F1@5 | F1@10 | Gain over content | Paired 95% interval | Beats the spread |',
+        '|---|---|---|---|---|---|---|---|',
+        f'| Content only | weight 0 | {baseline.selection:.3f} | {baseline.means[(5, "f1")]:.3f} | '
+        f'{baseline.means[(10, "f1")]:.3f} | | | |',
+    ]
+    for label, c in comparisons:
+        lines.append(
+            f'| {label} | {tn.short_setting(c.better)} | {c.better.selection:.3f} | {c.better.means[(5, "f1")]:.3f} | '
+            f'{c.better.means[(10, "f1")]:.3f} | {c.gain:+.3f} | {c.low:+.3f} to {c.high:+.3f} | '
+            f'{"yes" if c.beats_luck else "no"} (spread {c.random_sd:.3f}) |'
+        )
+    return lines + ['']
+
+
 def recovery_lines(recovery):
     if not recovery:
         return []
@@ -271,7 +295,7 @@ LIMIT_LINES = [
 
 def build_markdown(
     split, context, trials, spread, decision, evidence, suggested, command, csv_name, day, mode=modes.SKILL_OVERLAP,
-    references=(), recovery=None,
+    references=(), recovery=None, against_content=None,
 ):
     counts = ev.describe(split)[ev.VALIDATION]
     lines = [
@@ -284,6 +308,7 @@ def build_markdown(
         lines += [PLANTED_DEFAULTS_NOTE, '']
     if references:
         lines += reference_lines(references)
+    lines += paired_lines(against_content)
     lines += recovery_lines(recovery)
     lines += marginal_lines(trials)
     lines += band_lines(evidence, suggested)

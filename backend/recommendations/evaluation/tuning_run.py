@@ -25,6 +25,7 @@ class TuningRun:
     suggested_bands: dict
     references: list
     recovery: dict  # planted data only, else None
+    against_content: list  # [(label, tuning.Paired)]: hybrids against content only
     mode: str
     split: object
     split_how: str
@@ -45,6 +46,7 @@ def run_tuning(
     suggested = tuning.suggested_bands(evidence)
 
     references = tuning.references(context, trials, decision)
+    against_content = tuning.against_content(context, trials, current, spread['sd'], seed)
     mode = modes.current_mode()
     recovery = None
     if mode == modes.SYNTHETIC_PLANTED:
@@ -58,12 +60,13 @@ def run_tuning(
     markdown_path, csv_path = folder / f'{stem}.md', folder / f'{stem}.csv'
     text = tuning_report.build_markdown(
         split, context, trials, spread, decision, evidence, suggested, command, csv_path.name,
-        date.today().isoformat(), mode, references, recovery,
+        date.today().isoformat(), mode, references, recovery, against_content,
     )
     markdown_path.write_text(text, encoding='utf-8')
     tuning_report.write_csv(csv_path, trials, decision)
     return TuningRun(
         markdown_path=markdown_path, csv_path=csv_path, trials=trials, decision=decision, spread=spread,
         evidence=evidence, suggested_bands=suggested, references=references, recovery=recovery, mode=mode,
+        against_content=against_content,
         split=split, split_how=how, split_note=note,
     )

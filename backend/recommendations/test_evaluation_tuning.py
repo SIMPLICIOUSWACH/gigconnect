@@ -215,10 +215,16 @@ class BlockWorldTuningTests(BlockWorld):
         self.assertGreater(quick, slow)
 
     def test_the_collaborative_scores_beat_chance_in_the_world_built_to_have_a_pattern(self):
+        # Chance by hand: one right answer among 33, so a random top 5 holds it 5/33 of the time and a top 10 10/33.
+        # F1 is then 2/6 and 2/11, so the selection value is (2/6 * 5/33 + 2/11 * 10/33) / 2, about 0.053. The best
+        # possible is (2/6 + 2/11) / 2, about 0.258. Twenty seeds keep the estimate of the spread steady; five did not.
+        chance = (2 / 6 * 5 / 33 + 2 / 11 * 10 / 33) / 2
         context = self.context()
-        spread = tn.random_spread(context, seeds=5)
+        spread = tn.random_spread(context, seeds=20)
         full = tn.run_trial(context, tn.Setting(1.0, 5, tn.CAP, 0))
-        self.assertGreater(full.selection, spread['mean'] + 5 * spread['sd'])
+        self.assertAlmostEqual(spread['mean'], chance, delta=0.03)
+        self.assertGreater(full.selection, spread['mean'] + 4 * spread['sd'])
+        self.assertGreater(full.selection, 3 * chance)
 
     def test_the_random_spread_is_a_standard_deviation_across_seeds_and_repeats(self):
         context = self.context()
@@ -228,6 +234,29 @@ class BlockWorldTuningTests(BlockWorld):
         self.assertLessEqual(first['low'], first['mean'])
         self.assertGreaterEqual(first['high'], first['mean'])
         self.assertEqual(tn.random_spread(context, seeds=1)['sd'], 0.0)
+
+    def test_best_hybrid_against_content_only_uses_the_best_weighted_combination_and_a_weight_of_zero(self):
+        context = self.context()
+        trials = tn.run_grid(context)
+        current = tn.run_trial(context, tn.current_setting())
+        comparisons = dict(tn.against_content(context, trials, current, random_sd=0.01))
+        found = comparisons['Best hybrid']
+        self.assertGreater(found.better.setting.max_weight, 0)
+        self.assertAlmostEqual(found.better.selection, max(t.selection for t in trials if t.setting.max_weight > 0))
+        self.assertEqual(found.baseline.setting.max_weight, 0.0)
+        content_only = cmp.compare(self.make_split(), random_seeds=1).results['content'].groups['all']
+        self.assertAlmostEqual(found.baseline.means[(10, 'f1')], content_only[(10, 'f1')].mean)
+        self.assertAlmostEqual(found.gain, found.better.selection - found.baseline.selection)
+
+    def test_the_current_settings_get_their_own_row_only_when_they_blend_and_are_not_the_best(self):
+        context = self.context()
+        blending_current = tn.run_trial(context, tn.current_setting())  # largest weight 0.5 here
+        other = tn.run_trial(context, tn.Setting(1.0, 5, tn.CAP, 0))
+        labels = [label for label, _ in tn.against_content(context, [other], blending_current, random_sd=0.01)]
+        self.assertEqual(labels, ['Best hybrid', 'Current settings'])
+        content_current = tn.run_trial(context, tn.Setting(0.0, 20, tn.CAP, 5))
+        labels = [label for label, _ in tn.against_content(context, [other], content_current, random_sd=0.01)]
+        self.assertEqual(labels, ['Best hybrid'])
 
     def test_the_band_evidence_counts_only_pairs_that_share_a_skill(self):
         # Each freelancer shares a skill with their own block's 13 candidates (20 gigs, less 6 in train and 1 held out
@@ -342,6 +371,26 @@ class TuningRunTests(BlockWorld):
         self.assertIn('No setting was changed. The test part was not used.', output)
         self.assertIn('All combinations: ', output)
         self.assertTrue(list(Path(self.tmp.name).glob('reports/tuning-*.csv')))
+
+
+class PairedTests(SimpleTestCase):
+    def test_the_gain_and_its_paired_interval_by_hand(self):
+        # Every freelancer gains exactly 0.05, so the gain is 0.05 and the interval has no width.
+        better = trial(0.15, {i: 0.15 for i in range(8)})
+        baseline = trial(0.10, {i: 0.10 for i in range(8)})
+        found = tn.paired(better, baseline, random_sd=0.02)
+        self.assertAlmostEqual(found.gain, 0.05)
+        self.assertAlmostEqual(found.low, 0.05)
+        self.assertAlmostEqual(found.high, 0.05)
+        self.assertTrue(found.beats_luck and found.above_zero)
+
+    def test_an_unsteady_gain_has_an_interval_that_reaches_below_zero(self):
+        better = trial(0.15, {i: 0.4 if i % 2 == 0 else -0.1 for i in range(10)})
+        baseline = trial(0.10, {i: 0.10 for i in range(10)})
+        found = tn.paired(better, baseline, random_sd=0.2)
+        self.assertLess(found.low, 0)
+        self.assertFalse(found.above_zero)
+        self.assertFalse(found.beats_luck)  # 0.05 is not above 0.2
 
 
 class MarginalTests(SimpleTestCase):
