@@ -2,6 +2,7 @@ from argparse import BooleanOptionalAction
 
 from django.core.management.base import BaseCommand, CommandError
 
+from ...evaluation import modes
 from ...evaluation.compare import DEFAULT_RANDOM_SEEDS
 from ...evaluation.fitting import EvaluationError
 from ...evaluation.tuning_run import run_tuning
@@ -46,9 +47,23 @@ class Command(BaseCommand):
         if run.split_note:
             self.stdout.write(self.style.WARNING(run.split_note))
         decision = run.decision
+        if run.mode == modes.SYNTHETIC_PLANTED:
+            self.stdout.write(self.style.WARNING(modes.PLANTED_LABEL))
         self.stdout.write(f'Tried {len(run.trials)} combinations on the validation part.')
         for reason in decision.reasons:
             self.stdout.write(f'  {reason}')
+        if run.mode == modes.SYNTHETIC_PLANTED:
+            self.stdout.write('  Planted data never sets the live defaults.')
+        for reference in run.references:
+            if reference.means:
+                self.stdout.write(
+                    f'  {reference.label}: F1@5 {reference.means[(5, "f1")]:.3f}, F1@10 '
+                    f'{reference.means[(10, "f1")]:.3f}, selection {reference.selection:.3f}'
+                )
+        if run.recovery:
+            for row in run.recovery['rows']:
+                self.stdout.write(f'  Group recovery, {row["label"]}: pair AUC {row["auc"]:.3f}')
+            self.stdout.write(f'  Group recovery by chance (shuffled labels): {run.recovery["chance"][0]:.3f}')
         if run.suggested_bands:
             self.stdout.write(
                 f'Match bands re-derived (provisional): good {run.suggested_bands["good"]}, '

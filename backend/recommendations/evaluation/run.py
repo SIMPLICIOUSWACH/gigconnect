@@ -14,7 +14,7 @@ from pathlib import Path
 from django.conf import settings
 
 from ..models import RecommenderModelVersion
-from . import report, report_markdown
+from . import modes, report, report_markdown
 from . import split as ev
 from .compare import DEFAULT_RANDOM_SEEDS, Comparison, compare
 from .fitting import EvaluationError, FittedModels, fit_models
@@ -83,20 +83,21 @@ def run_evaluation(
     comparison = compare(split, part, include_synthetic, random_seeds=random_seeds, models=models, seed=seed)
     strict = compare(split, part, include_synthetic, random_seeds=random_seeds, strict=True, models=models, seed=seed)
 
+    mode = modes.current_mode()
     folder = reports_folder(data_dir, output_dir)
     folder.mkdir(parents=True, exist_ok=True)
-    stem = report.next_stem(folder)
+    stem = report.next_stem(folder, prefix=modes.report_prefix('evaluation', mode))
     markdown_path, csv_path = folder / f'{stem}.md', folder / f'{stem}.csv'
 
     if part == ev.TEST:
-        report.record_test_run(folder, {
+        report.record_test_run(folder, mode=mode, row={
             'when': report.now_text(), 'split_fingerprint': split.fingerprint(),
             'include_synthetic': include_synthetic, 'seed': seed, 'random_seeds': random_seeds,
             'freelancers': comparison.group_sizes['all'], 'report': markdown_path.name,
         })
     run = {
         'date': date.today().isoformat(), 'command': command, 'split_how': how, 'split_note': note,
-        'csv_name': csv_path.name, 'test_runs': report.read_test_runs(folder),
+        'csv_name': csv_path.name, 'test_runs': report.read_test_runs(folder, mode), 'mode': mode,
         'live_version': RecommenderModelVersion.objects.order_by('-version').first(),
     }
     markdown_path.write_text(report_markdown.build_markdown(comparison, strict, split, models, run), encoding='utf-8')

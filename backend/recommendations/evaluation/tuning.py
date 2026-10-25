@@ -287,3 +287,71 @@ def suggested_bands(evidence):
     if not found['n']:
         return None
     return {'good': round(found['p50'], 2), 'strong': round(found['p90'], 2)}
+
+
+@dataclass
+class Reference:
+    """A point to compare the combinations with. Not a candidate for the defaults."""
+
+    label: str
+    means: dict
+    selection: float
+    components: object = None
+
+
+def score_ranking(context, rank):
+    """(means, selection value) for a ranking function, on the same validation candidates as every combination."""
+    per_freelancer = {
+        case.freelancer_id: metrics.freelancer_metrics(rank(case), case.relevant, KS) for case in context.cases
+    }
+    keys = next(iter(per_freelancer.values())).keys()
+    means = {key: float(np.mean([values[key] for values in per_freelancer.values()])) for key in keys}
+    return means, float(np.mean([selection_value(values) for values in per_freelancer.values()]))
+
+
+def short_setting(trial):
+    s = trial.setting
+    return f'weight {s.max_weight:g}, ramp {s.ramp}, {trial.components} factors, cold start below {s.cold_start}'
+
+
+def references(context, trials, decision):
+    """Content only, collaborative only at each number of factors, and the hybrids to read the result against."""
+    seed = context.seed
+    found = []
+    means, selection = score_ranking(
+        context, lambda case: rankers.order_by_score(context.content[case.freelancer_id], seed),
+    )
+    found.append(Reference('Content only', means, selection))
+    for factors in FACTORS:
+        model = context.collaborative[factors]
+        if model is None:
+            found.append(Reference(f'Collaborative only, {factors} factors: could not be fitted', {}, None))
+            continue
+        raw = context.raw[factors]
+        means, selection = score_ranking(
+            context, lambda case, raw=raw: rankers.order_by_score(raw[case.freelancer_id], seed),
+        )
+        suffix = ' (the cap)' if factors == CAP else ''
+        found.append(Reference(
+            f'Collaborative only, {model.n_components} factors{suffix}', means, selection, model.n_components,
+        ))
+    found.append(Reference(
+        f'Current settings ({short_setting(decision.current)})', decision.current.means, decision.current.selection,
+        decision.current.components,
+    ))
+    hybrids = [t for t in trials if t.setting.max_weight > 0]
+    if hybrids:
+        index = min(
+            range(len(hybrids)),
+            key=lambda i: (-round(hybrids[i].selection, 12), distance(hybrids[i], decision.current), i),
+        )
+        best = hybrids[index]
+        found.append(Reference(
+            f'Best hybrid with a collaborative weight above 0 ({short_setting(best)})', best.means, best.selection,
+            best.components,
+        ))
+    found.append(Reference(
+        f'Best combination by the rule ({short_setting(decision.best)})', decision.best.means,
+        decision.best.selection, decision.best.components,
+    ))
+    return found

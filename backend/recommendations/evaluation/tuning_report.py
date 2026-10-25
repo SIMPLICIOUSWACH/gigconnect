@@ -8,6 +8,7 @@ from statistics import median
 
 from django.conf import settings
 
+from . import modes
 from . import split as ev
 from . import tuning as tn
 from .report import share
@@ -133,8 +134,10 @@ def band_lines(evidence, suggested):
     return lines
 
 
-def warning_lines(split_counts):
+def warning_lines(split_counts, mode=modes.SKILL_OVERLAP):
     synthetic, total = split_counts['synthetic'], split_counts['positives']
+    if mode == modes.SYNTHETIC_PLANTED:
+        return list(modes.PLANTED_WARNING)
     if not total or synthetic / total <= 0.5:
         return []
     return [
@@ -206,6 +209,55 @@ def result_lines(trials, spread, decision):
     return lines + ['']
 
 
+def reference_lines(references):
+    lines = [
+        '## Content only, collaborative only and the hybrids', '',
+        'Points to read the combinations against, on the same validation candidates. Collaborative only ranks by the '
+        'collaborative score alone; a gig it cannot score goes to the back.', '',
+        '| | Precision@5 | Precision@10 | Recall@10 | F1@5 | F1@10 | Hit rate@10 | Selection value |',
+        '|---|---|---|---|---|---|---|---|',
+    ]
+    for reference in references:
+        if not reference.means:
+            lines.append(f'| {reference.label} | | | | | | | |')
+            continue
+        m = reference.means
+        cells = [m[(5, 'precision')], m[(10, 'precision')], m[(10, 'recall')], m[(5, 'f1')], m[(10, 'f1')],
+                 m[(10, 'hit')], reference.selection]
+        lines.append(f'| {reference.label} | ' + ' | '.join(f'{value:.3f}' for value in cells) + ' |')
+    return lines + ['']
+
+
+def recovery_lines(recovery):
+    if not recovery:
+        return []
+    groups = sorted(recovery['rows'][0]['per_group']) if recovery['rows'] else []
+    mean, sd = recovery['chance']
+    lines = [
+        '## Hidden group recovery (planted data only)', '',
+        'For every pair of freelancers, the cosine similarity of their vectors. The pair AUC is the chance that two '
+        'freelancers from the same hidden group are more alike than two from different groups: 0.5 is chance. The '
+        'per-group columns compare pairs inside that group with pairs that have one member in it. The groups were read '
+        'from the ground truth file only after every model was fitted. '
+        f'Over {recovery["freelancers"]} freelancers.', '',
+        '| Vectors | Pair AUC | ' + ' | '.join(groups) + ' |', '|---|---|' + '---|' * len(groups),
+    ]
+    for row in recovery['rows']:
+        cells = [row['per_group'][g] for g in groups]
+        lines.append(
+            f'| {row["label"]} | {row["auc"]:.3f} | '
+            + ' | '.join('n/a' if value is None else f'{value:.3f}' for value in cells) + ' |'
+        )
+    lines += ['', f'- Shuffled labels (chance): {mean:.3f}, standard deviation {sd:.3f}.', '']
+    return lines
+
+
+PLANTED_DEFAULTS_NOTE = (
+    '- **Planted data never sets the live defaults.** Whatever the rule says here, the live settings are decided '
+    'from the skill-overlap data.'
+)
+
+
 LIMIT_LINES = [
     '## Limits', '',
     '- Only one split was used. A different split could rank the combinations differently.',
@@ -217,11 +269,19 @@ LIMIT_LINES = [
 ]
 
 
-def build_markdown(split, context, trials, spread, decision, evidence, suggested, command, csv_name, day):
+def build_markdown(
+    split, context, trials, spread, decision, evidence, suggested, command, csv_name, day, mode=modes.SKILL_OVERLAP,
+    references=(), recovery=None,
+):
     counts = ev.describe(split)[ev.VALIDATION]
-    lines = [f'# Tuning on the validation part, {day}', '', *warning_lines(counts)]
+    lines = [f'# Tuning on the validation part, {day}', '', *modes.label_lines(mode), *warning_lines(counts, mode)]
     lines += method_lines(split, context, trials, counts, command, csv_name)
     lines += result_lines(trials, spread, decision)
+    if mode == modes.SYNTHETIC_PLANTED:
+        lines += [PLANTED_DEFAULTS_NOTE, '']
+    if references:
+        lines += reference_lines(references)
+    lines += recovery_lines(recovery)
     lines += marginal_lines(trials)
     lines += band_lines(evidence, suggested)
     lines += LIMIT_LINES
