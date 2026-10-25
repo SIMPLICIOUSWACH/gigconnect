@@ -329,22 +329,31 @@ part. `seed_planted` refuses to write into a database that holds any other accou
 is saved in `datasets/platform/evaluation/synthetic_planted/`, reports are named `evaluation-synthetic_planted-...`,
 `tuning-synthetic_planted-...` and `readiness-synthetic_planted-...`, and test runs have their own log.
 
-To set it up once (PowerShell, from `backend/`), create an empty database called `gigconnect_planted` in PostgreSQL,
-then:
+The world is dated up to the day it is written: gigs were posted in the last 1 to 36 days, so about a third of them
+are still open on that day and already have applicants. To set it up (PowerShell, from `backend/`), create an empty
+database called `gigconnect_planted` in PostgreSQL, then run it under the demo profile, which always uses that
+database (see the README, "Recommender profiles and the planted demo"):
 
 ```
-$env:DB_NAME = "gigconnect_planted"
+$env:RECOMMENDER_PROFILE = "demo"
 python manage.py migrate
-python manage.py seed_planted
-python manage.py check_collaborative_readiness
+python manage.py refresh_planted_demo
+python manage.py check_collaborative_readiness --rebuild-split
 python manage.py tune_recommender
-Remove-Item Env:DB_NAME
+Remove-Item Env:RECOMMENDER_PROFILE
 ```
 
-`seed_planted --seed N` makes the same world again for the same seed, and `seed_planted --delete` removes it and its
-ground truth.
+- `refresh_planted_demo` rebuilds the world for today (same seed), retrains the demo model into its own folder, makes
+  the demo accounts and prints the open-gig count and each demo account's top 5. It only runs under the demo profile.
+- `show_planted_demo` prints the demo again without rebuilding.
+- `seed_planted [--seed N] [--delete]` writes or removes the world on its own, without the demo accounts or training.
 
-## Not yet built
+A rebuild changes the dates, so the next evaluation notes that the saved planted split is out of date and
+`--rebuild-split` builds it again.
 
-The final test run (`evaluate_recommender --split test --final`) after the live defaults are settled from the
-skill-overlap tuning. The scores of the live feed have not been measured on the test part yet.
+## The one-shot test
+
+Each mode's test part has been scored once (`evaluate_recommender --split test --final`), with its own chosen settings:
+the skill-overlap data under the production profile (content only) and the planted data under the demo profile. The
+reports are `evaluation-2026-10-25-2.md` and `evaluation-synthetic_planted-2026-10-25.md` in `datasets/reports/`, and
+each run is in its own test-run log. Neither test part should be scored again.
