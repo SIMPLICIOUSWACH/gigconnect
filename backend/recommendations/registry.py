@@ -13,11 +13,12 @@ is an ordinary answer, not an error: the API turns it into an empty state and no
 import logging
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import joblib
 from django.conf import settings
 
+from .gig_cache import GigVectorCache
 from .models import RecommenderModelVersion
 from .training import COLLABORATIVE_FILE, VECTORISER_FILE
 
@@ -32,6 +33,12 @@ class LoadedModel:
     version: RecommenderModelVersion
     vectoriser: object
     collaborative: object  # a collaborative.CollaborativeModel, or None if that model was skipped
+    # What the content model needs from each gig, built lazily and kept while this model is loaded (gig_cache.py).
+    gig_cache: GigVectorCache = field(default=None, repr=False)
+
+    def __post_init__(self):
+        if self.gig_cache is None:
+            self.gig_cache = GigVectorCache(self.vectoriser)
 
 
 @dataclass
