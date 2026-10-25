@@ -96,10 +96,10 @@ def record_test_run(folder, row):
         writer.writerow({column: row.get(column, '') for column in TEST_RUN_COLUMNS})
 
 
-def next_stem(folder, day=None):
+def next_stem(folder, day=None, prefix='evaluation'):
     """evaluation-YYYY-MM-DD, or with -2, -3 and so on if a report from today is already there."""
     folder = Path(folder)
-    stem = f'evaluation-{(day or date.today()).isoformat()}'
+    stem = f'{prefix}-{(day or date.today()).isoformat()}'
     candidate, extra = stem, 2
     while (folder / f'{candidate}.md').exists() or (folder / f'{candidate}.csv').exists():
         candidate = f'{stem}-{extra}'

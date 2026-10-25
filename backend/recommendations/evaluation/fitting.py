@@ -97,9 +97,14 @@ class Scorer:
             for gig in gigs
         ]
         self.gig_vectors = models.vectoriser.transform(texts) if texts else None
+        self.gig_skills = {gig.id: [skill.name for skill in gig.skills.all()] for gig in gigs}
+        profiles = list(freelancers_for_training(include_synthetic))
+        self.freelancer_skills = {
+            profile.user_id: [skill.name for skill in profile.skills.all()] for profile in profiles
+        }
         self.freelancer_text = {
-            profile.user_id: freelancer_document([skill.name for skill in profile.skills.all()], profile.bio)
-            for profile in freelancers_for_training(include_synthetic)
+            profile.user_id: freelancer_document(self.freelancer_skills[profile.user_id], profile.bio)
+            for profile in profiles
         }
         self._freelancer_vector = {}
 

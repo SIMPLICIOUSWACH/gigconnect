@@ -171,8 +171,8 @@ class BlockWorldComparisonTests(BlockWorld):
         self.assertLessEqual(spread[(5, 'hit')].low, spread[(5, 'hit')].high)
 
     def test_the_content_model_finds_every_right_answer_in_its_top_20(self):
-        # Only the 14 candidates in the freelancer's own block share any word with them, and the other 19 score
-        # exactly 0, so the right answer is always among the first 14. (Which of the 14 comes first is a tie.)
+        # Only the 13 candidates in the freelancer's own block share any word with them, and the other 20 score
+        # exactly 0, so the right answer is always among the first 13. (Which of the 13 comes first is a tie.)
         self.assertEqual(means(self.run_compare(), 'content')[(20, 'hit')], 1.0)
 
     def test_the_collaborative_model_finds_the_pattern_this_world_was_built_with(self):
