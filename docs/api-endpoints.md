@@ -261,8 +261,32 @@ how many freelancers can be evaluated, and how many candidate gigs each gets "as
 trains and scores nothing. Each freelancer has their own cut-off, so one freelancer's training period can
 include events that happened after another freelancer's test event.
 
+## Measuring the recommender
+
+`python manage.py evaluate_recommender [--split validation|test] [--final] [--include-synthetic |
+--no-include-synthetic] [--seed N] [--random-seeds N] [--rebuild-split] [--data-dir PATH] [--output-dir PATH]`
+loads or builds the split above, fits the models on the train part only, scores a held-out part and writes a
+report and a CSV of every number to `datasets/reports/` (gitignored): `evaluation-YYYY-MM-DD.md` and
+`evaluation-YYYY-MM-DD.csv`, with `-2`, `-3` and so on if there is already one from today. Nothing is saved to the
+live model, and nothing is tuned.
+
+- **Methods compared**, on the same candidates: random (averaged over 20 seeds, with the spread), popularity (the
+  gigs most freelancers applied to in train), content only, collaborative on applications and hiring only (as
+  the proposal describes it), collaborative on all interactions (as built), and the hybrid at the current settings.
+- **Metrics**: precision, recall and F1 at K = 5 and 10 are the headline. K = 20 and hit rate are supplementary.
+  Every average has a 95% bootstrap interval over freelancers and the number of freelancers behind it. Freelancers
+  in cold start are reported apart from the rest, and the shortlisted-or-hired reading of relevance is reported
+  separately with a warning when too few freelancers qualify.
+- **Validation by default.** `--split test` is refused unless `--final` is also given, and every test run is
+  appended to `evaluation-test-runs.csv` next to the reports. Every report says how many times the test part has
+  been scored. Use the test part once, after tuning on validation is finished.
+- **Warning for synthetic data.** When more than half of the scored applications are synthetic, the report starts
+  with a warning: results on synthetic data mostly show the models recovering the rules the seed generator
+  used, and skill-preferring synthetic applications favour the content model by construction.
+- A saved split is reused so results stay comparable. If the applications have changed since it was saved, the
+  report says so and `--rebuild-split` uses the current data.
+
 ## Not yet built
 
-Scoring the recommender (precision, recall and F1 at K, the random and popularity baselines, and tuning the
-blend weight) is the rest of Sprint 6. The scores of the live feed are not measured against anything yet, and no
-accuracy figure should be quoted from them.
+Tuning the blend weight and the other settings on the validation part (Sprint 6, Story 4). The scores of the
+live feed have not been tuned, and no accuracy figure should be quoted from them.
