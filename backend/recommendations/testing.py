@@ -12,3 +12,18 @@ HYBRID_MECHANICS = {
 }
 
 BAND_CUT_OFFS = {'RECOMMENDER_BAND_GOOD': 0.15, 'RECOMMENDER_BAND_STRONG': 0.30}
+
+
+PROFILE_SETTINGS = {
+    'blend_max_weight': 'RECOMMENDER_BLEND_MAX_WEIGHT', 'blend_ramp_gigs': 'RECOMMENDER_BLEND_RAMP_GIGS',
+    'cold_start_min_gigs': 'RECOMMENDER_COLD_START_MIN_GIGS', 'band_good': 'RECOMMENDER_BAND_GOOD',
+    'band_strong': 'RECOMMENDER_BAND_STRONG',
+}
+
+
+def profile_settings(name):
+    """The blend and band settings a profile gives, as Django settings, as if the server had restarted with it."""
+    from config import recommender_profiles
+
+    values = recommender_profiles.load()[name]
+    return {setting: values[key] for key, setting in PROFILE_SETTINGS.items()}

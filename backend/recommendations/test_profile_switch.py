@@ -1,26 +1,14 @@
 from django.apps import apps
 from django.test import override_settings
 
-from config import recommender_profiles as rp
 from gigs.models import GigInteraction
 
 from . import registry
 from .models import RecommenderModelVersion
 from .recommend import recommend
 from .test_base import RecommenderTestBase
+from .testing import profile_settings
 from .training import train
-
-BLEND_KEYS = {
-    'blend_max_weight': 'RECOMMENDER_BLEND_MAX_WEIGHT', 'blend_ramp_gigs': 'RECOMMENDER_BLEND_RAMP_GIGS',
-    'cold_start_min_gigs': 'RECOMMENDER_COLD_START_MIN_GIGS', 'band_good': 'RECOMMENDER_BAND_GOOD',
-    'band_strong': 'RECOMMENDER_BAND_STRONG',
-}
-
-
-def profile_settings(name):
-    """The blend and band settings a profile gives, as Django settings, as if the server had restarted with it."""
-    values = rp.load()[name]
-    return {setting: values[key] for key, setting in BLEND_KEYS.items()}
 
 
 class NothingIsStoredTests(RecommenderTestBase):
