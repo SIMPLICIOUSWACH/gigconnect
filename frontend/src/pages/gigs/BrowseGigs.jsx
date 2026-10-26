@@ -390,7 +390,7 @@ export default function BrowseGigs() {
             </div>
           )}
 
-          {user?.role === 'freelancer' && <RecommendedForYou limit={6} />}
+          {user?.role === 'freelancer' && <RecommendedForYou limit={10} />}
         </div>
       </div>
 
