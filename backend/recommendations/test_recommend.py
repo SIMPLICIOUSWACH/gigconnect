@@ -27,7 +27,7 @@ class RoundTripTests(RecommenderTestBase):
         self.model = registry.availability().model
 
     def by_gig(self, recommendations):
-        return {r.gig.id: r for r in recommendations.results}
+        return {r.gig_id: r for r in recommendations.results}
 
     def test_a_new_freelancer_is_in_cold_start_and_gets_content_scores_only(self):
         newcomer = self.make_user('rec-new@example.com', 'freelancer')
@@ -46,7 +46,7 @@ class RoundTripTests(RecommenderTestBase):
         scores = [r.score for r in result.results]
         self.assertEqual(scores, sorted(scores, reverse=True))
         first_group_gigs = {gig.id for gig in self.gigs['P']}
-        self.assertTrue({r.gig.id for r in result.results[:13]} <= first_group_gigs)
+        self.assertTrue({r.gig_id for r in result.results[:13]} <= first_group_gigs)
 
     def test_a_freelancer_with_history_gets_a_blend_for_gigs_the_model_knows(self):
         person = self.freelancers['P'][0]
@@ -109,7 +109,7 @@ class RoundTripTests(RecommenderTestBase):
         Gig.objects.filter(pk=past.pk).update(application_deadline=date.today() - timedelta(days=1))
         own = self.make_gig('ptask-own', 'P')
         Gig.objects.filter(pk=own.pk).update(client=person)
-        ids = {r.gig.id for r in recommend(self.model, person).results}
+        ids = {r.gig_id for r in recommend(self.model, person).results}
         for excluded in (applied, closed, past, own):
             self.assertNotIn(excluded.id, ids)
         self.assertIn(self.gigs['P'][0].id, ids)  # viewing a gig does not rule it out
@@ -139,8 +139,8 @@ class RoundTripTests(RecommenderTestBase):
 
     def test_the_same_request_gives_the_same_answer(self):
         person = self.freelancers['X'][2]
-        first = [(r.gig.id, r.score, r.source) for r in recommend(self.model, person).results]
-        second = [(r.gig.id, r.score, r.source) for r in recommend(self.model, person).results]
+        first = [(r.gig_id, r.score, r.source) for r in recommend(self.model, person).results]
+        second = [(r.gig_id, r.score, r.source) for r in recommend(self.model, person).results]
         self.assertEqual(first, second)
 
     def test_a_freelancer_with_no_skills_and_no_bio_gets_nothing(self):

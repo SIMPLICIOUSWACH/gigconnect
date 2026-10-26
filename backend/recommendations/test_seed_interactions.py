@@ -201,7 +201,7 @@ class SeedThenTrainTests(SeedInteractionsTests):
         model = registry.availability().model
         result = recommend(model, self.freelancers[0])  # a group P freelancer
         self.assertFalse(result.cold_start)  # 15 gigs of history
-        top = [r.gig.id for r in result.results[:5]]
+        top = [r.gig_id for r in result.results[:5]]
         self.assertTrue(set(top) <= self.group_p_gigs)
         self.assertIn('hybrid', {r.source for r in result.results})
 

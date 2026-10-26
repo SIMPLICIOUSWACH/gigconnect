@@ -8,7 +8,7 @@ from gigs.serializers import GigListSerializer
 
 from . import registry
 from .candidates import candidate_gigs
-from .recommend import recommend
+from .recommend import attach_gigs, recommend
 
 NO_SKILLS = 'no_skills'
 
@@ -40,14 +40,13 @@ class RecommendationsView(APIView):
             return Response(self._empty(paginator, request, available=False, reason=availability.reason))
 
         model = availability.model
-        candidates = candidate_gigs(request.user).select_related('client')
-        outcome = recommend(model, request.user, candidates)
+        outcome = recommend(model, request.user, candidate_gigs(request.user))
         if not outcome.scorable:
             empty = self._empty(paginator, request, available=True, reason=NO_SKILLS, outcome=outcome, model=model)
             return Response(empty)
 
         worth_showing = [item for item in outcome.results if item.score > 0]
-        page = paginator.paginate_queryset(worth_showing, request, view=self)
+        page = attach_gigs(paginator.paginate_queryset(worth_showing, request, view=self))
         rows = [
             {
                 **GigListSerializer(item.gig).data,

@@ -286,6 +286,14 @@ live model, and nothing is tuned.
 - A saved split is reused so results stay comparable. If the applications have changed since it was saved, the
   report says so and `--rebuild-split` uses the current data.
 
+## Timing the recommendations endpoint
+
+`python manage.py time_recommendations [--extra-open-gigs N] [--requests N] [--freelancers N]` times
+`/api/recommendations/` through the full request stack for the verified freelancers with skills and prints the
+median, 95th percentile and worst response time, the first request after loading, and the database queries per
+request. `--extra-open-gigs` adds that many open gigs for the measurement inside a transaction that is rolled back,
+so nothing is left in the database. The results are in `docs/recommender.md`, "Performance".
+
 ## Tuning the hybrid
 
 `python manage.py tune_recommender [--include-synthetic | --no-include-synthetic] [--seed N] [--random-seeds N]

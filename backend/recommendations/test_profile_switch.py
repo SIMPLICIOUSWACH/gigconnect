@@ -50,9 +50,9 @@ class ProfileSwitchTests(RecommenderTestBase):
     def test_switching_profile_changes_the_scores_with_nothing_regenerated(self):
         versions = RecommenderModelVersion.objects.count()
         with override_settings(**profile_settings('production')):
-            before = {r.gig.id: r.score for r in recommend(self.model, self.freelancer).results}
+            before = {r.gig_id: r.score for r in recommend(self.model, self.freelancer).results}
         with override_settings(**profile_settings('demo')):
-            after = {r.gig.id: r.score for r in recommend(self.model, self.freelancer).results}
+            after = {r.gig_id: r.score for r in recommend(self.model, self.freelancer).results}
         self.assertEqual(set(before), set(after))  # the same gigs, scored again on the spot
         self.assertNotEqual(before, after)
         self.assertEqual(RecommenderModelVersion.objects.count(), versions)  # no retraining, nothing written

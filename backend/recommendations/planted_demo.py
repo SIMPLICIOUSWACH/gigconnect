@@ -20,7 +20,7 @@ from django.db.models import Count
 
 from . import hybrid, planted
 from .evaluation import modes
-from .recommend import recommend
+from .recommend import attach_gigs, recommend
 
 DEMO_PASSWORD = 'DemoPass123!'  # a local demo on synthetic accounts only, listed in the README
 DEMO_GROUPS = ('premium', 'quick_cash', 'remote_only')
@@ -57,7 +57,7 @@ def require_planted_database():
 
 
 def top(model, user, count=TOP):
-    return recommend(model, user).results[:count]
+    return attach_gigs(recommend(model, user).results[:count])
 
 
 def choose_demo_freelancers(model):
@@ -72,7 +72,7 @@ def choose_demo_freelancers(model):
         members = User.objects.filter(id__in=[i for i, g in groups.items() if g == group]).order_by('email')
         for user in members:
             outcome = recommend(model, user)
-            results = outcome.results[:TOP]
+            results = attach_gigs(outcome.results[:TOP])
             key = (sum(1 for r in results if fits_habit(group, r.gig)), outcome.weight)
             if best_key is None or key > best_key:
                 best, best_key = user, key
@@ -183,9 +183,10 @@ def demo_lines(model):
         )
         lines.append('  title                              budget        urgency closes     client    place   scores'
                      + ('                                  fits habit' if group else ''))
-        lines += [_row(r, group) for r in outcome.results[:TOP]]
+        shown = attach_gigs(outcome.results[:TOP])
+        lines += [_row(r, group) for r in shown]
         if group:
-            fits = sum(1 for r in outcome.results[:TOP] if fits_habit(group, r.gig))
+            fits = sum(1 for r in shown if fits_habit(group, r.gig))
             lines.append(f'  {fits} of the top {TOP} fit the {group} habit.')
         lines.append('')
     lines += _share_check(model)
