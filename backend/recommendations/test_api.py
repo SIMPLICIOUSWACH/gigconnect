@@ -17,7 +17,7 @@ GIG_CARD_FIELDS = {
     'id', 'title', 'client_id', 'client_name', 'category', 'budget_min', 'budget_max', 'currency', 'deadline',
     'application_deadline', 'is_negotiable', 'county', 'is_remote', 'status', 'skills', 'created_at',
 }
-EXTRA_FIELDS = {'score', 'match_reasons', 'source'}
+EXTRA_FIELDS = {'score', 'match_reasons', 'source', 'relevance'}
 
 
 class RecommendationsApiBase(RecommenderTestBase):
@@ -117,7 +117,7 @@ class ResultTests(RecommendationsApiBase):
         self.assertTrue(model['collaborative'])
         self.assertRegex(model['trained_at'], r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}')
 
-    def test_each_result_has_the_gig_card_fields_plus_score_reasons_and_source(self):
+    def test_each_result_has_the_gig_card_fields_plus_score_reasons_source_and_relevance(self):
         row = self.get(self.newcomer()).data['results'][0]
         self.assertEqual(set(row), GIG_CARD_FIELDS | EXTRA_FIELDS)
 
