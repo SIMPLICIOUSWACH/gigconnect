@@ -36,11 +36,12 @@ def gigs_for_training(include_synthetic=True):
 def interactions_for_training(include_synthetic=True):
     """
     Signed-in freelancers' interactions. Anonymous visitors cannot be matched to a freelancer, and a
-    synthetic interaction or a synthetic freelancer both count as synthetic.
+    synthetic interaction or a synthetic freelancer both count as synthetic. Answers to "Is this gig relevant to
+    you?" are left out: they are for user acceptance testing and never feed training.
     """
     interactions = GigInteraction.objects.filter(
         user__isnull=False, user__role=User.Role.FREELANCER, user__is_active=True, user__deleted_at__isnull=True,
-    )
+    ).exclude(type__in=GigInteraction.RELEVANCE_TYPES)
     if not include_synthetic:
         interactions = interactions.filter(is_synthetic=False, user__is_synthetic=False)
     return interactions

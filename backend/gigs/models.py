@@ -122,6 +122,13 @@ class GigInteraction(models.Model):
         APPLY = 'apply', 'Apply'  # written by the applications flow (Sprint 4)
         # Opening a gig from the "Recommended for You" list. Position is its place in that list.
         RECOMMENDATION_CLICK = 'recommendation_click', 'Recommendation click'
+        # A freelancer's answer to "Is this gig relevant to you?" on a recommended gig (Sprint 6, for user acceptance
+        # testing). One answer per freelancer and gig: a new answer replaces the old one. Position is the gig's place
+        # in the list when it was rated. These never feed training (recommendations/platform.py leaves them out).
+        RECOMMENDATION_RELEVANT = 'recommendation_relevant', 'Rated relevant'
+        RECOMMENDATION_NOT_RELEVANT = 'recommendation_not_relevant', 'Rated not relevant'
+
+    RELEVANCE_TYPES = (Type.RECOMMENDATION_RELEVANT, Type.RECOMMENDATION_NOT_RELEVANT)
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     # Null for anonymous visitors, who are identified by session_key instead.
@@ -130,7 +137,7 @@ class GigInteraction(models.Model):
     )
     session_key = models.CharField(max_length=40, blank=True)
     gig = models.ForeignKey(Gig, on_delete=models.CASCADE, related_name='interactions')
-    type = models.CharField(max_length=20, choices=Type.choices)
+    type = models.CharField(max_length=30, choices=Type.choices)
     # The search text and the result's rank when this came from a search; null otherwise.
     query = models.TextField(null=True, blank=True)
     position = models.PositiveIntegerField(null=True, blank=True)
