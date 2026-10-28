@@ -30,11 +30,26 @@ venv/Scripts/activate       # venv\Scripts\activate on Windows cmd
 pip install -r requirements.txt
 cp .env.example .env        # then edit DB_* values to match your Postgres setup
 python manage.py migrate
-python manage.py createsuperuser
+python manage.py create_admin --email admin@example.com
 python manage.py runserver
 ```
 
 The API serves at `http://localhost:8000`.
+
+### Admin accounts
+
+Nobody can sign up as an admin. `create_admin` is the only way to make one:
+
+```bash
+python manage.py create_admin --email admin@example.com --full-name "Platform Admin"
+```
+
+It asks for the password twice and checks it against the password rules. The new account has the admin role,
+verified email and phone, and `is_staff`. Admins log in on the normal login page and land on `/admin`, the
+GigConnect admin area. For a script, pass `--noinput` and put the password in `GIGCONNECT_ADMIN_PASSWORD`.
+
+Django's own `/admin/` site is kept for debugging by a superuser (`createsuperuser`). It is not the product's
+admin area.
 
 ## Frontend setup
 

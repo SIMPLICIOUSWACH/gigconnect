@@ -5,7 +5,7 @@ from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from accounts.models import User
-from accounts.permissions import IsAdminRole, IsFreelancer
+from accounts.permissions import IsFreelancer, IsPlatformAdmin
 
 from .counties import COUNTY_CHOICES
 from .models import FreelancerProfile, PortfolioItem, Skill
@@ -131,7 +131,7 @@ class SubmitVerificationView(APIView):
 
 class AdminVerificationListView(generics.ListAPIView):
     serializer_class = AdminVerificationListSerializer
-    permission_classes = [permissions.IsAuthenticated, IsAdminRole]
+    permission_classes = [IsPlatformAdmin]
 
     def get_queryset(self):
         status_param = self.request.query_params.get('status', FreelancerProfile.VerificationStatus.PENDING)
@@ -141,7 +141,7 @@ class AdminVerificationListView(generics.ListAPIView):
 class AdminVerificationDetailView(generics.UpdateAPIView):
     queryset = FreelancerProfile.objects.all()
     serializer_class = AdminVerificationUpdateSerializer
-    permission_classes = [permissions.IsAuthenticated, IsAdminRole]
+    permission_classes = [IsPlatformAdmin]
     http_method_names = ['patch']
 
 

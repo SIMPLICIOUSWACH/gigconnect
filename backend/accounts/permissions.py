@@ -26,9 +26,14 @@ class IsClientRole(BasePermission):
         )
 
 
-class IsAdminRole(BasePermission):
+class IsPlatformAdmin(BasePermission):
+    """The GigConnect admin area: every /api/admin/ view uses this. Anonymous users get 401, anyone else 403."""
+
     def has_permission(self, request, view):
+        user = request.user
         return bool(
-            request.user and request.user.is_authenticated
-            and request.user.role == request.user.Role.ADMIN
+            user and user.is_authenticated
+            and user.role == user.Role.ADMIN
+            and user.is_active
+            and not user.is_suspended
         )
