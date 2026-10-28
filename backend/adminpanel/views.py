@@ -264,6 +264,8 @@ class GigListView(AdminListView):
             gigs = gigs.filter(category__slug=params['category'])
         if 'moderation' in params:
             gigs = gigs.filter(moderation_status=params['moderation'])
+            if params['moderation'] == Gig.Moderation.REMOVED:
+                gigs = gigs.order_by('-removed_at')
         if 'client' in params:
             gigs = gigs.filter(client_id=params['client'])
         return gigs
@@ -302,12 +304,15 @@ class ApplicationListView(AdminListView):
     def get_queryset(self):
         params = FilterSerializer(
             self,
+            id=optional(serializers.UUIDField),
             gig=optional(serializers.UUIDField),
             freelancer=optional(serializers.UUIDField),
             status=optional(serializers.ChoiceField, choices=ApplicationStatus.values),
             moderation=optional(serializers.ChoiceField, choices=Application.Moderation.values),
         ).values()
         applications = applications_with_people().order_by('-created_at')
+        if 'id' in params:
+            applications = applications.filter(pk=params['id'])
         if 'gig' in params:
             applications = applications.filter(gig_id=params['gig'])
         if 'freelancer' in params:
@@ -316,6 +321,8 @@ class ApplicationListView(AdminListView):
             applications = applications.filter(status=params['status'])
         if 'moderation' in params:
             applications = applications.filter(moderation_status=params['moderation'])
+            if params['moderation'] == Application.Moderation.REMOVED:
+                applications = applications.order_by('-removed_at')
         return applications
 
 

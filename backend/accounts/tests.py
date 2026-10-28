@@ -127,6 +127,7 @@ class LoginTests(APITestCase):
         })
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertIn('suspended', str(response.data['detail']))
+        self.assertEqual(response.data['code'], 'account_suspended')
 
     def test_suspended_message_needs_the_right_password(self):
         self.suspend()

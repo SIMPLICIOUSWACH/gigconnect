@@ -31,6 +31,7 @@ function navItems(role) {
     items.push({ to: PROFILE_EDIT_PATH, label: 'My profile' })
   }
   if (role === 'client') items.push({ to: '/gigs/mine', label: 'My gigs' })
+  if (role === 'admin') items.push({ to: '/admin', label: 'Admin' })
   return items
 }
 

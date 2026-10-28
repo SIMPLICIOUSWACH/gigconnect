@@ -126,6 +126,11 @@ synthetic accounts, never real ones.
 | Brian Otieno | `planted-brian@example.test` | A quick_cash freelancer: short, urgent, lower budget gigs |
 | Cynthia Achieng | `planted-cynthia@example.test` | A remote_only freelancer: remote gigs |
 | David Kamau | `planted-david@example.test` | A brand-new freelancer with no applications: skill matches only (cold start) |
+| Demo Admin | `planted-admin@example.test` | The admin area at `/admin`, on the planted data |
+
+The demo admin is made with `create_admin` like any other admin. Its email starts with `planted-` because the demo
+profile refuses to start on a database that holds any other kind of account. `seed_planted --delete` removes it with
+the rest of the planted world, so run `create_admin` again after reseeding.
 
 Each of the first three is the member of their hidden group whose top 5 recommendations show the group's habit most
 clearly. The habit only shows in the gigs the collaborative part pulls in, which are often gigs that share no skill with

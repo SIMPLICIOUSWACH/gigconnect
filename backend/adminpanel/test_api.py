@@ -208,6 +208,7 @@ class GigAndApplicationEndpointTests(AdminApiTestCase):
         self.assertEqual(ids(), {str(self.application.pk), str(other.pk)})
         self.assertEqual(ids(gig=self.gig.pk), {str(self.application.pk)})
         self.assertEqual(ids(freelancer=other.freelancer_id), {str(other.pk)})
+        self.assertEqual(ids(id=other.pk), {str(other.pk)})
         self.assertEqual(self.client.get('/api/admin/applications/', {'gig': 'nope'}).status_code, 400)
 
         url = f'/api/admin/applications/{self.application.pk}/'

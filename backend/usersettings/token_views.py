@@ -3,7 +3,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
-from accounts.authentication import SUSPENDED_MESSAGE
+from accounts.authentication import SUSPENDED_ERROR
 
 from .models import UserSession
 
@@ -17,7 +17,7 @@ class LoginSerializer(TokenObtainPairSerializer):
         except AuthenticationFailed:
             user = getattr(self, 'user', None)
             if user is not None and user.is_suspended:
-                raise AuthenticationFailed(SUSPENDED_MESSAGE, code='account_suspended') from None
+                raise AuthenticationFailed(SUSPENDED_ERROR) from None
             raise
 
 

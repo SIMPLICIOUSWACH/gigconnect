@@ -5,6 +5,7 @@ import Alert from '../components/Alert'
 import Button from '../components/Button'
 import Card from '../components/Card'
 import Input from '../components/Input'
+import { ADMIN_HOME } from '../components/AdminRoute'
 
 export default function Login() {
   const { login } = useAuth()
@@ -20,10 +21,11 @@ export default function Login() {
     setError('')
     setSubmitting(true)
     try {
-      await login(email, password)
-      navigate('/dashboard')
-    } catch {
-      setError('Invalid email or password.')
+      const me = await login(email, password)
+      navigate(me?.role === 'admin' ? ADMIN_HOME : '/dashboard')
+    } catch (err) {
+      const suspended = err.response?.data?.code === 'account_suspended'
+      setError(suspended ? err.response.data.detail : 'Invalid email or password.')
     } finally {
       setSubmitting(false)
     }
