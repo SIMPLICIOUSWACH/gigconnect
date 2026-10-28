@@ -1,12 +1,12 @@
 # The gig recommender
 
 How gigs are recommended to freelancers, and how skill match scores are shown to clients. This is the
-design as built in Sprint 5. What the API returns is in `api-endpoints.md`, and the tables are in
+design as built in Sprints 5 and 6. What the API returns is in `api-endpoints.md`, and the tables are in
 `erd.md`.
 
-**Evaluation is Sprint 6.** Nothing here has been measured for accuracy: no split into training,
-validation and test sets, no precision, recall or F1, no comparison with a random baseline. The settings
-below are starting values. Do not quote an accuracy figure for this system from this document.
+**It was measured in Sprint 6 on synthetic data only** (see Evaluation). Any figure quoted from this document has to
+say that: it shows the pipeline works and how its parts compare on seed data, not how relevant the recommendations
+are to real freelancers.
 
 ## What it does
 
@@ -101,14 +101,21 @@ back together gives a score for gigs a freelancer has not touched.
 hybrid = w * collaborative + (1 - w) * content        both on the 0 to 1 scale
 ```
 
-**Cold start.** A freelancer who has interacted with fewer than 5 different gigs gets content scores only
-(`w` is 0). From there `w` rises in equal steps over the next 20 gigs to a maximum of 0.5: 0.025 at 5 gigs,
-0.25 at 14, 0.5 at 24 and beyond. All three numbers are settings. The scoring takes `w` as an argument, so
-Sprint 6 can tune it without changing anything else.
+**Cold start.** A freelancer who has interacted with fewer different gigs than the cold-start threshold gets content
+scores only (`w` is 0). From there `w` rises in equal steps over the ramp to the largest weight. The three numbers come
+from the recommender profile (`backend/config/recommender_profiles.json`, see the README):
+
+- **production**: a largest weight of **0**, chosen by tuning in Sprint 6, so recommendations are content only and
+  every result's `source` is `content`.
+- **demo** (the planted data): threshold 10, ramp 50, largest weight 0.5, so `w` is 0.01 at 10 gigs, 0.11 at 20 and
+  0.31 at 40.
+
+Rating a gig as relevant or not does not count as an interaction for this. The scoring takes `w` as an argument, which
+is how the tuning tried other values without changing the code.
 
 A score has a `source`. It is `content` when there is no collaborative score (a gig posted after the last
-training run, a freelancer who joined after it, no collaborative part, or cold start) and `hybrid` when it is
-the blend. A gig posted after training is scored on its text with the saved vectoriser straight away.
+training run, a freelancer who joined after it, no collaborative part, cold start, or a weight of 0) and `hybrid` when
+it is the blend. A gig posted after training is scored on its text with the saved vectoriser straight away.
 
 ## Client match score and bands (`matching.py`, `bands.py`)
 
@@ -116,36 +123,42 @@ For each applicant to a gig, the **content model's** score for that freelancer a
 words, not as a number, because a bare 0.18 looks more precise than a skill-overlap score is. The band is named
 after what it measures:
 
-| Band | Score | Shown only when |
+| Band | Score (production) | Shown only when |
 |---|---|---|
-| strong skill overlap | 0.30 or more | at least one skill is really shared |
-| good skill overlap | 0.15 or more | at least one skill is really shared |
+| strong skill overlap | 0.27 or more | at least one skill is really shared |
+| good skill overlap | 0.13 or more | at least one skill is really shared |
 | some skill overlap | above 0 | at least one skill is really shared |
 
-The cut-offs (`RECOMMENDER_BAND_STRONG`, `RECOMMENDER_BAND_GOOD`) come from scores measured on the development
-data, where freelancers sharing a skill with a gig had a median score of 0.15 and a 90th percentile of 0.31.
-That data is mostly synthetic, so they are **provisional**. All three bands look the same on screen, so no
+The cut-offs (`RECOMMENDER_BAND_STRONG`, `RECOMMENDER_BAND_GOOD`) come from the profile. They were re-derived on the
+validation split in Sprint 6 as the median and the 90th percentile of the content scores of freelancer and gig pairs
+that share a skill (Sprint 5 had 0.15 and 0.30 from the same method on the whole development data). The demo profile
+has 0.35 and 0.60 from the planted data. The data is synthetic, so they are **provisional**. All three bands look the same on screen, so no
 colour suggests more certainty than the model has.
 
 ## Settings
 
+Settings marked *profile* come from the recommender profile (`RECOMMENDER_PROFILE`, production by default), with the
+production value shown.
+
 | Setting | Default | What it does |
 |---|---|---|
-| `RECOMMENDATIONS_ENABLED` | off | Switches recommendations and match scores on. Environment variable of the same name |
+| `RECOMMENDER_PROFILE` | production | Which profile the app runs with: `production` or `demo`. Environment variable of the same name |
+| `RECOMMENDATIONS_ENABLED` | off | Switches recommendations and match scores on. Environment variable of the same name; the demo profile switches it on |
 | `RECOMMENDER_DATA_DIR` | `<repo>/datasets` | Where the data, snapshots and reports live |
-| `RECOMMENDER_ARTIFACT_DIR` | `backend/recommendations/artifacts` | Where trained models are saved |
+| `RECOMMENDER_ARTIFACT_DIR` | `backend/recommendations/artifacts` (*profile*: `demo/` inside it for the demo) | Where trained models are saved |
+| `RECOMMENDER_SNAPSHOT_FOLDER` | `platform` (*profile*: `platform/demo` for the demo) | Where in the data folder a training run writes its snapshot |
 | `RECOMMENDER_INCLUDE_SYNTHETIC` | on when `DEBUG` is on | Whether training uses the synthetic seed rows by default |
 | `RECOMMENDER_CORPUS_MAX_ROWS` | 15000 / 15000 / 3000 | Most rows kept from Upwork / LinkedIn / Freelancer.com |
 | `RECOMMENDER_PLATFORM_SHARE` | 0.3 | Share of fitted documents that are the platform's own |
 | `RECOMMENDER_TFIDF_MIN_DF`, `_MAX_DF` | 3, 0.8 | Words in fewer than this many documents, or more than this share, are ignored |
 | `RECOMMENDER_INTERACTION_WEIGHTS`, `RECOMMENDER_APPLICATION_WEIGHTS` | see above | Interest per interaction type and application status |
-| `RECOMMENDER_SVD_COMPONENTS` | 20 | Most hidden factors (capped at half the smaller side) |
+| `RECOMMENDER_SVD_COMPONENTS` | 20 (*profile*) | Most hidden factors (capped at half the smaller side) |
 | `RECOMMENDER_SVD_MIN_FREELANCERS`, `_MIN_GIGS`, `_MIN_INTERACTIONS` | 10, 20, 100 | Below any of these the collaborative model is skipped |
 | `RECOMMENDER_RANDOM_SEED` | 42 | Makes training repeatable |
-| `RECOMMENDER_COLD_START_MIN_GIGS` | 5 | Fewer different gigs than this: content scores only |
-| `RECOMMENDER_BLEND_RAMP_GIGS`, `_BLEND_MAX_WEIGHT` | 20, 0.5 | How fast and how far the collaborative weight rises |
+| `RECOMMENDER_COLD_START_MIN_GIGS` | 5 (*profile*) | Fewer different gigs than this: content scores only |
+| `RECOMMENDER_BLEND_RAMP_GIGS`, `_BLEND_MAX_WEIGHT` | 20, 0 (*profile*) | How fast and how far the collaborative weight rises |
 | `RECOMMENDER_MODEL_CACHE_SECONDS` | 60 | How long a loaded model is trusted before asking whether a newer one exists |
-| `RECOMMENDER_BAND_STRONG`, `_BAND_GOOD` | 0.30, 0.15 | The client's match band cut-offs |
+| `RECOMMENDER_BAND_STRONG`, `_BAND_GOOD` | 0.27, 0.13 (*profile*) | The client's match band cut-offs |
 
 ## Training and retraining
 
@@ -165,20 +178,26 @@ Then set `RECOMMENDATIONS_ENABLED=True` for the server. Options: `--include-synt
   first time it is needed, never at startup, and then kept in memory. If its files are missing or cannot be
   read, the answer is "not available" (and the problem is logged), and if only the newest model cannot be
   read, the previous one keeps serving.
-- A run writes a copy of the data it used to `datasets/platform/` and a report to
-  `datasets/reports/training-YYYY-MM-DD.md`. Both are gitignored.
+- A run writes a copy of the data it used to the profile's snapshot folder (`datasets/platform/`, or
+  `datasets/platform/demo/` for the demo) and a report to `datasets/reports/training-YYYY-MM-DD.md`. Both are
+  gitignored. The demo profile also keeps its models in a folder of its own, so it can never overwrite a production
+  model.
 - **Retrain after deletions and after meaningful new data.** See Privacy.
 
 ## Synthetic data policy
 
 Until the platform has real users, almost all of the data is synthetic seed data (`is_synthetic`). Training
 can include it or leave it out (`--no-include-synthetic`), and **every trained model records how much of what
-it learned from was synthetic**, separately for gigs and for interactions. As of the latest development run
-that is 300 of 305 gigs (98%) and 890 of 893 pairs (100%). A model trained on that shows that the pipeline
+it learned from was synthetic**, separately for gigs and for interactions. In the Sprint 5 development run
+that was 300 of 305 gigs (98%) and 890 of 893 pairs (100%); every Sprint 6 evaluation was on 100% synthetic data. A model trained on that shows that the pipeline
 works. It does not show that the recommendations are relevant to real freelancers.
 
 The seeded interactions prefer gigs that share the freelancer's skills, which is why similar freelancers end
 up with similar histories. That is made-up behaviour put there to give the model something to find.
+
+A second seed, **synthetic_planted**, lives in a database of its own and is only used under the demo profile: hidden
+taste groups that only a collaborative model could find (see the README and `docs/api-endpoints.md`). Its group labels
+are kept in a file, never in the database, and are read only to score the models after they are fitted.
 
 ## Privacy
 
@@ -195,8 +214,9 @@ up with similar histories. That is made-up behaviour put there to give the model
 - **The snapshot holds as little as it can**: ids, skills, interaction types, weights and times. No names,
   emails, phone numbers, bios or cover letters (tested).
 - **The data export has nothing extra for the recommender.** No recommendations are stored per person, so
-  there is nothing to export. The person's clicks on recommendations are interactions like any other, and are
-  already in their export.
+  there is nothing to export. The person's clicks on recommendations, and their answers to "Is this gig relevant to
+  you?", are interactions like any other: they are in their export and deleted with their account.
+- **Relevance answers never feed the recommender.** They are left out of training and do not count as history.
 
 ## Data sources
 
@@ -237,6 +257,119 @@ the dates Kaggle published them, not the download date.
 
 The raw files, the processed corpus, the snapshots and the reports are all gitignored. Only the README files
 under `datasets/` are tracked.
+
+## Evaluation (Sprint 6)
+
+**Every number here comes from a command that was run, on a named split, and the data is 100% synthetic.** It shows
+that the pipeline works and how the parts compare on the seed data. It does not show how well the recommender serves
+real freelancers. User acceptance testing (`docs/uat/`) is where real people judge relevance.
+
+### Method
+
+- **Relevant** means the freelancer applied to the gig, whatever became of the application. Views and clicks are not
+  relevance. A stricter reading (shortlisted or hired only) is reported separately, with a warning when too few
+  freelancers have one.
+- **The split** (`build_evaluation_split`) is 70/15/15 per freelancer by time: each freelancer's applications in date
+  order, the oldest 70% to train, the next 15% to validation and the newest 15% to test. At least 5 applications are
+  needed (3, 1 and 1 at 5); freelancers with fewer stay in train only. The split is saved with a fingerprint and
+  reused, so results stay comparable.
+- **Nothing held out reaches training.** The vectoriser is fitted only on gigs posted before the earliest cut-off, and
+  the collaborative models only on interactions before each freelancer's own cut-off and never on a gig held out for
+  them. Application statuses are taken as they were at the cut-off. Tests fail if a held-out interaction gets in.
+- **Candidates are the gigs open at the time**: posted by the end of the part and still taking applications at some
+  point in it, not the freelancer's own and not already applied to. The live feed's rules are not used, because most
+  held-out gigs have since closed.
+- **Metrics**: precision, recall and F1 at K = 5 and 10 (the headline, as in the proposal), with K = 20 and hit rate as
+  supplementary columns. Each is averaged over freelancers with a 95% bootstrap interval.
+- **Compared**: a random baseline (20 seeds, with the spread), popularity, content only, collaborative on applications
+  and hiring only (the proposal's reading), collaborative on all interactions (as built), and the hybrid.
+- **Tuning** (`tune_recommender`) used the validation part only: 240 combinations of the largest collaborative weight,
+  the ramp, the number of factors and the cold-start threshold. The rule, fixed in advance: pick by the mean of F1@5
+  and F1@10, and change a default only if the gain beats the random spread and its paired 95% interval is above zero.
+- **The test part was scored once** per data set (`evaluate_recommender --split test --final`), after tuning, and the
+  run is logged.
+
+### Two data sets
+
+| | Skill-overlap seed (production profile) | Planted seed (demo profile) |
+|---|---|---|
+| What it is | The ordinary development seed. Freelancers favour gigs that share their skills, about 5 to 1 | A separate world with hidden taste groups (budget, urgency, client, location) behind about 40% of applications |
+| Freelancers evaluated | 30 (1 more with too few applications) | 250 |
+| Applications: train / validation / test | 421 / 92 / 92 | 3,500 / 744 / 744 |
+| Synthetic | 100% | 100% |
+| Candidate gigs per freelancer (test, median) | 102 | 127 |
+
+The skill-overlap seed favours the content model by construction. The planted seed was built to check that the
+collaborative part can find a pattern when one exists; it is labelled **synthetic_planted - demonstrates pipeline
+mechanics, not real-world accuracy** everywhere, and it never sets the live defaults.
+
+### Final test results
+
+Mean over freelancers, 95% bootstrap interval in brackets.
+
+**Skill-overlap seed, production profile** (split `ea6b321679335efd`, 30 freelancers, 92 right answers):
+
+| Method | Precision@5 | Precision@10 | Recall@5 | Recall@10 | F1@5 | F1@10 |
+|---|---|---|---|---|---|---|
+| Random (20 seeds) | 0.030 (0.023 to 0.038) | 0.029 (0.024 to 0.033) | 0.049 (0.037 to 0.062) | 0.092 (0.078 to 0.107) | 0.037 (0.029 to 0.047) | 0.043 (0.037 to 0.050) |
+| Popularity | 0.020 (0.000 to 0.047) | 0.023 (0.010 to 0.040) | 0.031 (0.000 to 0.067) | 0.075 (0.033 to 0.128) | 0.024 (0.000 to 0.055) | 0.036 (0.015 to 0.061) |
+| Content only | 0.107 (0.073 to 0.140) | 0.120 (0.090 to 0.153) | 0.172 (0.117 to 0.231) | 0.389 (0.294 to 0.489) | 0.131 (0.090 to 0.174) | 0.183 (0.138 to 0.233) |
+| Collaborative only (all interactions) | 0.020 (0.000 to 0.047) | 0.027 (0.010 to 0.047) | 0.033 (0.000 to 0.078) | 0.086 (0.031 to 0.153) | 0.025 (0.000 to 0.058) | 0.041 (0.015 to 0.071) |
+| Chosen setting (weight 0, so content only) | 0.107 (0.073 to 0.140) | 0.120 (0.090 to 0.153) | 0.172 (0.117 to 0.231) | 0.389 (0.294 to 0.489) | 0.131 (0.090 to 0.174) | 0.183 (0.138 to 0.233) |
+
+**Planted seed, demo profile, synthetic_planted - demonstrates pipeline mechanics, not real-world accuracy** (split
+`7f920483a6bc6c71`, 250 freelancers, 744 right answers):
+
+| Method | Precision@5 | Precision@10 | Recall@5 | Recall@10 | F1@5 | F1@10 |
+|---|---|---|---|---|---|---|
+| Random (20 seeds) | 0.024 (0.021 to 0.026) | 0.024 (0.022 to 0.025) | 0.040 (0.036 to 0.043) | 0.080 (0.075 to 0.084) | 0.029 (0.027 to 0.032) | 0.036 (0.034 to 0.039) |
+| Popularity | 0.033 (0.023 to 0.042) | 0.026 (0.020 to 0.032) | 0.056 (0.040 to 0.073) | 0.087 (0.067 to 0.108) | 0.041 (0.029 to 0.053) | 0.039 (0.030 to 0.049) |
+| Content only | 0.127 (0.108 to 0.147) | 0.098 (0.088 to 0.109) | 0.208 (0.178 to 0.239) | 0.331 (0.295 to 0.368) | 0.156 (0.133 to 0.181) | 0.151 (0.134 to 0.167) |
+| Collaborative only (2 factors) | 0.039 (0.029 to 0.050) | 0.027 (0.021 to 0.033) | 0.066 (0.048 to 0.083) | 0.091 (0.072 to 0.112) | 0.048 (0.036 to 0.062) | 0.042 (0.032 to 0.051) |
+| Chosen hybrid (weight 0.5, ramp 50, 2 factors, cold start below 10) | 0.130 (0.110 to 0.150) | 0.106 (0.095 to 0.117) | 0.213 (0.182 to 0.245) | 0.354 (0.319 to 0.391) | 0.160 (0.137 to 0.184) | 0.161 (0.145 to 0.178) |
+
+Hit rate@10 (supplementary): skill-overlap, random 0.267 and content 0.800; planted, random 0.217, content 0.656 and the
+hybrid 0.700. Every other number, including K = 20, is in the reports in `datasets/reports/`.
+
+### Tuned values against Sprint 5
+
+| Setting | Sprint 5 | Production (skill-overlap pick) | Demo (planted pick) |
+|---|---|---|---|
+| Largest collaborative weight | 0.5 | **0** (content only) | 0.5 |
+| Ramp (gigs) | 20 | 20 (no effect at weight 0) | 50 |
+| Hidden factors | 20 | 20 (no effect at weight 0) | 2 |
+| Cold-start threshold (gigs) | 5 | 5 (no effect at weight 0) | 10 |
+| Match bands, good and strong | 0.15, 0.30 | 0.13, 0.27 | 0.35, 0.60 |
+
+- **Production, weight 0.** On validation, content only scored 0.089 (mean of F1@5 and F1@10) against 0.030 for the
+  Sprint 5 hybrid: a gain of 0.058, larger than the random spread (0.012), with a paired interval of 0.013 to 0.110.
+  The rule therefore changed the default. The best hybrid with any collaborative weight scored 0.083.
+- **Why the collaborative part adds nothing here.** On the skill-overlap seed the collaborative matrix (31 freelancers
+  by 242 gigs, 7% filled) explains no more than a random matrix of the same shape (`check_collaborative_readiness`),
+  its scores rank the right answers at chance, and it cannot even tell which gigs share a freelancer's skills (an AUC
+  of 0.51). The only pattern the seed has is skill overlap, which the content model already sees, and half the
+  right answers are gigs nobody else applied to in train.
+- **Demo, a hybrid.** On the planted seed the collaborative matrix has clear structure above random (26.4% explained
+  at 10 factors against 13.2% and 19.6% for the two random matrices), its factors recover the hidden groups (a pair
+  AUC of 0.709 against 0.500 by chance and 0.502 for the content profiles), and the chosen hybrid beat content only
+  on validation by 0.012 (paired interval 0.005 to 0.019, random spread 0.005).
+- **Bands** were re-derived on validation as the median and the 90th percentile of the content scores of pairs that
+  share a skill (781 pairs on the skill-overlap seed: 0.129 and 0.271). Still provisional.
+
+### What the numbers show and do not show
+
+- **They show** that the evaluation is sound (no leakage, a random baseline at the level chance predicts, a pipeline
+  that finds a planted collaborative pattern and misses none that is absent), that the content model ranks the right
+  answers well above random on both data sets, and that the collaborative part helps only when the data has a
+  collaborative pattern.
+- **They do not show** how relevant the recommendations are to real freelancers. All the data is synthetic, the
+  skill-overlap seed favours the content model by construction, and the planted seed was built to have the pattern
+  that was then found.
+- On the planted test set the hybrid is ahead of content only (F1@10 0.161 against 0.151), but the intervals overlap,
+  so the test set alone does not confirm the gain that validation showed.
+- 30 freelancers is a small sample: the intervals on the skill-overlap seed are wide.
+- **When there are real users**, run `check_collaborative_readiness` and `tune_recommender` again. If the readiness
+  check finds structure, the collaborative weight may come back above 0 in production.
 
 ## Performance
 
@@ -280,28 +413,57 @@ The proposal asks for API responses under 500 ms. With the cache every request a
 
 - **Too many factors memorise.** Allowed almost as many factors as rows, the model reproduced its input,
   scored unseen gigs at about zero, and normalised by noise. A matrix of 12 freelancers and 20 gigs failed a
-  test for exactly this reason in CI. The cap at half the smaller side is the fix, and the right number of
-  factors for real data is for Sprint 6 to tune.
+  test for exactly this reason in CI. The cap at half the smaller side is the fix. Sprint 6 tuning found fewer factors
+  (2 to 10) did better than the cap on both seeds.
 - **Tied patterns can mix.** Two groups built identically give equal strongest patterns, and the SVD may
   return an arbitrary mix of them. Real data will not tie exactly, but tests have to avoid building it.
-- **The scores have not been checked against anything**, and the bands come from synthetic data.
-- **The collaborative part cannot show it is better than content.** That is what Sprint 6 measures.
+- **The blend mixes two scales.** The collaborative score is divided by a fixed scale and clipped to 0 to 1, and
+  within one freelancer's candidates it spreads about 4.6 times as widely as the content score. With a weight above 0
+  it can swamp the content score; a z-scored blend did better in a diagnostic run. Production uses a weight of 0, so
+  this does not affect it today.
+- **The collaborative part needs data with a collaborative pattern.** On the skill-overlap seed it was at chance; on
+  the planted seed it found the hidden groups. Check with `check_collaborative_readiness` before relying on it.
+- **The cold-start note on the page** ("they will improve as you apply") is not true while the production weight is 0.
+  It has not been changed.
 
 ## Where the build differs from the proposal
 
-The written proposal was not available to compare against, so this lists what may differ:
+Compared with the written proposal (shared in Sprint 6):
 
-- Lemmatisation is not done (above).
-- LinkedIn full-time postings are excluded, and Freelancer.com is optional and off by default.
-- Skill match is shown to clients as a band in words, not as a number or percentage.
-- A `recommendation_click` interaction type was added, so clicks on the recommendations can be used later.
-- Training is a manual command, not scheduled.
-- The collaborative model learns from interactions and applications together, and the weights, cold-start
-  numbers and minimums are starting values.
+- **No lemmatisation.** The proposal asks for it. It needs an extra language model download, and it matters little for
+  skill names, which come from a controlled list.
+- **Category is part of the TF-IDF text**, not a one-hot feature. The category name is cleaned and added to the gig's
+  document like the title and skills.
+- **The collaborative model learns from more than applications and hiring.** The proposal describes application and
+  hiring data; the build also uses views, search clicks, recommendation clicks and saves. Both were measured on the
+  same split in Sprint 6 ("applications and hiring only" against "all interactions"); neither beat content only on
+  the skill-overlap seed.
+- **In production the collaborative weight is 0**, so live recommendations are content only. The proposal describes a
+  hybrid. Tuning on the validation split chose this, because the seed data has no collaborative pattern. The hybrid
+  is fully built, runs under the demo profile, and can be switched back on by a profile once real data shows a
+  pattern.
+- **No stored recommendations table and no notifications table.** Recommendations are worked out on each request.
+  Notifications (real-time and email) are not built yet; they are planned first in Sprint 7.
+- **The model is loaded the first time it is needed, not at startup**, so a missing or broken model can never stop the
+  app from starting.
+- **Text choices instead of database ENUMs.** Statuses and types are Django text choices, checked by the app, not
+  PostgreSQL ENUM types. This is kept on purpose: it avoids schema churn when a value is added.
+- **Dataset choices.** The external postings (Upwork and LinkedIn) only fit the content model's vocabulary. LinkedIn
+  full-time postings are left out as ordinary employment, and Freelancer.com is optional and off by default. The
+  collaborative model uses GigConnect's own data only.
+- **Skill match is shown to clients as a band in words**, not a number or percentage.
+- **Added beyond the proposal:** the `recommendation_click`, `recommendation_relevant` and
+  `recommendation_not_relevant` interaction types; a popularity baseline, K = 20, hit rate and bootstrap intervals in
+  the evaluation; tuning of the ramp, factors and cold-start threshold as well as the weight; the planted seed and the
+  demo profile; and, in the UAT kit, the System Usability Scale as a labelled optional extra.
+- **Training is a manual command**, not scheduled.
 
-## What is left for Sprint 6
+## What is left
 
-- The 70/15/15 split, precision, recall and F1 at K, the random baseline, and tuning `w`.
-- Tuning the number of factors, the cold-start numbers and the band cut-offs on real data.
-- User acceptance testing of whether the recommendations are relevant.
-- Computing gig vectors once, if the number of open gigs grows.
+- **User acceptance testing**: the kit is ready in `docs/uat/` and the result sheets are empty.
+- **Re-checking on real data**: once there are real users, run `check_collaborative_readiness` and
+  `tune_recommender` again, and re-derive the band cut-offs.
+- **The cold-start note** on the Recommended for You section, which does not fit a weight of 0.
+- **Notifications** (Sprint 7).
+- The first request after a model loads builds the gig cache (about 2 seconds at 5,000 open gigs); it could be warmed
+  in advance if that matters.
