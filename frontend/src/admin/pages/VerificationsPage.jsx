@@ -113,7 +113,7 @@ export default function VerificationsPage() {
         !error && <EmptyState title="All caught up">No ID documents are waiting for a decision.</EmptyState>
       ) : (
         <div className="grid gap-4 lg:grid-cols-[280px_1fr] items-start">
-          <section aria-label="Queue" className="bg-surface rounded-card shadow-hairline p-2">
+          <section aria-label="Queue" className="bg-surface rounded-card shadow-hairline p-2 min-w-0">
             <p className="text-caption text-muted px-3 pt-2 pb-1">
               {data.count} waiting{data.count > queue.length ? `, showing the oldest ${queue.length}` : ''}
             </p>

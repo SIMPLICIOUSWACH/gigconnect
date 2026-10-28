@@ -3,7 +3,7 @@ import { ErrorBox, PageHeader, Pill, SkeletonBlock } from '../components/ui'
 import { formatDateTime, formatNumber } from '../format'
 import { useAdminData } from '../useAdminData'
 
-const METHOD_LABELS = { hybrid: 'Hybrid (live)', content: 'Content only', popularity: 'Most popular', random: 'Random' }
+const METHOD_LABELS = { hybrid: 'Hybrid', content: 'Content only', popularity: 'Most popular', random: 'Random' }
 const METRIC_LABELS = { precision: 'Precision', recall: 'Recall', hit: 'Hit rate' }
 
 function Row({ label, children }) {
@@ -17,7 +17,7 @@ function Row({ label, children }) {
 
 function Panel({ title, children }) {
   return (
-    <section className="bg-surface rounded-card shadow-hairline p-6">
+    <section className="bg-surface rounded-card shadow-hairline p-6 min-w-0">
       <h2 className="text-section-title text-ink mb-2">{title}</h2>
       {children}
     </section>
