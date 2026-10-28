@@ -23,7 +23,7 @@ function HeroCards({ newestGig, topCategory }) {
         </div>
       )}
       {newestGig && (
-        <div className="absolute top-[150px] left-0 w-[230px] bg-surface rounded-card p-[18px] flex flex-col gap-1.5 shadow-float -rotate-[4deg]">
+        <div className="absolute top-[130px] left-0 w-[230px] bg-surface rounded-card p-[18px] flex flex-col gap-1.5 shadow-float -rotate-[4deg]">
           <span className="text-[14px] font-semibold">Newest gig</span>
           <span className="text-[14px] text-ink-soft">
             Posted by {newestGig.client_name}

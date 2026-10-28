@@ -322,6 +322,12 @@ class CategoryTests(GigTestBase):
         counts = {c['slug']: c['open_gig_count'] for c in response.data}
         self.assertEqual(counts[self.category.slug], 2)
 
+    def test_categories_stay_in_name_order(self):
+        Category.objects.create(name='Zebra Category')
+        Category.objects.create(name='Alpha Category')
+        names = [c['name'] for c in self.client.get('/api/categories/').data]
+        self.assertEqual(names, sorted(names))
+
     def test_category_with_no_open_gigs_counts_zero(self):
         empty = Category.objects.create(name='Empty Category')
         response = self.client.get('/api/categories/')

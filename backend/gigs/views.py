@@ -33,7 +33,9 @@ class CategoryListView(generics.ListAPIView):
 
     def get_queryset(self):
         open_gigs = apply_feed_rules(Gig.objects.all()).values('id')
-        return Category.objects.annotate(open_gig_count=Count('gigs', filter=Q(gigs__id__in=open_gigs)))
+        # Meta.ordering is dropped from grouped queries, so the order is given again here.
+        counts = Count('gigs', filter=Q(gigs__id__in=open_gigs))
+        return Category.objects.annotate(open_gig_count=counts).order_by('name')
 
 
 class GigListCreateView(generics.ListCreateAPIView):

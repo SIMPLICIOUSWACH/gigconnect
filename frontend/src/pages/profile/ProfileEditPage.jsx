@@ -158,7 +158,7 @@ export default function ProfileEditPage() {
       <div className="flex flex-wrap justify-between items-end gap-3">
         <div className="flex flex-col gap-1.5">
           <h1 className="text-hero">Edit your profile</h1>
-          <p className="text-body text-ink-soft">Changes show on the right as you type. Save when you&apos;re happy.</p>
+          <p className="text-body text-ink-soft">Changes show in the preview as you type. Save when you&apos;re happy.</p>
         </div>
         {toast && (
           <div
