@@ -5,6 +5,7 @@ import { logRecommendationClick } from '../../api/gigs'
 import Alert from '../Alert'
 import GigCard from '../gigs/GigCard'
 import GigCardSkeleton from '../gigs/GigCardSkeleton'
+import RelevanceQuestion from './RelevanceQuestion'
 
 const EDIT_SKILLS_PATH = '/settings/freelancer-profile'
 
@@ -106,6 +107,7 @@ function Body({ state, limit, onRetry }) {
             {gig.match_reasons.length > 0 && (
               <p className="text-caption text-muted px-1">Matches your skills: {gig.match_reasons.join(', ')}</p>
             )}
+            <RelevanceQuestion gigId={gig.id} gigTitle={gig.title} position={index + 1} initial={gig.relevance} />
           </div>
         ))}
       </div>

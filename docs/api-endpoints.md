@@ -163,7 +163,8 @@ How the scores are made is in `docs/recommender.md`. This section is what the AP
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
 | GET | `/api/recommendations/` | Required (freelancer, email-verified) | Gigs recommended for the signed-in freelancer, best first. Query: `page`, `page_size` (default 12, max 50) |
-| POST | `/api/gigs/<gig_id>/interactions/` | None (throttled) | Log that a gig was opened from a list. Body: `type` of `search_click` or `recommendation_click`, optional `position` (its place in the list, 1 to 10000). Other types (`view`, `save`, `apply`) are written by the server and are refused here with `400` |
+| POST | `/api/gigs/<gig_id>/interactions/` | None (throttled) | Log that a gig was opened from a list. Body: `type` of `search_click` or `recommendation_click`, optional `position` (its place in the list, 1 to 10000). Other types (`view`, `save`, `apply` and the two relevance answers) are written by the server or their own endpoint and are refused here with `400` |
+| PUT | `/api/recommendations/<gig_id>/relevance/` | Required (freelancer, email-verified, throttled) | Answer "Is this gig relevant to you?" for a recommended gig. Body: `relevant` (`true` or `false`), optional `position` (its place in the list). Returns `{gig, relevance}` with `relevance` of `relevant` or `not_relevant`. A new answer replaces the old one. `403` while recommendations are switched off |
 
 **`GET /api/recommendations/`** returns the gig list's page shape,
 `{count, page, page_size, total_pages, next, previous, results}`, and also:
@@ -175,7 +176,7 @@ How the scores are made is in `docs/recommender.md`. This section is what the AP
 - `model`: `{version, trained_at, collaborative}`, where `collaborative` says whether that model has a
   collaborative part. `null` when `available` is false.
 
-Each result is the gig card fields of the gig list plus `score`, `match_reasons` and `source`:
+Each result is the gig card fields of the gig list plus `score`, `match_reasons`, `source` and `relevance`:
 
 - `score` is from 0 to 1 and is computed by the trained model for this freelancer and this gig. It is for
   ordering, and it is not shown to users as a percentage.
@@ -183,6 +184,15 @@ Each result is the gig card fields of the gig list plus `score`, `match_reasons`
   never worked out from the score, and it can be empty.
 - `source` is `content` (from skills and text only) or `hybrid` (blended with what freelancers with
   similar history showed interest in).
+- `relevance` is the freelancer's own answer to "Is this gig relevant to you?": `relevant`, `not_relevant` or
+  `null` if they have not answered.
+
+**Relevance answers** (Sprint 6, for user acceptance testing) are stored as `recommendation_relevant` and
+`recommendation_not_relevant` gig interactions, one per freelancer and gig, with the gig's place in the list. They
+never feed the recommender: they are left out of training and do not count as history for the blend. They are in the
+freelancer's data export and are deleted with their account. `python manage.py summarise_relevance
+[--include-synthetic]` counts them overall, per gig and as "rated relevant out of rated" within the top 5 and top 10;
+answers from synthetic accounts are left out unless asked for. See `docs/uat/relevance-rating.md`.
 
 Only gigs the freelancer could apply to are scored: open, application deadline not passed, not their own,
 and no application of theirs in any status. A gig that scores exactly 0 shares nothing with the freelancer
@@ -202,9 +212,9 @@ the usual `401` and `403`.
 
 - `match_score`: the content model's score for that freelancer and that gig, from 0 to 1, or `null`.
 - `match_reasons`: the skills they share with the gig.
-- `match_band`: `strong` (score of 0.30 or more), `good` (0.15 or more) or `some`, and only when at least
-  one skill is really shared. `null` otherwise. The cut-offs are the settings `RECOMMENDER_BAND_STRONG` and
-  `RECOMMENDER_BAND_GOOD`, set from scores measured on development data and provisional.
+- `match_band`: `strong`, `good` or `some` skill overlap, and only when at least one skill is really shared.
+  `null` otherwise. The cut-offs are the settings `RECOMMENDER_BAND_STRONG` and `RECOMMENDER_BAND_GOOD`, which come
+  from the recommender profile (0.27 and 0.13 in production), re-derived on the validation split and provisional.
 
 The response also has `match_scores: {available, reason}`. `match_score` is `null`, never 0, when it cannot be
 worked out: no model, or an applicant with no skills and no bio, or an applicant who deleted their account.

@@ -715,6 +715,13 @@ class GigInteractionEndpointTests(GigTestBase):
         self.assertEqual((interaction.query, interaction.position), ('logo design', 4))
         self.assertEqual(interaction.user, self.freelancer)
 
+    def test_the_relevance_answers_cannot_be_posted_through_the_click_endpoint(self):
+        # They have their own endpoint, for signed-in freelancers only, that keeps one answer per gig.
+        self.client.force_authenticate(user=self.freelancer)
+        for kind in GigInteraction.RELEVANCE_TYPES:
+            self.assertEqual(self.post(type=kind).status_code, status.HTTP_400_BAD_REQUEST, kind)
+        self.assertFalse(GigInteraction.objects.exists())
+
     def test_query_and_position_are_optional(self):
         self.client.force_authenticate(user=self.freelancer)
         self.assertEqual(self.post().status_code, status.HTTP_201_CREATED)
@@ -776,12 +783,17 @@ class GigInteractionModelTests(GigTestBase):
         interaction.refresh_from_db()
         self.assertEqual((interaction.query, interaction.position), ('logo', 3))
 
-    def test_type_choices_are_the_five_agreed_values(self):
-        # recommendation_click was added in Sprint 5 for opening a gig from the "Recommended for You" list.
+    def test_type_choices_are_the_seven_agreed_values(self):
+        # recommendation_click was added in Sprint 5 for opening a gig from the "Recommended for You" list, and the
+        # two relevance answers in Sprint 6 for user acceptance testing.
         self.assertEqual(
             set(GigInteraction.Type.values),
-            {'view', 'search_click', 'save', 'apply', 'recommendation_click'},
+            {
+                'view', 'search_click', 'save', 'apply', 'recommendation_click', 'recommendation_relevant',
+                'recommendation_not_relevant',
+            },
         )
+
 
     def test_indexes_for_the_collaborative_filter_exist(self):
         names = {index.name for index in GigInteraction._meta.indexes}

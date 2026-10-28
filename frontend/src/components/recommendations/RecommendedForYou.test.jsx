@@ -1,11 +1,11 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import RecommendedForYou from './RecommendedForYou'
-import { fetchRecommendations } from '../../api/recommendations'
+import { fetchRecommendations, setRelevance } from '../../api/recommendations'
 import { logRecommendationClick, logSearchClick } from '../../api/gigs'
 
-vi.mock('../../api/recommendations', () => ({ fetchRecommendations: vi.fn() }))
+vi.mock('../../api/recommendations', () => ({ fetchRecommendations: vi.fn(), setRelevance: vi.fn() }))
 vi.mock('../../api/gigs', () => ({ logRecommendationClick: vi.fn(), logSearchClick: vi.fn() }))
 
 const makeGig = (n, overrides = {}) => ({
@@ -131,6 +131,20 @@ describe('RecommendedForYou', () => {
       expect(logRecommendationClick).toHaveBeenCalledWith('g2', 2)
     })
 
+    it('asks whether each gig is relevant, with its place in the list and any answer already given', async () => {
+      fetchRecommendations.mockResolvedValue(
+        answer({ results: [makeGig(1), makeGig(2, { relevance: 'not_relevant' })], count: 2 })
+      )
+      setRelevance.mockResolvedValue({ gig: 'g1', relevance: 'relevant' })
+      renderSection()
+      const first = await screen.findByRole('group', { name: 'Is Gig 1 relevant to you?' })
+      const second = screen.getByRole('group', { name: 'Is Gig 2 relevant to you?' })
+      expect(within(second).getByRole('button', { name: 'Not relevant' })).toHaveAttribute('aria-pressed', 'true')
+      fireEvent.click(within(first).getByRole('button', { name: 'Relevant' }))
+      expect(setRelevance).toHaveBeenCalledWith('g1', true, 1)
+      expect(await within(first).findByText('Thanks, noted')).toBeInTheDocument()
+    })
+
     it('does not log it as a search click', async () => {
       fetchRecommendations.mockResolvedValue(answer())
       renderSection()
@@ -146,11 +160,12 @@ describe('RecommendedForYou', () => {
       expect(screen.getByLabelText('Loading recommendations')).toBeInTheDocument()
     })
 
-    it('says recommendations are switched off, and offers no cards', async () => {
+    it('says recommendations are switched off, and offers no cards and no relevance question', async () => {
       fetchRecommendations.mockResolvedValue(unavailable('disabled'))
       renderSection()
       expect(await screen.findByText(/switched off for now/)).toBeInTheDocument()
       expect(screen.queryByRole('link', { name: /Gig/ })).not.toBeInTheDocument()
+      expect(screen.queryByText('Is this gig relevant to you?')).not.toBeInTheDocument()
     })
 
     it('says recommendations are not ready when no model is trained', async () => {
