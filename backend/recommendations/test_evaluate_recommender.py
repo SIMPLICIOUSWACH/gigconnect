@@ -296,3 +296,28 @@ class CommandTests(BlockWorld):
         output = self.run_command('--split', 'test', '--final')
         self.assertIn('Scoring the TEST part. This run will be recorded.', output)
         self.assertEqual(len(report.read_test_runs(Path(self.tmp.name) / 'reports')), 1)
+
+    def test_rebuild_split_builds_a_new_split_instead_of_loading_the_saved_one(self):
+        self.assertIn('Split built', self.run_command())
+        self.assertIn('Split loaded', self.run_command())
+        self.assertIn('Split built', self.run_command('--rebuild-split'))
+
+    def test_no_include_synthetic_leaves_the_synthetic_freelancers_out(self):
+        User.objects.filter(email__startswith='block-B-').update(is_synthetic=True)
+        out = StringIO()
+        call_command('evaluate_recommender', '--no-include-synthetic', '--random-seeds', '2', stdout=out)
+        self.assertIn('Scored the validation part: 6 freelancers, 6 right answers.', out.getvalue())
+
+    def test_output_dir_writes_the_report_and_csv_there(self):
+        target = Path(self.tmp.name) / 'elsewhere'
+        self.run_command('--output-dir', str(target))
+        self.assertEqual(len(list(target.glob('evaluation-*.md'))), 1)
+        self.assertEqual(len(list(target.glob('evaluation-*.csv'))), 1)
+        self.assertFalse((Path(self.tmp.name) / 'reports').exists())
+
+    def test_data_dir_keeps_the_split_and_the_reports_in_that_folder(self):
+        target = Path(self.tmp.name) / 'other-data'
+        self.run_command('--data-dir', str(target))
+        self.assertTrue((target / 'platform' / 'evaluation' / 'split.csv').is_file())
+        self.assertEqual(len(list((target / 'reports').glob('evaluation-*.md'))), 1)
+        self.assertFalse((Path(self.tmp.name) / 'platform' / 'evaluation' / 'split.csv').exists())
