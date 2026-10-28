@@ -83,12 +83,25 @@ class FreelancerProfile(models.Model):
         VERIFIED = 'verified', 'Verified'
         REJECTED = 'rejected', 'Rejected'
 
+    # The colour of the freelancer's avatar and profile header.
+    class Colour(models.TextChoices):
+        TEAL = 'teal', 'Teal'
+        CORAL = 'coral', 'Coral'
+        SUN = 'sun', 'Sunflower'
+        VIOLET = 'violet', 'Violet'
+        ROSE = 'rose', 'Rose'
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='freelancer_profile'
     )
     skills = models.ManyToManyField(Skill, related_name='freelancers', blank=True)
+    headline = models.CharField(max_length=120, blank=True)
     bio = models.CharField(max_length=300, blank=True)
+    # In KES. Empty means "on request".
+    starting_price = models.PositiveIntegerField(null=True, blank=True)
+    is_available = models.BooleanField(default=True)
+    profile_colour = models.CharField(max_length=10, choices=Colour.choices, default=Colour.TEAL)
     county = models.CharField(max_length=40, choices=COUNTY_CHOICES, null=True, blank=True)
     profile_photo = models.ImageField(upload_to='profile_photos/', blank=True, null=True)
     # write-only in every serializer — never include in a response, even to the owner

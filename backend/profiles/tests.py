@@ -211,6 +211,103 @@ class PublicProfileViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('company_name', response.data['profile'])
 
+    def test_public_profile_shows_the_direction_b_fields(self):
+        profile = self.freelancer.freelancer_profile
+        profile.headline = 'Social media manager'
+        profile.starting_price = 5000
+        profile.is_available = False
+        profile.profile_colour = FreelancerProfile.Colour.VIOLET
+        profile.save()
+        self.client.force_authenticate(user=self.client_user)
+        data = self.client.get(f'/api/profiles/{self.freelancer.id}/').data['profile']
+        self.assertEqual(data['headline'], 'Social media manager')
+        self.assertEqual(data['starting_price'], 5000)
+        self.assertFalse(data['is_available'])
+        self.assertEqual(data['profile_colour'], 'violet')
+        self.assertIsNotNone(data['member_since'])
+
+    def test_gigs_completed_counts_only_hired_applications_on_completed_gigs(self):
+        from applications.models import Application
+
+        category = Category.objects.create(name='Writing')
+        letter = 'I have done this kind of work many times and can start this week.'
+
+        def gig_with_application(gig_status, application_status):
+            gig = Gig.objects.create(
+                client=self.client_user, category=category, title='A gig', description='A description.',
+                budget_min=1000, budget_max=2000, deadline=date.today() + timedelta(days=30), status=gig_status,
+            )
+            Application.objects.create(
+                gig=gig, freelancer=self.freelancer, cover_letter=letter, status=application_status
+            )
+
+        gig_with_application(Gig.Status.COMPLETED, Application.Status.HIRED)
+        gig_with_application(Gig.Status.COMPLETED, Application.Status.HIRED)
+        gig_with_application(Gig.Status.IN_PROGRESS, Application.Status.HIRED)
+        gig_with_application(Gig.Status.COMPLETED, Application.Status.REJECTED)
+        self.client.force_authenticate(user=self.client_user)
+        data = self.client.get(f'/api/profiles/{self.freelancer.id}/').data['profile']
+        self.assertEqual(data['gigs_completed'], 2)
+
+
+class FreelancerProfileFieldTests(APITestCase):
+    """The fields added for the Edit profile page: headline, starting price, availability, colour."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email='freelancer@example.com', password='StrongPass123!',
+            full_name='Freelancer', phone='254700000001', role='freelancer',
+        )
+        self.client.force_authenticate(user=self.user)
+
+    def patch(self, data):
+        return self.client.patch('/api/profile/complete/', data, format='multipart')
+
+    def test_new_profiles_are_available_teal_and_priced_on_request(self):
+        profile = self.user.freelancer_profile
+        self.assertTrue(profile.is_available)
+        self.assertEqual(profile.profile_colour, 'teal')
+        self.assertIsNone(profile.starting_price)
+        self.assertEqual(profile.headline, '')
+
+    def test_freelancer_can_set_every_new_field(self):
+        response = self.patch({
+            'headline': '  Social media manager  ', 'starting_price': '5000',
+            'is_available': 'false', 'profile_colour': 'coral',
+        })
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        profile = FreelancerProfile.objects.get(user=self.user)
+        self.assertEqual(profile.headline, 'Social media manager')
+        self.assertEqual(profile.starting_price, 5000)
+        self.assertFalse(profile.is_available)
+        self.assertEqual(profile.profile_colour, 'coral')
+
+    def test_blank_price_clears_it(self):
+        self.patch({'starting_price': '5000'})
+        response = self.patch({'starting_price': ''})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertIsNone(FreelancerProfile.objects.get(user=self.user).starting_price)
+
+    def test_negative_price_is_rejected(self):
+        response = self.patch({'starting_price': '-1'})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('starting_price', response.data)
+
+    def test_unknown_colour_is_rejected(self):
+        response = self.patch({'profile_colour': 'green'})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('profile_colour', response.data)
+
+    def test_headline_longer_than_120_characters_is_rejected(self):
+        response = self.patch({'headline': 'x' * 121})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('headline', response.data)
+
+    def test_own_profile_in_me_includes_the_new_fields(self):
+        data = self.client.get('/api/auth/me/').data['profile']
+        for field in ('headline', 'starting_price', 'is_available', 'profile_colour', 'gigs_completed', 'member_since'):
+            self.assertIn(field, data)
+
 
 class SkillCreateTests(APITestCase):
     def setUp(self):

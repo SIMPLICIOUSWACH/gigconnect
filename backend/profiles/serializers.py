@@ -65,10 +65,16 @@ class FreelancerProfileCompleteSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = FreelancerProfile
-        fields = ['bio', 'county', 'profile_photo', 'skills']
+        fields = [
+            'bio', 'county', 'profile_photo', 'skills',
+            'headline', 'starting_price', 'is_available', 'profile_colour',
+        ]
 
     def validate_county(self, value):
         return value or None
+
+    def validate_headline(self, value):
+        return value.strip()
 
 
 class FreelancerProfileSerializer(serializers.ModelSerializer):
@@ -76,13 +82,25 @@ class FreelancerProfileSerializer(serializers.ModelSerializer):
     skills = SkillSerializer(many=True, read_only=True)
     portfolio_items = PortfolioItemSerializer(many=True, read_only=True)
     verified = serializers.BooleanField(read_only=True)
+    gigs_completed = serializers.SerializerMethodField()
+    member_since = serializers.DateTimeField(source='user.created_at', read_only=True)
 
     class Meta:
         model = FreelancerProfile
         fields = [
-            'bio', 'county', 'profile_photo', 'skills', 'portfolio_items',
-            'verification_status', 'verified',
+            'headline', 'bio', 'county', 'profile_photo', 'skills', 'portfolio_items',
+            'starting_price', 'is_available', 'profile_colour',
+            'verification_status', 'verified', 'gigs_completed', 'member_since',
         ]
+
+    def get_gigs_completed(self, obj):
+        # Gigs the freelancer was hired for and the client then marked completed.
+        from applications.models import Application
+        from gigs.models import Gig
+
+        return Application.objects.filter(
+            freelancer_id=obj.user_id, status=Application.Status.HIRED, gig__status=Gig.Status.COMPLETED
+        ).count()
 
 
 class PublicProfileSerializer(serializers.Serializer):

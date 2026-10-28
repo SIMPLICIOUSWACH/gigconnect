@@ -16,7 +16,7 @@ from .models import Category, Gig, GigInteraction
 from .pagination import GigPagination
 from .permissions import IsOwnerClient
 from .serializers import (
-    CategorySerializer,
+    CategoryListSerializer,
     GigCreateSerializer,
     GigDetailSerializer,
     GigInteractionCreateSerializer,
@@ -28,9 +28,12 @@ from .serializers import (
 
 
 class CategoryListView(generics.ListAPIView):
-    queryset = Category.objects.all()
-    serializer_class = CategorySerializer
+    serializer_class = CategoryListSerializer
     permission_classes = [permissions.AllowAny]
+
+    def get_queryset(self):
+        open_gigs = apply_feed_rules(Gig.objects.all()).values('id')
+        return Category.objects.annotate(open_gig_count=Count('gigs', filter=Q(gigs__id__in=open_gigs)))
 
 
 class GigListCreateView(generics.ListCreateAPIView):

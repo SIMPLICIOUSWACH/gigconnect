@@ -15,6 +15,14 @@ class CategorySerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'slug', 'description']
 
 
+class CategoryListSerializer(CategorySerializer):
+    # Gigs in the public feed (see feed.apply_feed_rules). Annotated by CategoryListView.
+    open_gig_count = serializers.IntegerField(read_only=True)
+
+    class Meta(CategorySerializer.Meta):
+        fields = CategorySerializer.Meta.fields + ['open_gig_count']
+
+
 class GigListSerializer(serializers.ModelSerializer):
     client_id = serializers.UUIDField(source='client.id', read_only=True)
     client_name = serializers.CharField(source='client.full_name', read_only=True)

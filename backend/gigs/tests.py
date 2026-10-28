@@ -311,6 +311,23 @@ class CategoryTests(GigTestBase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertGreaterEqual(len(response.data), 1)
 
+    def test_open_gig_count_follows_the_feed_rules(self):
+        self.create_gig(title='Open')
+        self.create_gig(title='Open too')
+        self.create_gig(title='In progress', status=Gig.Status.IN_PROGRESS)
+        self.create_gig(title='Applications closed', application_deadline=date.today() - timedelta(days=1))
+        with self.settings(SHOW_SYNTHETIC=False):
+            self.create_gig(title='Synthetic', is_synthetic=True)
+            response = self.client.get('/api/categories/')
+        counts = {c['slug']: c['open_gig_count'] for c in response.data}
+        self.assertEqual(counts[self.category.slug], 2)
+
+    def test_category_with_no_open_gigs_counts_zero(self):
+        empty = Category.objects.create(name='Empty Category')
+        response = self.client.get('/api/categories/')
+        counts = {c['slug']: c['open_gig_count'] for c in response.data}
+        self.assertEqual(counts[empty.slug], 0)
+
 
 class GigPrerequisiteFieldTests(GigTestBase):
     def test_application_deadline_defaults_to_deadline_when_not_given(self):
@@ -430,6 +447,19 @@ class GigFilterSearchTests(GigTestBase):
         response = self.client.get('/api/gigs/', {'posted_within': '7'})
         titles = [g['title'] for g in response.data['results']]
         self.assertNotIn('Old gig', titles)
+
+    def test_urgent_filter_keeps_gigs_whose_applications_close_within_three_days(self):
+        today = date.today()
+        self.create_gig(title='Closes today', application_deadline=today)
+        self.create_gig(title='Closes in 3 days', application_deadline=today + timedelta(days=3))
+        self.create_gig(title='Closes in 4 days', application_deadline=today + timedelta(days=4))
+        response = self.client.get('/api/gigs/', {'urgent': 'true'})
+        titles = sorted(g['title'] for g in response.data['results'])
+        self.assertEqual(titles, ['Closes in 3 days', 'Closes today'])
+
+    def test_urgent_false_does_not_filter(self):
+        response = self.client.get('/api/gigs/', {'urgent': 'false'})
+        self.assertEqual(response.data['count'], 2)
 
     def test_filters_combine_with_and(self):
         response = self.client.get('/api/gigs/', {
