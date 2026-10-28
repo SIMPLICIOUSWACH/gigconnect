@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'gigs',
     'applications',
     'recommendations',
+    'notifications',
     'adminpanel',
 ]
 
