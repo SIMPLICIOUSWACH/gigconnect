@@ -303,6 +303,21 @@ class FreelancerProfileFieldTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('headline', response.data)
 
+    def test_json_patch_can_remove_every_skill(self):
+        skill = Skill.objects.create(name='Test Removable Skill', category='Writing')
+        self.user.freelancer_profile.skills.set([skill])
+        response = self.client.patch('/api/profile/complete/', {'skills': [], 'headline': 'Writer'}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        profile = FreelancerProfile.objects.get(user=self.user)
+        self.assertEqual(list(profile.skills.all()), [])
+        self.assertEqual(profile.headline, 'Writer')
+
+    def test_json_patch_can_clear_the_price(self):
+        self.patch({'starting_price': '5000'})
+        response = self.client.patch('/api/profile/complete/', {'starting_price': None}, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertIsNone(FreelancerProfile.objects.get(user=self.user).starting_price)
+
     def test_own_profile_in_me_includes_the_new_fields(self):
         data = self.client.get('/api/auth/me/').data['profile']
         for field in ('headline', 'starting_price', 'is_available', 'profile_colour', 'gigs_completed', 'member_since'):

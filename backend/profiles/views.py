@@ -1,5 +1,5 @@
 from rest_framework import generics, permissions, status
-from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
@@ -52,7 +52,8 @@ class SkillListView(generics.ListCreateAPIView):
 
 class ProfileCompleteView(APIView):
     permission_classes = [permissions.IsAuthenticated]
-    parser_classes = [MultiPartParser, FormParser]
+    # JSON as well as forms: a form cannot send an empty skills list, so removing every skill needs JSON.
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def patch(self, request):
         user = request.user

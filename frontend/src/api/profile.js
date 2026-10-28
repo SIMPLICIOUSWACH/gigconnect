@@ -38,3 +38,6 @@ export const submitVerification = (idNumber, idDocument) =>
   }).then((r) => r.data)
 
 export const fetchPublicProfile = (userId) => api.get(`/profiles/${userId}/`).then((r) => r.data)
+
+// A JSON update of the freelancer profile. Unlike the form above it can send an empty skills list.
+export const updateFreelancerProfile = (fields) => api.patch('/profile/complete/', fields).then((r) => r.data)
