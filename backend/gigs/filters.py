@@ -36,6 +36,8 @@ class GigFilterSerializer(serializers.Serializer):
     deadline_before = serializers.DateField(required=False)
     posted_within = serializers.IntegerField(required=False)
     urgent = serializers.BooleanField(required=False, allow_null=True, default=None)
+    # One client's gigs, for the gig list on their public profile.
+    client = serializers.UUIDField(required=False)
     sort = serializers.ChoiceField(choices=SORT_CHOICES, required=False, default='newest')
 
     def validate_posted_within(self, value):
@@ -117,6 +119,10 @@ def _apply_text_search(queryset, q):
 
 def apply_gig_filters(queryset, data):
     """Apply validated GigFilterSerializer data to a Gig queryset. All filters AND together."""
+    client_id = data.get('client')
+    if client_id:
+        queryset = queryset.filter(client_id=client_id)
+
     category_slug = data.get('category')
     if category_slug:
         queryset = queryset.filter(category__slug=category_slug)
