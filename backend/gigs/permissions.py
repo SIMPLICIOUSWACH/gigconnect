@@ -8,3 +8,12 @@ class IsOwnerClient(BasePermission):
 
     def has_object_permission(self, request, view, obj):
         return obj.client_id == request.user.id
+
+
+class GigNotRemoved(BasePermission):
+    """A gig an admin removed stays visible to its owner but can't be changed."""
+
+    message = 'An administrator removed this gig, so it can no longer be changed.'
+
+    def has_object_permission(self, request, view, obj):
+        return not obj.is_removed

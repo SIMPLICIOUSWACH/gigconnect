@@ -110,6 +110,8 @@ class FreelancerProfile(models.Model):
     verification_status = models.CharField(
         max_length=20, choices=VerificationStatus.choices, default=VerificationStatus.UNVERIFIED
     )
+    # When the ID document was last sent in, so admins can work through the oldest first.
+    verification_submitted_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return f'FreelancerProfile<{self.user.email}>'

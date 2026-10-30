@@ -87,6 +87,7 @@ export default function MyGigs() {
           const statusInfo = STATUS_LABELS[gig.status]
           const nextOptions = NEXT_STATUSES[gig.status] || []
           const busy = busyId === gig.id
+          const removed = gig.moderation_status === 'removed'
           return (
             <Card key={gig.id}>
               <div className="flex items-start justify-between gap-4">
@@ -98,22 +99,35 @@ export default function MyGigs() {
                     {gig.category.name} · KES {gig.budget_min}–{gig.budget_max} · Deadline {gig.deadline}
                   </p>
                 </div>
-                <span className={`text-caption font-medium px-2.5 py-1 rounded-full shrink-0 ${statusInfo.className}`}>
-                  {statusInfo.text}
-                </span>
+                {removed ? (
+                  <span className="text-caption font-semibold px-2.5 py-1 rounded-full shrink-0 bg-coral-light text-coral-ink">
+                    Removed
+                  </span>
+                ) : (
+                  <span className={`text-caption font-medium px-2.5 py-1 rounded-full shrink-0 ${statusInfo.className}`}>
+                    {statusInfo.text}
+                  </span>
+                )}
               </div>
+
+              {removed && (
+                <p className="mt-3 text-body text-coral-ink bg-coral-light rounded-input px-4 py-3">
+                  An administrator removed this gig, so freelancers can't see it and it can't be changed.
+                  {gig.removed_reason && ` Reason: ${gig.removed_reason}`}
+                </p>
+              )}
 
               <div className="flex items-center gap-3 mt-4 pt-4 border-t border-border">
                 <Link to={`/gigs/${gig.id}/applicants`} className="text-body text-primary font-medium">
                   {gig.application_count} applicant{gig.application_count === 1 ? '' : 's'}
                   {gig.pending_application_count > 0 && ` (${gig.pending_application_count} pending)`}
                 </Link>
-                {gig.status === 'open' && (
+                {!removed && gig.status === 'open' && (
                   <Link to={`/gigs/${gig.id}/edit`} className="text-body text-primary font-medium">
                     Edit
                   </Link>
                 )}
-                {nextOptions.map((opt) => (
+                {!removed && nextOptions.map((opt) => (
                   <Button
                     key={opt.value}
                     variant="secondary"
@@ -125,7 +139,7 @@ export default function MyGigs() {
                   </Button>
                 ))}
 
-                {confirmDeleteId === gig.id ? (
+                {removed ? null : confirmDeleteId === gig.id ? (
                   <span className="flex items-center gap-2 ml-auto">
                     <span className="text-caption text-muted">Delete this gig?</span>
                     <Button

@@ -26,6 +26,12 @@ class RegisterSerializer(serializers.ModelSerializer):
             'company_name', 'industry', 'skills',
         ]
 
+    def validate_role(self, value):
+        # Admins are made with `manage.py create_admin`, never through sign-up.
+        if value == User.Role.ADMIN:
+            raise serializers.ValidationError('Choose either client or freelancer.')
+        return value
+
     def validate(self, attrs):
         if attrs['password'] != attrs['confirm_password']:
             raise serializers.ValidationError({'confirm_password': 'Passwords do not match.'})
@@ -78,7 +84,7 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            'id', 'email', 'full_name', 'phone', 'role',
+            'id', 'email', 'full_name', 'phone', 'role', 'account_status',
             'is_email_verified', 'is_phone_verified', 'is_profile_complete',
             'created_at', 'profile',
         ]

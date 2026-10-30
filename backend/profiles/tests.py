@@ -164,6 +164,10 @@ class IdentityVerificationTests(APITestCase):
         profile = self.freelancer.freelancer_profile
         self.client.force_authenticate(user=self.admin)
         response = self.client.patch(f'/api/admin/verifications/{profile.id}/', {'verification_status': 'rejected'})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        response = self.client.patch(
+            f'/api/admin/verifications/{profile.id}/', {'verification_status': 'rejected', 'reason': 'Blurred photo.'},
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         profile.refresh_from_db()
         self.assertEqual(profile.verification_status, FreelancerProfile.VerificationStatus.REJECTED)

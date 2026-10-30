@@ -30,11 +30,26 @@ venv/Scripts/activate       # venv\Scripts\activate on Windows cmd
 pip install -r requirements.txt
 cp .env.example .env        # then edit DB_* values to match your Postgres setup
 python manage.py migrate
-python manage.py createsuperuser
+python manage.py create_admin --email admin@example.com
 python manage.py runserver
 ```
 
 The API serves at `http://localhost:8000`.
+
+### Admin accounts
+
+Nobody can sign up as an admin. `create_admin` is the only way to make one:
+
+```bash
+python manage.py create_admin --email admin@example.com --full-name "Platform Admin"
+```
+
+It asks for the password twice and checks it against the password rules. The new account has the admin role,
+verified email and phone, and `is_staff`. Admins log in on the normal login page and land on `/admin`, the
+GigConnect admin area. For a script, pass `--noinput` and put the password in `GIGCONNECT_ADMIN_PASSWORD`.
+
+Django's own `/admin/` site is kept for debugging by a superuser (`createsuperuser`). It is not the product's
+admin area.
 
 ## Frontend setup
 
@@ -66,11 +81,11 @@ live in `backend/config/recommender_profiles.json`, not in code.
 | | production (the default) | demo |
 |---|---|---|
 | Database | the ordinary one (`DB_NAME`, normally `gigconnect`) | `gigconnect_planted`, always |
-| Largest collaborative weight | 0, so recommendations are content only | 0.5 |
+| Largest collaborative weight | 0.5, chosen by hand (tuning picked 0, see `docs/recommender.md`) | 0.5 |
 | Ramp, factors, cold start | 20 gigs, 20 factors, below 5 gigs | 50 gigs, 2 factors, below 10 gigs |
 | Match band cut-offs (good, strong) | 0.13, 0.27 | 0.35, 0.6 |
 | Trained models and snapshot | `recommendations/artifacts/`, `datasets/platform/` | `recommendations/artifacts/demo/`, `datasets/platform/demo/` |
-| Where the values come from | tuning on the skill-overlap seed data | tuning on the planted data |
+| Where the values come from | tuning on the skill-overlap seed data, except the weight | tuning on the planted data |
 
 - If the variable is missing, production is used. Any other name is refused.
 - The demo profile refuses to start unless it is connected to the planted database, and only planted accounts are in
@@ -111,6 +126,11 @@ synthetic accounts, never real ones.
 | Brian Otieno | `planted-brian@example.test` | A quick_cash freelancer: short, urgent, lower budget gigs |
 | Cynthia Achieng | `planted-cynthia@example.test` | A remote_only freelancer: remote gigs |
 | David Kamau | `planted-david@example.test` | A brand-new freelancer with no applications: skill matches only (cold start) |
+| Demo Admin | `planted-admin@example.test` | The admin area at `/admin`, on the planted data |
+
+The demo admin is made with `create_admin` like any other admin. Its email starts with `planted-` because the demo
+profile refuses to start on a database that holds any other kind of account. `seed_planted --delete` removes it with
+the rest of the planted world, so run `create_admin` again after reseeding.
 
 Each of the first three is the member of their hidden group whose top 5 recommendations show the group's habit most
 clearly. The habit only shows in the gigs the collaborative part pulls in, which are often gigs that share no skill with

@@ -1,5 +1,6 @@
 
 from django.db.models import Count, F, Q
+from django.http import Http404
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions
 from rest_framework import status as http_status
@@ -8,13 +9,14 @@ from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from accounts.permissions import IsClientRole, IsEmailVerified
+from applications.models import Application
 
-from .feed import apply_feed_rules
+from .feed import apply_feed_rules, hidden_from
 from .filters import GigFilterSerializer, apply_gig_filters
 from .interactions import record_view_if_new, viewer_identity
 from .models import Category, Gig, GigInteraction
 from .pagination import GigPagination
-from .permissions import IsOwnerClient
+from .permissions import GigNotRemoved, IsOwnerClient
 from .serializers import (
     CategoryListSerializer,
     GigCreateSerializer,
@@ -87,15 +89,17 @@ class MyGigsView(generics.ListAPIView):
 
     def get_queryset(self):
         # application_count is every application received, withdrawn ones included;
-        # pending_application_count is the ones the client has not acted on yet.
+        # pending_application_count is the ones the client has not acted on yet. Neither counts
+        # applications an admin removed, which the client can't see.
+        visible = Q(applications__moderation_status=Application.Moderation.VISIBLE)
         return (
             Gig.objects.filter(client=self.request.user)
             .select_related('client', 'client__client_profile', 'category')
             .prefetch_related('skills')
             .annotate(
-                application_count=Count('applications', distinct=True),
+                application_count=Count('applications', filter=visible, distinct=True),
                 pending_application_count=Count(
-                    'applications', filter=Q(applications__status='pending'), distinct=True
+                    'applications', filter=visible & Q(applications__status='pending'), distinct=True
                 ),
             )
         )
@@ -110,7 +114,7 @@ class GigDetailView(generics.RetrieveUpdateDestroyAPIView):
     def get_permissions(self):
         if self.request.method == 'GET':
             return [permissions.AllowAny()]
-        return [permissions.IsAuthenticated(), IsClientRole(), IsOwnerClient()]
+        return [permissions.IsAuthenticated(), IsClientRole(), IsOwnerClient(), GigNotRemoved()]
 
     def get_serializer_class(self):
         if self.request.method == 'GET':
@@ -119,6 +123,8 @@ class GigDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
+        if hidden_from(instance, request.user):
+            raise Http404
         if record_view_if_new(request, instance):
             Gig.objects.filter(pk=instance.pk).update(view_count=F('view_count') + 1)
             instance.refresh_from_db(fields=['view_count'])
@@ -136,7 +142,7 @@ class GigDetailView(generics.RetrieveUpdateDestroyAPIView):
 class GigStatusUpdateView(generics.UpdateAPIView):
     queryset = Gig.objects.all()
     serializer_class = GigStatusUpdateSerializer
-    permission_classes = [permissions.IsAuthenticated, IsClientRole, IsOwnerClient]
+    permission_classes = [permissions.IsAuthenticated, IsClientRole, IsOwnerClient, GigNotRemoved]
     http_method_names = ['patch']
 
     def update(self, request, *args, **kwargs):

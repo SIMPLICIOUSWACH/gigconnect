@@ -5,6 +5,8 @@ from django.conf import settings
 from django.core.validators import MaxLengthValidator, MinLengthValidator, MinValueValidator
 from django.db import models, transaction
 
+from gigs.models import ModerationStatus
+
 from .transitions import InvalidTransition, Status, can_transition
 
 COVER_LETTER_MIN_LENGTH = 50
@@ -13,6 +15,7 @@ COVER_LETTER_MAX_LENGTH = 3000
 
 class Application(models.Model):
     Status = Status
+    Moderation = ModerationStatus
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     gig = models.ForeignKey('gigs.Gig', on_delete=models.CASCADE, related_name='applications')
@@ -33,6 +36,12 @@ class Application(models.Model):
         validators=[MinValueValidator(Decimal('0.01'))],
     )
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    # A removed application is hidden from the client; its freelancer still sees it, marked removed.
+    moderation_status = models.CharField(
+        max_length=10, choices=ModerationStatus.choices, default=ModerationStatus.VISIBLE
+    )
+    removed_reason = models.TextField(blank=True)
+    removed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     is_synthetic = models.BooleanField(default=False)
@@ -54,6 +63,10 @@ class Application(models.Model):
 
     def __str__(self):
         return f'{self.freelancer_id} -> {self.gig_id} ({self.status})'
+
+    @property
+    def is_removed(self):
+        return self.moderation_status == ModerationStatus.REMOVED
 
     def change_status(self, new_status, actor, changed_by, note=''):
         """Move to `new_status` as `actor` ('client' or 'freelancer') and record the change.

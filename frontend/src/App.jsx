@@ -1,5 +1,7 @@
+import { Suspense, lazy } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
+import AdminRoute from './components/AdminRoute'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
 import PublicLayout from './components/PublicLayout'
@@ -30,6 +32,13 @@ import PrivacySettings from './pages/settings/PrivacySettings'
 import CompanyProfileSettings from './pages/settings/CompanyProfileSettings'
 import VerificationSettings from './pages/settings/VerificationSettings'
 
+// The admin area is its own bundle, downloaded only when an admin opens it.
+const AdminApp = lazy(() => import('./admin/AdminApp'))
+
+function AdminLoading() {
+  return <p className="min-h-screen bg-bg p-8 text-body text-muted">Loading the admin area…</p>
+}
+
 function App() {
   return (
     <AuthProvider>
@@ -41,6 +50,17 @@ function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/login" element={<Login />} />
         <Route path="/verify-email/:token" element={<VerifyEmail />} />
+
+        <Route
+          path="/admin/*"
+          element={
+            <AdminRoute>
+              <Suspense fallback={<AdminLoading />}>
+                <AdminApp />
+              </Suspense>
+            </AdminRoute>
+          }
+        />
 
         <Route element={<ProtectedRoute />}>
           <Route path="/verify-phone" element={<VerifyPhone />} />

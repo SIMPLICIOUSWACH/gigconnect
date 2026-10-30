@@ -4,7 +4,9 @@ from django.contrib import admin
 from django.urls import include, path
 
 urlpatterns = [
+    # Django's own admin site, for debugging by a superuser. The product's admin area is /api/admin/ below.
     path('admin/', admin.site.urls),
+    path('api/admin/', include('adminpanel.urls')),
     path('api/auth/', include('accounts.urls')),
     path('api/', include('profiles.urls')),
     path('api/', include('usersettings.urls')),

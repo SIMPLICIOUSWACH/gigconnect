@@ -23,6 +23,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.permissions import IsClientRole, IsEmailVerified, IsFreelancer
+from gigs.feed import hidden_from
 from gigs.models import Gig, GigInteraction
 from gigs.pagination import GigPagination
 from recommendations.matching import EMPTY_MATCH, applicant_matches
@@ -66,7 +67,8 @@ class GigApplicationsView(APIView):
     POST: a verified freelancer applies to a gig.
 
     Rules, checked in order (the first failure wins):
-      1. The gig exists                                   -> 404
+      1. The gig exists, and wasn't removed by an admin
+         or posted by a suspended client                  -> 404
       2. The applicant is not the gig's own client        -> 403
       3. The gig is open                                  -> 400
       4. The application deadline has not passed
@@ -82,7 +84,7 @@ class GigApplicationsView(APIView):
         return [IsAuthenticated(), IsClientRole()]
 
     def get(self, request, gig_id):
-        """The gig owner's view of who applied. Nobody else can see them."""
+        """The gig owner's view of who applied. Nobody else can see them, and nobody sees removed ones."""
         gig = get_object_or_404(Gig, pk=gig_id)
         if gig.client_id != request.user.id:
             raise PermissionDenied("You can only see applicants for your own gigs.")
@@ -91,7 +93,7 @@ class GigApplicationsView(APIView):
         filters.is_valid(raise_exception=True)
         params = filters.validated_data
 
-        base_qs = Application.objects.filter(gig=gig)
+        base_qs = Application.objects.filter(gig=gig, moderation_status=Application.Moderation.VISIBLE)
 
         # Counts ignore the status filter so the filter tabs always show every total.
         status_counts = {choice.value: 0 for choice in Status}
@@ -128,6 +130,8 @@ class GigApplicationsView(APIView):
         try:
             gig = Gig.objects.select_related("client").get(pk=gig_id)
         except Gig.DoesNotExist:
+            raise NotFound("This gig does not exist.")
+        if hidden_from(gig, request.user):
             raise NotFound("This gig does not exist.")
 
         # 2. Not your own gig
@@ -262,8 +266,8 @@ class MyApplicationsView(generics.ListAPIView):
 
 class ApplicationDetailView(generics.RetrieveAPIView):
     """
-    GET: one application. Visible only to the applicant and the gig's client;
-    anyone else gets 404, so the endpoint doesn't reveal that it exists.
+    GET: one application. Visible only to the applicant and the gig's client (not once an admin
+    removed it); anyone else gets 404, so the endpoint doesn't reveal that it exists.
     """
 
     serializer_class = ApplicationDetailSerializer
@@ -271,8 +275,9 @@ class ApplicationDetailView(generics.RetrieveAPIView):
 
     def get_queryset(self):
         user = self.request.user
+        visible_to_client = Q(gig__client=user, moderation_status=Application.Moderation.VISIBLE)
         return (
-            Application.objects.filter(Q(freelancer=user) | Q(gig__client=user))
+            Application.objects.filter(Q(freelancer=user) | visible_to_client)
             .select_related(
                 "gig",
                 "gig__client",
@@ -315,6 +320,7 @@ class WithdrawApplicationView(APIView):
                 Application.objects.select_for_update(),
                 pk=application_id,
                 freelancer=request.user,
+                moderation_status=Application.Moderation.VISIBLE,
             )
 
             try:
@@ -362,12 +368,18 @@ class ApplicationStatusView(APIView):
             ),
             pk=application_id,
             gig__client=request.user,
+            moderation_status=Application.Moderation.VISIBLE,
         )
 
         with transaction.atomic():
             # Lock the gig so two decisions on the same gig are handled one at a time.
             gig = Gig.objects.select_for_update().get(pk=application.gig_id)
             application.gig = gig
+            if gig.is_removed:
+                raise ApplicationRuleError(
+                    "An administrator removed this gig, so its applications can no longer be changed.",
+                    code="gig_removed",
+                )
 
             hiring = new_status == Status.HIRED
             if hiring:
