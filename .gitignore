@@ -3,6 +3,7 @@ backend/venv/
 __pycache__/
 *.pyc
 backend/media/
+backend/private_media/
 backend/staticfiles/
 db.sqlite3
 .env

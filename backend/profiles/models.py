@@ -5,6 +5,7 @@ from django.db import models
 
 from .counties import COUNTY_CHOICES
 from .skills import display_name, match_key
+from .storage import PrivateStorage
 
 
 class Skill(models.Model):
@@ -106,7 +107,8 @@ class FreelancerProfile(models.Model):
     profile_photo = models.ImageField(upload_to='profile_photos/', blank=True, null=True)
     # write-only in every serializer — never include in a response, even to the owner
     id_number = models.CharField(max_length=20, blank=True)
-    id_document = models.FileField(upload_to='id_documents/', blank=True, null=True)
+    # In private storage: no URL reaches it. Admins read it through /api/admin/verifications/<id>/document/.
+    id_document = models.FileField(upload_to='id_documents/', storage=PrivateStorage(), blank=True, null=True)
     verification_status = models.CharField(
         max_length=20, choices=VerificationStatus.choices, default=VerificationStatus.UNVERIFIED
     )

@@ -1,3 +1,5 @@
+import shutil
+import tempfile
 from datetime import date, timedelta
 from io import StringIO
 from unittest import mock
@@ -5,7 +7,7 @@ from unittest import mock
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import CommandError, call_command
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
 from rest_framework.throttling import ScopedRateThrottle
@@ -93,6 +95,11 @@ class PortfolioItemTests(APITestCase):
 
 class IdentityVerificationTests(APITestCase):
     def setUp(self):
+        private = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, private, ignore_errors=True)
+        override = override_settings(PRIVATE_MEDIA_ROOT=private)
+        override.enable()
+        self.addCleanup(override.disable)
         self.skill = Skill.objects.create(name='Test Skill', category='Technology')
         self.freelancer = User.objects.create_user(
             email='freelancer@example.com', password='StrongPass123!',
@@ -110,7 +117,7 @@ class IdentityVerificationTests(APITestCase):
 
     def _submit_verification(self):
         self.client.force_authenticate(user=self.freelancer)
-        id_document = SimpleUploadedFile('id.pdf', b'fake-pdf-bytes', content_type='application/pdf')
+        id_document = SimpleUploadedFile('id.pdf', b'%PDF-1.4 fake', content_type='application/pdf')
         return self.client.post('/api/profile/submit-verification/', {
             'id_number': '12345678', 'id_document': id_document,
         }, format='multipart')

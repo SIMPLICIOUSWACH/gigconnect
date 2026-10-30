@@ -48,10 +48,10 @@ export default function VerificationSettings() {
           <form onSubmit={handleSubmit} className="space-y-6 mt-6">
             <Input label="ID number" required value={idNumber} onChange={(e) => setIdNumber(e.target.value)} />
             <label className="block">
-              <Label>ID document</Label>
+              <Label>ID document (PDF, JPG or PNG, up to 5 MB)</Label>
               <input
                 type="file"
-                accept="image/*,.pdf"
+                accept=".pdf,.jpg,.jpeg,.png"
                 required
                 onChange={(e) => setIdDocument(e.target.files[0])}
               />

@@ -4,8 +4,6 @@ anyone who isn't an active admin gets 403. Changes go through moderation.py, whi
 tells the affected user in the same transaction.
 """
 
-import mimetypes
-
 from django.db.models import Count, Q
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404
@@ -20,6 +18,7 @@ from applications.models import Application
 from applications.transitions import Status as ApplicationStatus
 from gigs.models import Gig
 from gigs.pagination import GigPagination
+from profiles.id_documents import can_show_inline, content_type_for
 from profiles.models import FreelancerProfile
 
 from . import moderation
@@ -224,9 +223,10 @@ class VerificationDocumentView(AdminView):
             handle = profile.id_document.open('rb')
         except FileNotFoundError as error:
             raise Http404 from error
-        content_type = mimetypes.guess_type(profile.id_document.name)[0] or 'application/octet-stream'
-        response = FileResponse(handle, content_type=content_type)
-        response['Content-Disposition'] = 'inline'
+        name = profile.id_document.name
+        response = FileResponse(handle, content_type=content_type_for(name))
+        # A file from before the upload checks may be anything, so it is only ever downloaded, never opened here.
+        response['Content-Disposition'] = 'inline' if can_show_inline(name) else 'attachment'
         response['Cache-Control'] = 'no-store'
         response['X-Content-Type-Options'] = 'nosniff'
         return response

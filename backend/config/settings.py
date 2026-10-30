@@ -114,6 +114,8 @@ STATIC_URL = 'static/'
 
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+# Uploads no URL may reach, such as ID documents. Must stay outside MEDIA_ROOT. See profiles/storage.py.
+PRIVATE_MEDIA_ROOT = Path(os.environ.get('PRIVATE_MEDIA_ROOT', BASE_DIR / 'private_media'))
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 

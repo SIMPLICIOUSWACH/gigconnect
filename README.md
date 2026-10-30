@@ -51,6 +51,16 @@ GigConnect admin area. For a script, pass `--noinput` and put the password in `G
 Django's own `/admin/` site is kept for debugging by a superuser (`createsuperuser`). It is not the product's
 admin area.
 
+### ID documents
+
+ID uploads are PDF, JPG or PNG files up to 5 MB. They are kept in `PRIVATE_MEDIA_ROOT` (default `backend/private_media/`),
+outside the media folder, so no URL reaches them. Admins read them through `/api/admin/verifications/<id>/document/`.
+Back this folder up with the database. If you have older uploads, move them once; `manage.py check` warns until you do:
+
+```bash
+python manage.py move_id_documents
+```
+
 ## Frontend setup
 
 ```bash

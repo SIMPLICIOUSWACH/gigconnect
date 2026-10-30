@@ -35,6 +35,17 @@ function DocumentViewer({ profileId, name }) {
   if (file.type.startsWith('image/')) {
     return <img src={file.url} alt={`ID document sent by ${name}`} className="w-full max-h-[480px] object-contain rounded-input bg-sand" />
   }
+  // Only a real PDF goes in a frame. Anything else, from before uploads were checked, is a download: never run it here.
+  if (file.type !== 'application/pdf') {
+    return (
+      <p className="text-body text-ink-soft">
+        This file type can&apos;t be shown here.{' '}
+        <a href={file.url} download="id-document" className="text-primary font-semibold hover:underline">
+          Download the document
+        </a>
+      </p>
+    )
+  }
   return (
     <div className="space-y-2">
       <iframe src={file.url} title={`ID document sent by ${name}`} className="w-full h-[480px] rounded-input bg-sand" />

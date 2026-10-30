@@ -256,7 +256,7 @@ class VerificationEndpointTests(AdminApiTestCase):
         super().setUp()
         self.media = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.media, ignore_errors=True)
-        override = override_settings(MEDIA_ROOT=self.media)
+        override = override_settings(PRIVATE_MEDIA_ROOT=self.media)
         override.enable()
         self.addCleanup(override.disable)
 

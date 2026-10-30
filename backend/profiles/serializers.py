@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from . import skills as skill_names
+from .id_documents import validate_id_document
 from .models import ClientProfile, FreelancerProfile, PortfolioItem, Skill
 
 
@@ -128,5 +129,8 @@ class SubmitVerificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = FreelancerProfile
         fields = ['id_number', 'id_document']
+
+    def validate_id_document(self, value):
+        return validate_id_document(value)
 
 
