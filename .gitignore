@@ -24,3 +24,6 @@ npm-debug.log*
 .claude/
 .DS_Store
 Thumbs.db
+
+# Design mockups (reference only, not part of the build)
+design_reference/

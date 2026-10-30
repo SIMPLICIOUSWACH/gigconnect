@@ -1,5 +1,5 @@
 import uuid
-from datetime import timedelta
+from datetime import date, timedelta
 
 from django.conf import settings
 from django.contrib.postgres.search import SearchQuery, SearchRank, TrigramWordSimilarity
@@ -15,6 +15,7 @@ from profiles.skills import find_skill
 from .models import Category, Gig
 
 SORT_CHOICES = ['newest', 'deadline', 'budget_high', 'budget_low', 'relevance']
+URGENT_DAYS = 3
 
 
 class GigFilterSerializer(serializers.Serializer):
@@ -34,6 +35,7 @@ class GigFilterSerializer(serializers.Serializer):
     remote = serializers.BooleanField(required=False, allow_null=True, default=None)
     deadline_before = serializers.DateField(required=False)
     posted_within = serializers.IntegerField(required=False)
+    urgent = serializers.BooleanField(required=False, allow_null=True, default=None)
     sort = serializers.ChoiceField(choices=SORT_CHOICES, required=False, default='newest')
 
     def validate_posted_within(self, value):
@@ -158,6 +160,13 @@ def apply_gig_filters(queryset, data):
     deadline_before = data.get('deadline_before')
     if deadline_before is not None:
         queryset = queryset.filter(deadline__lte=deadline_before)
+
+    # Urgent: applications close within URGENT_DAYS (the same rule as the Urgent badge on a card).
+    if data.get('urgent'):
+        today = date.today()
+        queryset = queryset.filter(
+            application_deadline__gte=today, application_deadline__lte=today + timedelta(days=URGENT_DAYS)
+        )
 
     posted_within = data.get('posted_within')
     if posted_within is not None:

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Search, SlidersHorizontal, X } from 'lucide-react'
+import { SlidersHorizontal, X } from 'lucide-react'
 import { fetchSkills } from '../../api/auth'
 import { fetchCategories, fetchGigsPaged } from '../../api/gigs'
 import { useAuth } from '../../context/AuthContext'
@@ -8,6 +8,8 @@ import useCounties from '../../hooks/useCounties'
 import useDebouncedValue from '../../hooks/useDebouncedValue'
 import Alert from '../../components/Alert'
 import Button from '../../components/Button'
+import BrowseHero from '../../components/gigs/BrowseHero'
+import CategoryTiles from '../../components/gigs/CategoryTiles'
 import FilterSidebar from '../../components/gigs/FilterSidebar'
 import GigCard from '../../components/gigs/GigCard'
 import GigCardSkeleton from '../../components/gigs/GigCardSkeleton'
@@ -27,6 +29,8 @@ const POSTED_WITHIN_LABELS = {
   30: 'Last 30 days',
 }
 
+const QUICK_BUDGET_MIN = '20000'
+
 function paramsToFilters(searchParams) {
   return {
     q: searchParams.get('q') || '',
@@ -38,11 +42,55 @@ function paramsToFilters(searchParams) {
     includeClosed: searchParams.get('include_closed') === 'true',
     county: searchParams.get('county') || '',
     remote: searchParams.get('remote') === 'true',
+    urgent: searchParams.get('urgent') === 'true',
     deadline_before: searchParams.get('deadline_before') || '',
     posted_within: searchParams.get('posted_within') || '',
     sort: searchParams.get('sort') || 'newest',
     page: Number(searchParams.get('page') || '1'),
   }
+}
+
+// The API parameters for the gig list, from the filters in the URL.
+function buildParams(filters, page) {
+  const params = { page }
+  if (filters.q) params.q = filters.q
+  if (filters.category) params.category = filters.category
+  if (filters.skillIds.length) params.skills = filters.skillIds.join(',')
+  if (filters.budget_min) params.budget_min = filters.budget_min
+  if (filters.budget_max) params.budget_max = filters.budget_max
+  if (filters.negotiable) params.negotiable = 'true'
+  if (filters.includeClosed) params.include_closed = 'true'
+  if (filters.county) params.county = filters.county
+  if (filters.remote) params.remote = 'true'
+  if (filters.urgent) params.urgent = 'true'
+  if (filters.deadline_before) params.deadline_before = filters.deadline_before
+  if (filters.posted_within) params.posted_within = filters.posted_within
+  if (filters.sort) params.sort = filters.sort
+  return params
+}
+
+// The pills beside "All gigs". Each one is a filter that already exists, so it also shows in the
+// chips and in More filters.
+function quickFilters(filters) {
+  const quickBudget = filters.budget_min === QUICK_BUDGET_MIN && !filters.budget_max
+  return [
+    { key: 'newest', label: 'Newest', pressed: filters.sort === 'newest', update: { sort: 'newest' } },
+    { key: 'urgent', label: 'Urgent', pressed: filters.urgent, update: { urgent: !filters.urgent } },
+    { key: 'remote', label: 'Remote', pressed: filters.remote, update: { remote: !filters.remote } },
+    { key: 'negotiable', label: 'Negotiable', pressed: filters.negotiable, update: { negotiable: !filters.negotiable } },
+    {
+      key: 'budget',
+      label: 'KES 20,000+',
+      pressed: quickBudget,
+      update: quickBudget ? { budget_min: '' } : { budget_min: QUICK_BUDGET_MIN, budget_max: '' },
+    },
+  ]
+}
+
+function pillClass(pressed) {
+  return `min-h-[40px] px-4 rounded-pill text-[14px] transition-colors ${
+    pressed ? 'bg-ink text-white font-semibold' : 'bg-surface text-ink font-medium border border-border hover:bg-sand'
+  }`
 }
 
 function formatApiError(data) {
@@ -87,6 +135,9 @@ function buildChips(filters, categories, skills, onChange) {
   if (filters.remote) {
     chips.push({ key: 'remote', label: 'Remote only', onRemove: () => onChange({ remote: false }) })
   }
+  if (filters.urgent) {
+    chips.push({ key: 'urgent', label: 'Urgent', onRemove: () => onChange({ urgent: false }) })
+  }
   if (filters.includeClosed) {
     chips.push({
       key: 'include_closed',
@@ -128,7 +179,10 @@ export default function BrowseGigs() {
   const [fetching, setFetching] = useState(false)
   const [error, setError] = useState('')
   const [retryTick, setRetryTick] = useState(0)
-  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  // Pages added with "Load more gigs" after the one in the URL.
+  const [more, setMore] = useState({ results: [], page: null, loading: false, error: '' })
+  const [hero, setHero] = useState({ newToday: 0, newestGig: null })
 
   const requestIdRef = useRef(0)
   const hasLoadedRef = useRef(false)
@@ -136,6 +190,9 @@ export default function BrowseGigs() {
   useEffect(() => {
     fetchCategories().then(setCategories).catch(() => setCategories([]))
     fetchSkills().then(setSkills).catch(() => setSkills([]))
+    Promise.all([fetchGigsPaged({ posted_within: 1, page_size: 1 }), fetchGigsPaged({ page_size: 1 })])
+      .then(([today, newest]) => setHero({ newToday: today?.count || 0, newestGig: newest?.results?.[0] || null }))
+      .catch(() => {})
   }, [])
 
   // Reflect a settled search box value into the URL, 400ms after the user stops typing.
@@ -189,29 +246,20 @@ export default function BrowseGigs() {
     setSearchParams(new URLSearchParams())
   }
 
-  const goToPage = (page) => updateParams({ page })
+  // The hero's Search button applies the search straight away instead of waiting for the debounce.
+  const submitSearch = () => {
+    if (searchInput !== filters.q) updateParams({ q: searchInput }, { resetPage: true })
+    document.getElementById('all-gigs-heading')?.scrollIntoView?.({ behavior: 'smooth' })
+  }
 
   useEffect(() => {
     const myRequestId = ++requestIdRef.current
     if (!hasLoadedRef.current) setLoading(true)
     else setFetching(true)
     setError('')
+    setMore({ results: [], page: null, loading: false, error: '' })
 
-    const params = { page: filters.page }
-    if (filters.q) params.q = filters.q
-    if (filters.category) params.category = filters.category
-    if (filters.skillIds.length) params.skills = filters.skillIds.join(',')
-    if (filters.budget_min) params.budget_min = filters.budget_min
-    if (filters.budget_max) params.budget_max = filters.budget_max
-    if (filters.negotiable) params.negotiable = 'true'
-    if (filters.includeClosed) params.include_closed = 'true'
-    if (filters.county) params.county = filters.county
-    if (filters.remote) params.remote = 'true'
-    if (filters.deadline_before) params.deadline_before = filters.deadline_before
-    if (filters.posted_within) params.posted_within = filters.posted_within
-    if (filters.sort) params.sort = filters.sort
-
-    fetchGigsPaged(params)
+    fetchGigsPaged(buildParams(filters, filters.page))
       .then((data) => {
         if (myRequestId !== requestIdRef.current) return
         setResult(data)
@@ -237,6 +285,7 @@ export default function BrowseGigs() {
     filters.includeClosed,
     filters.county,
     filters.remote,
+    filters.urgent,
     filters.deadline_before,
     filters.posted_within,
     filters.sort,
@@ -244,176 +293,215 @@ export default function BrowseGigs() {
     retryTick,
   ])
 
+  const lastPage = more.page ?? result?.page ?? 1
+  const hasMore = Boolean(result && lastPage < result.total_pages)
+
+  const loadMore = () => {
+    const requestId = requestIdRef.current
+    setMore((m) => ({ ...m, loading: true, error: '' }))
+    fetchGigsPaged(buildParams(filters, lastPage + 1))
+      .then((data) => {
+        if (requestId !== requestIdRef.current) return
+        setMore((m) => ({ results: [...m.results, ...data.results], page: data.page, loading: false, error: '' }))
+      })
+      .catch(() => {
+        if (requestId !== requestIdRef.current) return
+        setMore((m) => ({ ...m, loading: false, error: 'Could not load more gigs. Please try again.' }))
+      })
+  }
+
   const chips = buildChips(filters, categories, skills, handleFilterChange)
+  const gigs = result ? [...result.results, ...more.results] : []
+  const firstPosition = result ? (result.page - 1) * result.page_size + 1 : 1
+  const topCategory = categories.reduce(
+    (best, c) => ((c.open_gig_count || 0) > (best?.open_gig_count || 0) ? c : best),
+    null
+  )
+  const firstName = (user?.full_name || '').trim().split(/\s+/)[0]
 
   return (
-    <div className="max-w-[1200px]">
-      <div className="mb-6">
-        <h1 className="text-page-title text-primary mb-1">Browse Gigs</h1>
-        <p className="text-body text-muted">Find work that matches your skills.</p>
-      </div>
+    <div>
+      <BrowseHero
+        newToday={hero.newToday}
+        newestGig={hero.newestGig}
+        topCategory={topCategory}
+        search={searchInput}
+        onSearchChange={setSearchInput}
+        onSearchSubmit={submitSearch}
+      />
 
-      <div className="flex flex-col sm:flex-row gap-3 mb-6">
-        <div className="relative flex-1">
-          <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted" />
-          <input
-            type="text"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search gigs by title, skill, or description"
-            className="w-full pl-11 pr-4 py-3 border border-border rounded-lg text-body text-ink bg-surface placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
-          />
-        </div>
-        <select
-          value={filters.sort}
-          onChange={(e) => updateParams({ sort: e.target.value }, { resetPage: true })}
-          className="px-4 py-3 border border-border rounded-lg text-body text-ink bg-surface focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors sm:w-56"
-        >
-          {SORT_OPTIONS.filter((opt) => opt.value !== 'relevance' || filters.q).map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          onClick={() => setMobileFiltersOpen(true)}
-          className="md:hidden inline-flex items-center justify-center gap-2 px-4 py-3 border border-border rounded-lg text-body text-ink bg-surface"
-        >
-          <SlidersHorizontal size={18} />
-          Filters
-        </button>
-      </div>
+      <CategoryTiles
+        categories={categories}
+        selected={filters.category}
+        onSelect={(slug) => handleFilterChange({ category: slug })}
+      />
 
-      <div className="flex gap-8">
-        <aside className="hidden md:block w-[280px] shrink-0">
-          <FilterSidebar
-            categories={categories}
-            counties={counties}
-            skills={skills}
-            filters={filters}
-            onChange={handleFilterChange}
-            onClear={handleClearAll}
-          />
-        </aside>
+      {user?.role === 'freelancer' && (
+        <RecommendedForYou
+          variant="band"
+          limit={10}
+          heading={firstName ? `Picked for you, ${firstName}` : 'Picked for you'}
+          subheading="Based on the skills on your profile."
+        />
+      )}
 
-        <div className="flex-1 min-w-0">
-          {chips.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-4">
-              {chips.map((chip) => (
-                <button
-                  key={chip.key}
-                  type="button"
-                  onClick={chip.onRemove}
-                  className="inline-flex items-center gap-1.5 text-caption font-medium px-3 py-1.5 rounded-full bg-primary-light text-primary"
-                >
-                  {chip.label}
-                  <X size={13} />
-                </button>
-              ))}
-            </div>
-          )}
-
-          {error && (
-            <div className="mb-4">
-              <Alert type="error">
-                {error}{' '}
-                <button
-                  type="button"
-                  onClick={() => setRetryTick((t) => t + 1)}
-                  className="font-medium underline"
-                >
-                  Retry
-                </button>
-              </Alert>
-            </div>
-          )}
-
-          {!error && result && (
-            <p className="text-caption text-muted mb-4">
-              {result.count} gig{result.count === 1 ? '' : 's'} found
-            </p>
-          )}
-
-          {loading && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <GigCardSkeleton key={i} />
-              ))}
-            </div>
-          )}
-
-          {!loading && result && result.results.length === 0 && (
-            <div className="text-center py-16 border border-dashed border-border rounded-xl">
-              <p className="text-section-title text-ink mb-2">No gigs match your filters</p>
-              <p className="text-body text-muted mb-4">
-                {chips.length > 0
-                  ? 'Try removing a filter or widening your search.'
-                  : 'Check back soon — new gigs are posted regularly.'}
-              </p>
-              {chips.length > 0 && (
-                <Button variant="secondary" onClick={handleClearAll}>
-                  Clear all filters
-                </Button>
-              )}
-            </div>
-          )}
-
-          {!loading && result && result.results.length > 0 && (
-            <div
-              className={`grid grid-cols-1 sm:grid-cols-2 gap-4 transition-opacity ${
-                fetching ? 'opacity-50 pointer-events-none' : ''
-              }`}
+      <section
+        aria-labelledby="all-gigs-heading"
+        className="max-w-page mx-auto px-4 sm:px-8 pt-9 pb-12 flex flex-col gap-[18px]"
+      >
+        <div className="flex flex-wrap justify-between items-center gap-3">
+          <h2 id="all-gigs-heading" className="text-section-heading">
+            All gigs
+          </h2>
+          <div role="group" aria-label="Quick filters" className="flex flex-wrap gap-2">
+            {quickFilters(filters).map((pill) => (
+              <button
+                key={pill.key}
+                type="button"
+                aria-pressed={pill.pressed}
+                onClick={() => updateParams(pill.update, { resetPage: true })}
+                className={pillClass(pill.pressed)}
+              >
+                {pill.label}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => setFiltersOpen(true)}
+              className={`${pillClass(false)} inline-flex items-center gap-2`}
             >
-              {result.results.map((gig, index) => (
-                <GigCard
-                  key={gig.id}
-                  gig={gig}
-                  query={filters.q}
-                  position={(result.page - 1) * result.page_size + index + 1}
-                />
-              ))}
-            </div>
-          )}
-
-          {result && result.total_pages > 1 && (
-            <div className="flex items-center justify-between mt-8">
-              <Button variant="secondary" disabled={!result.previous} onClick={() => goToPage(filters.page - 1)}>
-                Previous
-              </Button>
-              <span className="text-body text-muted">
-                Page {result.page} of {result.total_pages}
-              </span>
-              <Button variant="secondary" disabled={!result.next} onClick={() => goToPage(filters.page + 1)}>
-                Next
-              </Button>
-            </div>
-          )}
-
-          {user?.role === 'freelancer' && <RecommendedForYou limit={10} />}
+              <SlidersHorizontal size={16} aria-hidden="true" />
+              More filters
+            </button>
+          </div>
         </div>
-      </div>
 
-      {mobileFiltersOpen && (
-        <div className="fixed inset-0 z-50 md:hidden">
-          <div className="absolute inset-0 bg-black/30" onClick={() => setMobileFiltersOpen(false)} />
-          <div className="absolute right-0 top-0 bottom-0 w-[85%] max-w-sm bg-surface p-6 overflow-y-auto">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-section-title text-ink">Filters</h2>
-              <button type="button" onClick={() => setMobileFiltersOpen(false)} aria-label="Close filters">
+        {chips.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            {chips.map((chip) => (
+              <button
+                key={chip.key}
+                type="button"
+                onClick={chip.onRemove}
+                aria-label={`Remove filter: ${chip.label}`}
+                className="inline-flex items-center gap-1.5 text-caption font-semibold px-3 py-1.5 rounded-pill bg-primary-light text-primary"
+              >
+                {chip.label}
+                <X size={13} aria-hidden="true" />
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={handleClearAll}
+              className="text-caption font-semibold text-ink-soft underline px-2"
+            >
+              Clear all
+            </button>
+          </div>
+        )}
+
+        {error && (
+          <Alert type="error">
+            {error}{' '}
+            <button type="button" onClick={() => setRetryTick((t) => t + 1)} className="font-medium underline">
+              Retry
+            </button>
+          </Alert>
+        )}
+
+        {!error && result && (
+          <p className="text-caption text-muted">
+            {result.count} gig{result.count === 1 ? '' : 's'} found
+          </p>
+        )}
+
+        {loading && (
+          <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(min(340px,100%),1fr))]">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <GigCardSkeleton key={i} />
+            ))}
+          </div>
+        )}
+
+        {!loading && result && result.results.length === 0 && (
+          <div className="text-center py-16 border border-dashed border-divider rounded-card">
+            <p className="text-section-title text-ink mb-2">No gigs match your filters</p>
+            <p className="text-body text-muted mb-4">
+              {chips.length > 0
+                ? 'Try removing a filter or widening your search.'
+                : 'Check back soon. New gigs are posted regularly.'}
+            </p>
+            {chips.length > 0 && (
+              <Button variant="secondary" onClick={handleClearAll}>
+                Clear all filters
+              </Button>
+            )}
+          </div>
+        )}
+
+        {!loading && gigs.length > 0 && (
+          <div
+            className={`grid gap-4 grid-cols-[repeat(auto-fill,minmax(min(340px,100%),1fr))] transition-opacity ${
+              fetching ? 'opacity-50 pointer-events-none' : ''
+            }`}
+          >
+            {gigs.map((gig, index) => (
+              <GigCard key={gig.id} gig={gig} query={filters.q} position={firstPosition + index} />
+            ))}
+          </div>
+        )}
+
+        {more.error && <Alert type="error">{more.error}</Alert>}
+
+        {hasMore && !loading && (
+          <button
+            type="button"
+            onClick={loadMore}
+            disabled={more.loading}
+            className="self-center inline-flex items-center min-h-[48px] px-[26px] rounded-pill border-2 border-ink text-ink text-[15px] font-bold hover:bg-sand disabled:opacity-50"
+          >
+            {more.loading ? 'Loading…' : 'Load more gigs'}
+          </button>
+        )}
+      </section>
+
+      {filtersOpen && (
+        <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-labelledby="more-filters-heading">
+          <div className="absolute inset-0 bg-ink/30" onClick={() => setFiltersOpen(false)} />
+          <div className="absolute right-0 top-0 bottom-0 w-[90%] max-w-sm bg-surface p-6 overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 id="more-filters-heading" className="text-section-title text-ink">
+                More filters
+              </h2>
+              <button type="button" onClick={() => setFiltersOpen(false)} aria-label="Close filters">
                 <X size={20} className="text-muted" />
               </button>
             </div>
+            <label className="block mb-6">
+              <span className="block text-label text-ink mb-1.5">Sort by</span>
+              <select
+                value={filters.sort}
+                onChange={(e) => updateParams({ sort: e.target.value }, { resetPage: true })}
+                className="w-full h-12 px-3.5 border border-border rounded-input text-body text-ink bg-surface focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+              >
+                {SORT_OPTIONS.filter((opt) => opt.value !== 'relevance' || filters.q).map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </label>
             <FilterSidebar
               categories={categories}
-            counties={counties}
+              counties={counties}
               skills={skills}
               filters={filters}
               onChange={handleFilterChange}
               onClear={handleClearAll}
+              heading={false}
             />
-            <Button className="w-full mt-6" onClick={() => setMobileFiltersOpen(false)}>
-              Show results
+            <Button className="w-full mt-6" onClick={() => setFiltersOpen(false)}>
+              Show {result ? `${result.count} ` : ''}results
             </Button>
           </div>
         </div>

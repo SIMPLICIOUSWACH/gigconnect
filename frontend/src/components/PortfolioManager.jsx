@@ -4,7 +4,8 @@ import { createPortfolioItem, deletePortfolioItem, listPortfolioItems } from '..
 import Button from './Button'
 import Input from './Input'
 
-export default function PortfolioManager({ limit }) {
+// onItemsChange is called with the list whenever it loads or changes (the Edit profile preview uses it).
+export default function PortfolioManager({ limit, onItemsChange }) {
   const [items, setItems] = useState([])
   const [form, setForm] = useState({ title: '', description: '', link: '' })
   const [loadError, setLoadError] = useState('')
@@ -13,7 +14,13 @@ export default function PortfolioManager({ limit }) {
   const [deletingId, setDeletingId] = useState(null)
   const [deleteError, setDeleteError] = useState('')
 
-  const load = () => listPortfolioItems().then(setItems).catch(() => setLoadError('Could not load portfolio.'))
+  const load = () =>
+    listPortfolioItems()
+      .then((data) => {
+        setItems(data)
+        onItemsChange?.(data)
+      })
+      .catch(() => setLoadError('Could not load portfolio.'))
 
   useEffect(() => {
     load()

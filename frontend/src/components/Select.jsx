@@ -6,7 +6,7 @@ export default function Select({ label, required, error, options, className = ''
       <Label required={required}>{label}</Label>
       <select
         required={required}
-        className={`w-full px-4 py-3 border rounded-lg text-body text-ink bg-surface focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors ${
+        className={`w-full h-12 px-3.5 border rounded-input text-body text-ink bg-surface focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors ${
           error ? 'border-red-400' : 'border-border'
         } ${className}`}
         {...props}

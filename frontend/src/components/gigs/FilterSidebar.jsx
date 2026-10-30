@@ -9,13 +9,13 @@ const POSTED_WITHIN_OPTIONS = [
 ]
 
 const fieldClass =
-  'w-full px-3 py-2.5 border border-border rounded-lg text-body text-ink bg-surface placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors'
+  'w-full px-3 py-2.5 border border-border rounded-input text-body text-ink bg-surface placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors'
 
-export default function FilterSidebar({ categories, counties = [], skills, filters, onChange, onClear }) {
+export default function FilterSidebar({ categories, counties = [], skills, filters, onChange, onClear, heading = true }) {
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-section-title text-ink">Filters</h2>
+      <div className={`flex items-center ${heading ? 'justify-between' : 'justify-end'}`}>
+        {heading && <h2 className="text-section-title text-ink">Filters</h2>}
         <button
           type="button"
           onClick={onClear}
