@@ -163,7 +163,8 @@ How the scores are made is in `docs/recommender.md`. This section is what the AP
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
 | GET | `/api/recommendations/` | Required (freelancer, email-verified) | Gigs recommended for the signed-in freelancer, best first. Query: `page`, `page_size` (default 12, max 50) |
-| POST | `/api/gigs/<gig_id>/interactions/` | None (throttled) | Log that a gig was opened from a list. Body: `type` of `search_click` or `recommendation_click`, optional `position` (its place in the list, 1 to 10000). Other types (`view`, `save`, `apply`) are written by the server and are refused here with `400` |
+| POST | `/api/gigs/<gig_id>/interactions/` | None (throttled) | Log that a gig was opened from a list. Body: `type` of `search_click` or `recommendation_click`, optional `position` (its place in the list, 1 to 10000). Other types (`view`, `save`, `apply` and the two relevance answers) are written by the server or their own endpoint and are refused here with `400` |
+| PUT | `/api/recommendations/<gig_id>/relevance/` | Required (freelancer, email-verified, throttled) | Answer "Is this gig relevant to you?" for a recommended gig. Body: `relevant` (`true` or `false`), optional `position` (its place in the list). Returns `{gig, relevance}` with `relevance` of `relevant` or `not_relevant`. A new answer replaces the old one. `403` while recommendations are switched off |
 
 **`GET /api/recommendations/`** returns the gig list's page shape,
 `{count, page, page_size, total_pages, next, previous, results}`, and also:
@@ -175,7 +176,7 @@ How the scores are made is in `docs/recommender.md`. This section is what the AP
 - `model`: `{version, trained_at, collaborative}`, where `collaborative` says whether that model has a
   collaborative part. `null` when `available` is false.
 
-Each result is the gig card fields of the gig list plus `score`, `match_reasons` and `source`:
+Each result is the gig card fields of the gig list plus `score`, `match_reasons`, `source` and `relevance`:
 
 - `score` is from 0 to 1 and is computed by the trained model for this freelancer and this gig. It is for
   ordering, and it is not shown to users as a percentage.
@@ -183,6 +184,15 @@ Each result is the gig card fields of the gig list plus `score`, `match_reasons`
   never worked out from the score, and it can be empty.
 - `source` is `content` (from skills and text only) or `hybrid` (blended with what freelancers with
   similar history showed interest in).
+- `relevance` is the freelancer's own answer to "Is this gig relevant to you?": `relevant`, `not_relevant` or
+  `null` if they have not answered.
+
+**Relevance answers** (Sprint 6, for user acceptance testing) are stored as `recommendation_relevant` and
+`recommendation_not_relevant` gig interactions, one per freelancer and gig, with the gig's place in the list. They
+never feed the recommender: they are left out of training and do not count as history for the blend. They are in the
+freelancer's data export and are deleted with their account. `python manage.py summarise_relevance
+[--include-synthetic]` counts them overall, per gig and as "rated relevant out of rated" within the top 5 and top 10;
+answers from synthetic accounts are left out unless asked for. See `docs/uat/relevance-rating.md`.
 
 Only gigs the freelancer could apply to are scored: open, application deadline not passed, not their own,
 and no application of theirs in any status. A gig that scores exactly 0 shares nothing with the freelancer
@@ -202,9 +212,9 @@ the usual `401` and `403`.
 
 - `match_score`: the content model's score for that freelancer and that gig, from 0 to 1, or `null`.
 - `match_reasons`: the skills they share with the gig.
-- `match_band`: `strong` (score of 0.30 or more), `good` (0.15 or more) or `some`, and only when at least
-  one skill is really shared. `null` otherwise. The cut-offs are the settings `RECOMMENDER_BAND_STRONG` and
-  `RECOMMENDER_BAND_GOOD`, set from scores measured on development data and provisional.
+- `match_band`: `strong`, `good` or `some` skill overlap, and only when at least one skill is really shared.
+  `null` otherwise. The cut-offs are the settings `RECOMMENDER_BAND_STRONG` and `RECOMMENDER_BAND_GOOD`, which come
+  from the recommender profile (0.27 and 0.13 in production), re-derived on the validation split and provisional.
 
 The response also has `match_scores: {available, reason}`. `match_score` is `null`, never 0, when it cannot be
 worked out: no model, or an applicant with no skills and no bio, or an applicant who deleted their account.
@@ -216,9 +226,16 @@ list, and an applicant's own views of their application never contain these fiel
 Every seed command refuses to run when `DEBUG` is `False`, marks what it creates `is_synthetic`, and needs
 the accounts and gigs from the commands before it.
 
-- `python manage.py seed_applications [--count N] [--delete]` creates clearly-fake applications on the
-  seeded open gigs, in a spread of statuses with matching history, with a synthetic `apply` interaction.
-  `--delete` removes only the seeded applications and puts gigs that a seeded hire moved on back to `open`.
+- `python manage.py seed_applications [--per-freelancer N] [--count N] [--seed N] [--delete]` creates
+  clearly-fake applications on the seeded open gigs, about 20 per seed freelancer by default (5 more or fewer),
+  in a spread of statuses with matching history and a synthetic `apply` interaction. Like the interactions
+  below, seeded freelancers favour gigs that share a skill with them, so the applications follow a pattern that
+  **favours the content model by construction**. Each application is dated within the last month, after the
+  gig was posted and no later than the end of its application deadline day, and each later status comes hours
+  or days after the one before (a client can review and hire after the deadline). `--count` stops after that many in
+  total. The same seed gives the same rows after a `--delete`. Running again without `--delete` never repeats a
+  pair, and may add more if a seeded hire closed a gig. `--delete` removes only the seeded applications and
+  puts gigs that a seeded hire moved on back to `open`.
 - `python manage.py seed_interactions [--per-freelancer N] [--seed N] [--delete]` creates clearly-fake views,
   search clicks, saves and recommendation clicks from the seed freelancers on the seeded gigs (25 different
   gigs each by default). Gigs that share a skill with the freelancer are about five times more likely to be
@@ -232,7 +249,7 @@ To get a development database where both recommender models run:
 ```
 python manage.py seed_data --count 30
 python manage.py seed_gigs
-python manage.py seed_applications --count 150
+python manage.py seed_applications
 python manage.py seed_interactions
 python manage.py import_job_corpus
 python manage.py train_recommender
@@ -241,8 +258,120 @@ python manage.py train_recommender
 `seed_gigs` is only needed once. With the defaults this gives 30 seed freelancers and about 890 pairs, well
 above the collaborative model's minimums (10 freelancers, 20 gigs and 100 pairs).
 
-## Not yet built
+## Evaluation split
 
-The evaluation of the recommender (the train, validation and test split, precision, recall and F1 at K, the
-random baseline, and tuning the blend weight) is Sprint 6. The scores here are not measured against
-anything yet, and no accuracy figure should be quoted from them.
+`python manage.py build_evaluation_split [--include-synthetic | --no-include-synthetic] [--seed N]
+[--rebuild-split]` builds the 70/15/15 split used to evaluate the recommender and saves it to
+`datasets/platform/evaluation/` (gitignored, real user data). Each freelancer's applications are put in time
+order: the oldest 70% go to train, the next 15% to validation and the newest 15% to test. A freelancer needs at
+least 5 applications to be split (3, 1 and 1 at 5); those with fewer stay in train only and are counted
+separately. A saved split is loaded again on later runs so results stay comparable, until `--rebuild-split` is
+given or the synthetic setting changes. The command prints the counts for each part, how many are synthetic,
+how many freelancers can be evaluated, and how many candidate gigs each gets "as of" the held-out period. It
+trains and scores nothing. Each freelancer has their own cut-off, so one freelancer's training period can
+include events that happened after another freelancer's test event.
+
+## Measuring the recommender
+
+`python manage.py evaluate_recommender [--split validation|test] [--final] [--include-synthetic |
+--no-include-synthetic] [--seed N] [--random-seeds N] [--rebuild-split] [--data-dir PATH] [--output-dir PATH]`
+loads or builds the split above, fits the models on the train part only, scores a held-out part and writes a
+report and a CSV of every number to `datasets/reports/` (gitignored): `evaluation-YYYY-MM-DD.md` and
+`evaluation-YYYY-MM-DD.csv`, with `-2`, `-3` and so on if there is already one from today. Nothing is saved to the
+live model, and nothing is tuned.
+
+- **Methods compared**, on the same candidates: random (averaged over 20 seeds, with the spread), popularity (the
+  gigs most freelancers applied to in train), content only, collaborative on applications and hiring only (as
+  the proposal describes it), collaborative on all interactions (as built), and the hybrid at the current settings.
+- **Metrics**: precision, recall and F1 at K = 5 and 10 are the headline. K = 20 and hit rate are supplementary.
+  Every average has a 95% bootstrap interval over freelancers and the number of freelancers behind it. Freelancers
+  in cold start are reported apart from the rest, and the shortlisted-or-hired reading of relevance is reported
+  separately with a warning when too few freelancers qualify.
+- **Validation by default.** `--split test` is refused unless `--final` is also given, and every test run is
+  appended to `evaluation-test-runs.csv` next to the reports. Every report says how many times the test part has
+  been scored. Use the test part once, after tuning on validation is finished.
+- **Warning for synthetic data.** When more than half of the scored applications are synthetic, the report starts
+  with a warning: results on synthetic data mostly show the models recovering the rules the seed generator
+  used, and skill-preferring synthetic applications favour the content model by construction.
+- A saved split is reused so results stay comparable. If the applications have changed since it was saved, the
+  report says so and `--rebuild-split` uses the current data.
+
+## Timing the recommendations endpoint
+
+`python manage.py time_recommendations [--extra-open-gigs N] [--requests N] [--freelancers N]` times
+`/api/recommendations/` through the full request stack for the verified freelancers with skills and prints the
+median, 95th percentile and worst response time, the first request after loading, and the database queries per
+request. `--extra-open-gigs` adds that many open gigs for the measurement inside a transaction that is rolled back,
+so nothing is left in the database. The results are in `docs/recommender.md`, "Performance".
+
+## Tuning the hybrid
+
+`python manage.py tune_recommender [--include-synthetic | --no-include-synthetic] [--seed N] [--random-seeds N]
+[--rebuild-split] [--output-dir PATH]` tries 240 combinations of the hybrid settings on the **validation** part
+only: the largest collaborative weight (0, 0.25, 0.5, 0.75, 1), the ramp (5, 20, 50 gigs), the hidden factors (2,
+5, 10 and the cap) and the cold-start threshold (0, 3, 5, 10). Every combination goes into
+`tuning-YYYY-MM-DD.csv`, and `tuning-YYYY-MM-DD.md` says how the choice was made and what it decided, next to
+content only, collaborative only and the best hybrid. The interaction weights are not tuned. A combination is
+picked by the mean of F1@5 and F1@10, and the defaults should change only if it beats the current settings by
+more than the random baseline's spread and the paired 95% interval is above zero. The command never changes a
+setting and cannot reach the test part. It also re-derives the match band cut-offs, still provisional.
+
+## Is there anything for the collaborative model to learn?
+
+`python manage.py check_collaborative_readiness [--draws N] [--rebuild-split] [--output-dir PATH]` reads the train
+part of the split and reports the explained-variance curve of the collaborative matrix (the share k hidden factors
+explain) against two kinds of random matrix: the same shape and values in random cells, and the same number of
+cells per freelancer and per gig (which keeps popularity). Beating the second means freelancers share tastes, not
+just popular gigs. The data shows structure when, at some k, it beats the random mean by more than three standard
+deviations and by at least one percentage point. Writes `readiness-YYYY-MM-DD.md`.
+
+## The planted seed mode (synthetic_planted)
+
+A second seed mode beside the skill-overlap seed above, for checking that the pipeline finds a collaborative
+pattern when one exists. **It demonstrates pipeline mechanics, not real-world accuracy**, and every report made from
+it starts with that label. It never sets the live defaults.
+
+- About 250 freelancers, 300 gigs and 60 clients, with 15 to 25 applications per freelancer. A hidden popularity per
+  gig means the median gig has well over 5 applicants.
+- Each freelancer belongs to one of five hidden taste groups: quick_cash (short window or short job, lower budget),
+  premium (higher budget, negotiable, a client with a verified phone), remote_only, client_loyal (two favourite
+  clients among the ten that post the most) and cross_field (one neighbouring category whose skills they do not
+  have). About 40% of each freelancer's applications follow their group, 40% skill overlap and 20% chance.
+- Habits only use budget, urgency, client, location and posting date, which the content model does not read. Gig
+  text is made from the category and skills alone.
+- The groups are written to `datasets/synthetic_planted/ground_truth.csv`, never to the database. They are read only
+  after the models are fitted, to score how well the collaborative factors recover them.
+
+It lives in a database of its own, so it can never mix with other data or touch the ordinary split and its test
+part. `seed_planted` refuses to write into a database that holds any other account. In a planted database the split
+is saved in `datasets/platform/evaluation/synthetic_planted/`, reports are named `evaluation-synthetic_planted-...`,
+`tuning-synthetic_planted-...` and `readiness-synthetic_planted-...`, and test runs have their own log.
+
+The world is dated up to the day it is written: gigs were posted in the last 1 to 36 days, so about a third of them
+are still open on that day and already have applicants. To set it up (PowerShell, from `backend/`), create an empty
+database called `gigconnect_planted` in PostgreSQL, then run it under the demo profile, which always uses that
+database (see the README, "Recommender profiles and the planted demo"):
+
+```
+$env:RECOMMENDER_PROFILE = "demo"
+python manage.py migrate
+python manage.py refresh_planted_demo
+python manage.py check_collaborative_readiness --rebuild-split
+python manage.py tune_recommender
+Remove-Item Env:RECOMMENDER_PROFILE
+```
+
+- `refresh_planted_demo` rebuilds the world for today (same seed), retrains the demo model into its own folder, makes
+  the demo accounts and prints the open-gig count and each demo account's top 5. It only runs under the demo profile.
+- `show_planted_demo` prints the demo again without rebuilding.
+- `seed_planted [--seed N] [--delete]` writes or removes the world on its own, without the demo accounts or training.
+
+A rebuild changes the dates, so the next evaluation notes that the saved planted split is out of date and
+`--rebuild-split` builds it again.
+
+## The one-shot test
+
+Each mode's test part has been scored once (`evaluate_recommender --split test --final`), with its own chosen settings:
+the skill-overlap data under the production profile (content only) and the planted data under the demo profile. The
+reports are `evaluation-2026-10-25-2.md` and `evaluation-synthetic_planted-2026-10-25.md` in `datasets/reports/`, and
+each run is in its own test-run log. Neither test part should be scored again.

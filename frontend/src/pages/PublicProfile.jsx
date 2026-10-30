@@ -1,4 +1,3 @@
-import { BadgeCheck } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { fetchPublicProfile } from '../api/profile'
@@ -7,6 +6,7 @@ import { useAuth } from '../context/AuthContext'
 import Alert from '../components/Alert'
 import Button from '../components/Button'
 import Card from '../components/Card'
+import ProfilePreviewCard from '../components/profile/ProfilePreviewCard'
 
 function Avatar({ src, name }) {
   if (src) {
@@ -26,7 +26,7 @@ function PortfolioGrid({ items }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
       {items.map((item) => (
-        <div key={item.id} className="border border-border rounded-xl overflow-hidden bg-surface">
+        <div key={item.id} className="border border-line rounded-tile overflow-hidden bg-surface">
           {item.image ? (
             <img src={item.image} alt={item.title} className="w-full h-40 object-cover" />
           ) : (
@@ -56,58 +56,31 @@ function PortfolioGrid({ items }) {
 
 function FreelancerView({ profile }) {
   const p = profile.profile || {}
+  const card = {
+    name: profile.full_name,
+    headline: p.headline,
+    county: p.county,
+    bio: p.bio,
+    price: p.starting_price,
+    skills: p.skills || [],
+    colour: p.profile_colour,
+    available: p.is_available ?? true,
+    photoUrl: p.profile_photo,
+    verified: p.verified,
+    gigsCompleted: p.gigs_completed,
+    memberSince: p.member_since,
+    portfolioItems: p.portfolio_items,
+  }
   return (
-    <>
-      <Card variant="elevated" className="mb-6">
-        <div className="flex items-center gap-6">
-          <Avatar src={p.profile_photo} name={profile.full_name} />
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-section-title text-ink">{profile.full_name}</h2>
-              {p.verified && (
-                <span className="inline-flex items-center gap-1 text-caption font-medium text-accent bg-accent-light px-2 py-1 rounded-full">
-                  <BadgeCheck size={14} /> Verified
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-        <p className="text-body text-ink mt-6">
-          {p.bio || <span className="text-muted">No bio yet.</span>}
-        </p>
-      </Card>
-
-      <Card className="mb-6">
-        <h2 className="text-section-title text-ink mb-4">Skills</h2>
-        {p.skills?.length > 0 ? (
-          <div className="flex flex-wrap gap-2">
-            {p.skills.map((skill) => (
-              <span
-                key={skill.id}
-                className="text-caption font-medium px-3 py-1.5 rounded-full bg-primary-light text-primary"
-              >
-                {skill.name}
-              </span>
-            ))}
-          </div>
-        ) : (
-          <p className="text-body text-muted">No skills listed.</p>
-        )}
-      </Card>
-
-      <Card className="mb-6">
+    <div className="flex flex-wrap gap-7 items-start">
+      <div className="flex-[1_1_380px] max-w-[460px] min-w-0">
+        <ProfilePreviewCard profile={card} />
+      </div>
+      <Card className="flex-[999_1_420px] min-w-0">
         <h2 className="text-section-title text-ink mb-4">Portfolio</h2>
         <PortfolioGrid items={p.portfolio_items} />
       </Card>
-
-      <Card>
-        <h2 className="text-section-title text-ink mb-2">Ratings & Gig Stats</h2>
-        <p className="text-body text-muted">
-          Ratings and completed-gig stats will show here once Application Tracking (Sprint 4) and the
-          ML Recommendation Engine (Sprint 5) are built — there's no data to show yet.
-        </p>
-      </Card>
-    </>
+    </div>
   )
 }
 
@@ -151,10 +124,10 @@ export default function PublicProfile() {
   }, [id])
 
   const isOwnProfile = user?.id === id
-  const editPath = profile?.role === 'client' ? '/settings/company-profile' : '/settings/freelancer-profile'
+  const editPath = profile?.role === 'client' ? '/settings/company-profile' : '/profile/edit'
 
   return (
-    <div className="max-w-[960px]">
+    <div className="max-w-[1000px]">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-page-title text-primary">Profile</h1>
         {isOwnProfile && (

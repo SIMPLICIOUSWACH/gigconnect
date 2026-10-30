@@ -5,8 +5,10 @@ import { logRecommendationClick } from '../../api/gigs'
 import Alert from '../Alert'
 import GigCard from '../gigs/GigCard'
 import GigCardSkeleton from '../gigs/GigCardSkeleton'
+import PickCard from './PickCard'
+import RelevanceQuestion from './RelevanceQuestion'
 
-const EDIT_SKILLS_PATH = '/settings/freelancer-profile'
+const EDIT_SKILLS_PATH = '/profile/edit'
 
 // What to say when there is nothing to show. The API gives a reason; no state ever shows a guess.
 const EMPTY_MESSAGES = {
@@ -18,7 +20,8 @@ const EMPTY_MESSAGES = {
 const NO_CANDIDATES_MESSAGE =
   'There are no gigs to recommend right now. New gigs that match your skills will show up here.'
 
-export default function RecommendedForYou({ limit = 6, heading = 'Recommended for You' }) {
+// variant "band" is the teal "Picked for you" band on Browse gigs; "list" is the plain section on the dashboard.
+export default function RecommendedForYou({ limit = 6, heading = 'Recommended for You', subheading, variant = 'list' }) {
   const [state, setState] = useState({ status: 'loading' })
   const [retryTick, setRetryTick] = useState(0)
 
@@ -37,23 +40,48 @@ export default function RecommendedForYou({ limit = 6, heading = 'Recommended fo
     }
   }, [limit, retryTick])
 
+  const body = <Body state={state} limit={limit} band={variant === 'band'} onRetry={() => setRetryTick((n) => n + 1)} />
+
+  if (variant === 'band') {
+    return (
+      <section aria-labelledby="recommended-heading" className="bg-primary text-white">
+        <div className="max-w-page mx-auto px-4 sm:px-8 py-9 flex flex-col gap-[18px]">
+          <div className="flex flex-col gap-1">
+            <h2 id="recommended-heading" className="text-band-title">
+              {heading}
+            </h2>
+            {subheading && <p className="text-[15px] text-primary-soft">{subheading}</p>}
+          </div>
+          {body}
+        </div>
+      </section>
+    )
+  }
+
   return (
-    <section aria-labelledby="recommended-heading" className="mt-12 pt-8 border-t border-border">
-      <h2 id="recommended-heading" className="text-section-title text-ink mb-3">
+    <section aria-labelledby="recommended-heading" className="mt-12 pt-8 border-t border-line">
+      <h2 id="recommended-heading" className="text-section-heading text-ink mb-3">
         {heading}
       </h2>
-      <Body state={state} limit={limit} onRetry={() => setRetryTick((n) => n + 1)} />
+      {body}
     </section>
   )
 }
 
-function Body({ state, limit, onRetry }) {
+function Body({ state, limit, band, onRetry }) {
+  const note = band ? 'text-body text-primary-soft' : 'text-body text-muted'
+  const link = band ? 'text-white font-semibold underline' : 'text-primary font-medium'
+
   if (state.status === 'loading') {
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" aria-busy="true" aria-label="Loading recommendations">
-        {Array.from({ length: Math.min(limit, 4) }).map((_, i) => (
-          <GigCardSkeleton key={i} />
-        ))}
+      <div
+        className={band ? 'grid gap-3.5 grid-cols-[repeat(auto-fit,minmax(240px,1fr))]' : 'grid grid-cols-1 sm:grid-cols-2 gap-4'}
+        aria-busy="true"
+        aria-label="Loading recommendations"
+      >
+        {Array.from({ length: Math.min(limit, band ? 3 : 4) }).map((_, i) =>
+          band ? <div key={i} className="h-[220px] rounded-tile bg-white/10 animate-pulse" /> : <GigCardSkeleton key={i} />
+        )}
       </div>
     )
   }
@@ -71,14 +99,14 @@ function Body({ state, limit, onRetry }) {
 
   const { data } = state
   if (!data.available) {
-    return <p className="text-body text-muted">{EMPTY_MESSAGES[data.reason] ?? EMPTY_MESSAGES.model_unavailable}</p>
+    return <p className={note}>{EMPTY_MESSAGES[data.reason] ?? EMPTY_MESSAGES.model_unavailable}</p>
   }
 
   if (data.reason === 'no_skills') {
     return (
-      <p className="text-body text-muted">
+      <p className={note}>
         Add skills to your profile to get recommendations.{' '}
-        <Link to={EDIT_SKILLS_PATH} className="text-primary font-medium">
+        <Link to={EDIT_SKILLS_PATH} className={link}>
           Edit your skills
         </Link>
       </p>
@@ -86,29 +114,38 @@ function Body({ state, limit, onRetry }) {
   }
 
   if (data.results.length === 0) {
-    return <p className="text-body text-muted">{NO_CANDIDATES_MESSAGE}</p>
+    return <p className={note}>{NO_CANDIDATES_MESSAGE}</p>
   }
 
   return (
     <>
       {data.cold_start && (
-        <p className="text-body text-muted mb-4">
+        <p className={`${note} mb-4`}>
           These are based on your skills, and they will improve as you apply to gigs.{' '}
-          <Link to={EDIT_SKILLS_PATH} className="text-primary font-medium">
+          <Link to={EDIT_SKILLS_PATH} className={link}>
             Edit your skills
           </Link>
         </p>
       )}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {data.results.map((gig, index) => (
-          <div key={gig.id} className="flex flex-col gap-2">
-            <GigCard gig={gig} position={index + 1} onOpen={(g, position) => logRecommendationClick(g.id, position)} />
-            {gig.match_reasons.length > 0 && (
-              <p className="text-caption text-muted px-1">Matches your skills: {gig.match_reasons.join(', ')}</p>
-            )}
-          </div>
-        ))}
-      </div>
+      {band ? (
+        <div className="grid gap-3.5 grid-cols-[repeat(auto-fit,minmax(240px,1fr))]">
+          {data.results.map((gig, index) => (
+            <PickCard key={gig.id} gig={gig} position={index + 1} />
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {data.results.map((gig, index) => (
+            <div key={gig.id} className="flex flex-col gap-2">
+              <GigCard gig={gig} position={index + 1} onOpen={(g, position) => logRecommendationClick(g.id, position)} />
+              {gig.match_reasons.length > 0 && (
+                <p className="text-caption text-muted px-1">Matches your skills: {gig.match_reasons.join(', ')}</p>
+              )}
+              <RelevanceQuestion gigId={gig.id} gigTitle={gig.title} position={index + 1} initial={gig.relevance} />
+            </div>
+          ))}
+        </div>
+      )}
     </>
   )
 }

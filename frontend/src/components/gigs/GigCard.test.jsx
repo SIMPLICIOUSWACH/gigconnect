@@ -57,3 +57,44 @@ describe('GigCard click logging', () => {
     expect(screen.getByText(/Nairobi or remote/)).toBeInTheDocument()
   })
 })
+
+describe('GigCard Direction B details', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  const soon = (days) => {
+    const d = new Date()
+    d.setDate(d.getDate() + days)
+    return d.toISOString().slice(0, 10)
+  }
+
+  it('shows the category, the client initials and name, and the terms with the apply-by date', () => {
+    renderCard({ gig: { ...GIG, client_name: 'Baraka Traders' } })
+    expect(screen.getByText('Design & Creative')).toBeInTheDocument()
+    expect(screen.getByText('BT')).toBeInTheDocument()
+    expect(screen.getByText('Baraka Traders')).toBeInTheDocument()
+    expect(screen.getByText('Fixed price · Apply by 1 Jan')).toBeInTheDocument()
+  })
+
+  it('says Negotiable when the budget is negotiable', () => {
+    renderCard({ gig: { ...GIG, is_negotiable: true } })
+    expect(screen.getByText(/^Negotiable · Apply by/)).toBeInTheDocument()
+  })
+
+  it('marks the gig Urgent when applications close within three days', () => {
+    renderCard({ gig: { ...GIG, application_deadline: soon(2) } })
+    expect(screen.getByText('Urgent')).toBeInTheDocument()
+  })
+
+  it('does not mark it Urgent when applications close later', () => {
+    renderCard({ gig: { ...GIG, application_deadline: soon(10) } })
+    expect(screen.queryByText('Urgent')).not.toBeInTheDocument()
+  })
+
+  it('the Apply button opens the gig and logs the click like the title does', () => {
+    renderCard({ query: 'logo', position: 2 })
+    const apply = screen.getByRole('link', { name: 'Apply: Logo for a cafe' })
+    expect(apply).toHaveAttribute('href', '/gigs/gig-1')
+    fireEvent.click(apply)
+    expect(logSearchClick).toHaveBeenCalledWith('gig-1', { query: 'logo', position: 2 })
+  })
+})

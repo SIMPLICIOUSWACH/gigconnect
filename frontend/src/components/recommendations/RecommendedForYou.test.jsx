@@ -1,11 +1,11 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import RecommendedForYou from './RecommendedForYou'
-import { fetchRecommendations } from '../../api/recommendations'
+import { fetchRecommendations, setRelevance } from '../../api/recommendations'
 import { logRecommendationClick, logSearchClick } from '../../api/gigs'
 
-vi.mock('../../api/recommendations', () => ({ fetchRecommendations: vi.fn() }))
+vi.mock('../../api/recommendations', () => ({ fetchRecommendations: vi.fn(), setRelevance: vi.fn() }))
 vi.mock('../../api/gigs', () => ({ logRecommendationClick: vi.fn(), logSearchClick: vi.fn() }))
 
 const makeGig = (n, overrides = {}) => ({
@@ -112,7 +112,7 @@ describe('RecommendedForYou', () => {
       fetchRecommendations.mockResolvedValue(answer({ cold_start: true }))
       renderSection()
       expect(await screen.findByText(/based on your skills, and they will improve as you apply/)).toBeInTheDocument()
-      expect(screen.getByRole('link', { name: 'Edit your skills' })).toHaveAttribute('href', '/settings/freelancer-profile')
+      expect(screen.getByRole('link', { name: 'Edit your skills' })).toHaveAttribute('href', '/profile/edit')
     })
 
     it('does not show the explanation once the freelancer has history', async () => {
@@ -131,6 +131,20 @@ describe('RecommendedForYou', () => {
       expect(logRecommendationClick).toHaveBeenCalledWith('g2', 2)
     })
 
+    it('asks whether each gig is relevant, with its place in the list and any answer already given', async () => {
+      fetchRecommendations.mockResolvedValue(
+        answer({ results: [makeGig(1), makeGig(2, { relevance: 'not_relevant' })], count: 2 })
+      )
+      setRelevance.mockResolvedValue({ gig: 'g1', relevance: 'relevant' })
+      renderSection()
+      const first = await screen.findByRole('group', { name: 'Is Gig 1 relevant to you?' })
+      const second = screen.getByRole('group', { name: 'Is Gig 2 relevant to you?' })
+      expect(within(second).getByRole('button', { name: 'Not relevant' })).toHaveAttribute('aria-pressed', 'true')
+      fireEvent.click(within(first).getByRole('button', { name: 'Relevant' }))
+      expect(setRelevance).toHaveBeenCalledWith('g1', true, 1)
+      expect(await within(first).findByText('Thanks, noted')).toBeInTheDocument()
+    })
+
     it('does not log it as a search click', async () => {
       fetchRecommendations.mockResolvedValue(answer())
       renderSection()
@@ -146,11 +160,12 @@ describe('RecommendedForYou', () => {
       expect(screen.getByLabelText('Loading recommendations')).toBeInTheDocument()
     })
 
-    it('says recommendations are switched off, and offers no cards', async () => {
+    it('says recommendations are switched off, and offers no cards and no relevance question', async () => {
       fetchRecommendations.mockResolvedValue(unavailable('disabled'))
       renderSection()
       expect(await screen.findByText(/switched off for now/)).toBeInTheDocument()
       expect(screen.queryByRole('link', { name: /Gig/ })).not.toBeInTheDocument()
+      expect(screen.queryByText('Is this gig relevant to you?')).not.toBeInTheDocument()
     })
 
     it('says recommendations are not ready when no model is trained', async () => {
@@ -166,7 +181,7 @@ describe('RecommendedForYou', () => {
       )
       renderSection()
       expect(await screen.findByText(/Add skills to your profile/)).toBeInTheDocument()
-      expect(screen.getByRole('link', { name: 'Edit your skills' })).toHaveAttribute('href', '/settings/freelancer-profile')
+      expect(screen.getByRole('link', { name: 'Edit your skills' })).toHaveAttribute('href', '/profile/edit')
     })
 
     it('says there is nothing to recommend when no gig scores above zero', async () => {
@@ -197,5 +212,52 @@ describe('RecommendedForYou', () => {
       }
       expect(seen.join(' ')).not.toContain('—')
     })
+  })
+})
+
+describe('RecommendedForYou as the Picked for you band', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  const band = (props = {}) =>
+    renderSection({ variant: 'band', heading: 'Picked for you, Amina', subheading: 'Based on the skills on your profile.', ...props })
+
+  it('shows the heading and subheading, and each pick as a card with its budget', async () => {
+    fetchRecommendations.mockResolvedValue(answer({ results: [makeGig(1), makeGig(2)], count: 2 }))
+    band({ limit: 10 })
+    expect(screen.getByRole('heading', { name: 'Picked for you, Amina' })).toBeInTheDocument()
+    expect(screen.getByText('Based on the skills on your profile.')).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: 'Gig 1' })).toHaveAttribute('href', '/gigs/g1')
+    expect(screen.getAllByText('KES 1,000 – 2,000')).toHaveLength(2)
+    expect(fetchRecommendations).toHaveBeenCalledWith({ page_size: 10 })
+  })
+
+  it('keeps the shared skills, the relevance question and the click logging on every pick', async () => {
+    fetchRecommendations.mockResolvedValue(answer({ results: [makeGig(1, { match_reasons: ['Django'] }), makeGig(2)], count: 2 }))
+    setRelevance.mockResolvedValue({ gig: 'g2', relevance: 'not_relevant' })
+    band()
+    expect(await screen.findAllByText('Matches your skills: Django')).toHaveLength(2)
+    const second = screen.getByRole('group', { name: 'Is Gig 2 relevant to you?' })
+    fireEvent.click(within(second).getByRole('button', { name: 'Not relevant' }))
+    expect(setRelevance).toHaveBeenCalledWith('g2', false, 2)
+    fireEvent.click(screen.getByRole('link', { name: 'Gig 2' }))
+    expect(logRecommendationClick).toHaveBeenCalledWith('g2', 2)
+    expect(logSearchClick).not.toHaveBeenCalled()
+  })
+
+  it('never shows a score or match label on a pick', async () => {
+    fetchRecommendations.mockResolvedValue(answer({ results: [makeGig(1, { score: 0.4321 })] }))
+    band()
+    await screen.findByRole('link', { name: 'Gig 1' })
+    expect(screen.queryByText(/0\.43|43|%/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/strong match|good match|best match|top pick/i)).not.toBeInTheDocument()
+  })
+
+  it('shows the same honest messages when there is nothing to show', async () => {
+    fetchRecommendations.mockResolvedValue(answer({ reason: 'no_skills', results: [], count: 0 }))
+    band()
+    expect(await screen.findByText(/Add skills to your profile/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Edit your skills' })).toHaveAttribute('href', '/profile/edit')
   })
 })

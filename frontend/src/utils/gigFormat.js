@@ -46,3 +46,9 @@ export function formatRelativeTime(isoDateTimeString) {
   const years = Math.floor(months / 12)
   return `${years} year${years === 1 ? '' : 's'} ago`
 }
+
+// "29 Oct", as on the Direction B gig cards.
+export function formatShortDate(isoDateString) {
+  if (!isoDateString) return ''
+  return new Date(`${isoDateString}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+}

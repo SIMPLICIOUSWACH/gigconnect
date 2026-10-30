@@ -14,6 +14,7 @@ from profiles.models import Skill
 
 from . import registry
 from .recommend import recommend
+from .testing import HYBRID_MECHANICS
 from .training import train
 
 NON_APPLY_TYPES = {'view', 'search_click', 'save', 'recommendation_click'}
@@ -50,6 +51,8 @@ class SeedInteractionsTests(TestCase):
             )
             gig.skills.set([self.skills['P' if number < 15 else 'X']])
             self.gigs.append(gig)
+        # The gigs were posted 40 days ago, so there is a month of room to date interactions in.
+        Gig.objects.update(created_at=timezone.now() - timedelta(days=40))
         self.group_p_gigs = {gig.id for gig in self.gigs[:15]}
 
     def make_user(self, email, role):
@@ -108,9 +111,10 @@ class SeedInteractionsTests(TestCase):
             gigs = set(GigInteraction.objects.filter(user=user).values_list('gig_id', flat=True))
             in_group = gigs & self.group_p_gigs if number <= 6 else gigs - self.group_p_gigs
             own_share.append(len(in_group) / len(gigs))
-        # Half the gigs share each freelancer's skill, so picking at random would give about 0.5. A
-        # preference of 5 to 1 gives about 0.8 or more when 15 of 30 gigs are chosen.
-        self.assertGreater(sum(own_share) / len(own_share), 0.7)
+        # Half the gigs share each freelancer's skill, so picking at random would give about 0.5 (give or take
+        # 0.03 for this average). A preference of 5 to 1 gives about 0.76 when 15 of 30 gigs are chosen, and the
+        # ids are random so it varies a little. 0.62 is far from chance and was never reached in 20,000 trials.
+        self.assertGreater(sum(own_share) / len(own_share), 0.62)
 
     def test_the_same_seed_gives_the_same_rows(self):
         run('--per-freelancer', '10', '--seed', '7')
@@ -136,6 +140,19 @@ class SeedInteractionsTests(TestCase):
         self.assertLessEqual(max(ages), 30)
         self.assertGreater(len(set(ages)), 10)  # not all on one day
 
+    def test_no_interaction_is_dated_before_its_gig_existed(self):
+        # Gigs posted only 3 days ago leave only 3 days of room, so nothing may be dated earlier than that.
+        Gig.objects.update(created_at=timezone.now() - timedelta(days=3))
+        run('--per-freelancer', '15')
+        for row in GigInteraction.objects.select_related('gig'):
+            self.assertGreaterEqual(row.created_at, row.gig.created_at)
+
+    def test_gigs_posted_just_now_leave_no_room_so_everything_is_dated_now(self):
+        Gig.objects.update(created_at=timezone.now())
+        run('--per-freelancer', '5')
+        for row in GigInteraction.objects.select_related('gig'):
+            self.assertGreaterEqual(row.created_at, row.gig.created_at)
+
     def test_delete_removes_only_seeded_interactions_not_real_ones_or_seeded_applies(self):
         real = User.objects.create_user(
             email='real-person@example.com', password='x-Real-pass-1', full_name='Real', phone='254700050999',
@@ -150,7 +167,10 @@ class SeedInteractionsTests(TestCase):
         self.assertEqual(set(GigInteraction.objects.all()), {real_row, seeded_apply})
 
 
-@override_settings(DEBUG=True, RECOMMENDER_TFIDF_MIN_DF=1, RECOMMENDER_TFIDF_MAX_DF=1.0, RECOMMENDATIONS_ENABLED=True)
+@override_settings(
+    DEBUG=True, RECOMMENDER_TFIDF_MIN_DF=1, RECOMMENDER_TFIDF_MAX_DF=1.0, RECOMMENDATIONS_ENABLED=True,
+    **HYBRID_MECHANICS,
+)
 class SeedThenTrainTests(SeedInteractionsTests):
     """The point of the command: seeded data plus training gives a model where both parts run."""
 
@@ -181,7 +201,7 @@ class SeedThenTrainTests(SeedInteractionsTests):
         model = registry.availability().model
         result = recommend(model, self.freelancers[0])  # a group P freelancer
         self.assertFalse(result.cold_start)  # 15 gigs of history
-        top = [r.gig.id for r in result.results[:5]]
+        top = [r.gig_id for r in result.results[:5]]
         self.assertTrue(set(top) <= self.group_p_gigs)
         self.assertIn('hybrid', {r.source for r in result.results})
 

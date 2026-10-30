@@ -14,6 +14,7 @@ import VerifyEmail from './pages/VerifyEmail'
 import VerifyPhone from './pages/VerifyPhone'
 import ProfileSetup from './pages/ProfileSetup'
 import PublicProfile from './pages/PublicProfile'
+import ProfileEditPage from './pages/profile/ProfileEditPage'
 import Dashboard from './pages/Dashboard'
 import GigForm from './pages/gigs/GigForm'
 import GigDetail from './pages/gigs/GigDetail'
@@ -27,7 +28,6 @@ import SecuritySettings from './pages/settings/SecuritySettings'
 import NotificationSettings from './pages/settings/NotificationSettings'
 import PrivacySettings from './pages/settings/PrivacySettings'
 import CompanyProfileSettings from './pages/settings/CompanyProfileSettings'
-import FreelancerProfileSettings from './pages/settings/FreelancerProfileSettings'
 import VerificationSettings from './pages/settings/VerificationSettings'
 
 function App() {
@@ -55,6 +55,7 @@ function App() {
 
             <Route element={<RoleRoute role="freelancer" />}>
               <Route path="/applications" element={<MyApplications />} />
+              <Route path="/profile/edit" element={<ProfileEditPage />} />
             </Route>
 
             <Route element={<RoleRoute role="client" />}>
@@ -75,7 +76,7 @@ function App() {
                 <Route path="company-profile" element={<CompanyProfileSettings />} />
               </Route>
               <Route element={<RoleRoute role="freelancer" />}>
-                <Route path="freelancer-profile" element={<FreelancerProfileSettings />} />
+                <Route path="freelancer-profile" element={<Navigate to="/profile/edit" replace />} />
                 <Route path="verification" element={<VerificationSettings />} />
               </Route>
             </Route>

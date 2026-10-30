@@ -1,5 +1,6 @@
 from datetime import date
 
+from django.db import transaction
 from rest_framework import serializers
 
 from profiles.models import Skill
@@ -12,6 +13,14 @@ class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
         fields = ['id', 'name', 'slug', 'description']
+
+
+class CategoryListSerializer(CategorySerializer):
+    # Gigs in the public feed (see feed.apply_feed_rules). Annotated by CategoryListView.
+    open_gig_count = serializers.IntegerField(read_only=True)
+
+    class Meta(CategorySerializer.Meta):
+        fields = CategorySerializer.Meta.fields + ['open_gig_count']
 
 
 class GigListSerializer(serializers.ModelSerializer):
@@ -157,11 +166,13 @@ class GigUpdateSerializer(GigValidationMixin, serializers.ModelSerializer):
         return super().validate(attrs)
 
     def update(self, instance, validated_data):
+        # The skills are set before the save, in one transaction, so the gig's new updated_at always comes with its
+        # new skills. The recommender's gig cache relies on that to know an entry is out of date.
         skills = validated_data.pop('skills', None)
-        instance = super().update(instance, validated_data)
-        if skills is not None:
-            instance.skills.set(skills)
-        return instance
+        with transaction.atomic():
+            if skills is not None:
+                instance.skills.set(skills)
+            return super().update(instance, validated_data)
 
 
 ALLOWED_STATUS_TRANSITIONS = {
