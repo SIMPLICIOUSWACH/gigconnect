@@ -221,6 +221,34 @@ worked out: no model, or an applicant with no skills and no bio, or an applicant
 A score of 0 means the model compared them and found nothing in common. Only the gig's owner can open this
 list, and an applicant's own views of their application never contain these fields.
 
+## Notifications (`/api/`)
+
+Every endpoint needs a login and only ever touches the signed-in user's own notifications.
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/notifications/` | Newest first, paginated. `?unread=true` for unread ones only |
+| GET | `/api/notifications/unread-count/` | `{"unread": n}`, the number on the bell |
+| POST | `/api/notifications/<id>/read/` | Mark one as read. Someone else's gives 404 |
+| POST | `/api/notifications/read-all/` | Mark all as read. Returns `{"marked": n}` |
+
+What creates them, and which setting (`/api/settings/notifications/`) controls each channel:
+
+| Event | Who is told | Setting |
+|---|---|---|
+| A freelancer applies or withdraws | The gig's client | `new_application` |
+| A client changes an application's status | The freelancer | `status_change` |
+| A new gig shares a skill with a freelancer | Up to `NOTIFICATION_MATCH_LIMIT` (500) active, verified freelancers, oldest accounts first | `new_match` |
+| The password is changed | The account holder | `security_alert` |
+| An admin removes or restores a gig or application, or decides an ID check | The person affected | Email follows `status_change`; the in-app notice is always written |
+| An admin suspends or reinstates an account | The person affected | Email follows `security_alert`; the in-app notice is always written |
+
+**Delivery.** Emails go out after the database transaction commits, and a mail failure is logged without failing the
+request. The bell checks the unread count every 30 seconds and when the tab comes back into view, so in-app
+notifications appear within about half a minute. There are no WebSockets, so this is near real time, not instant.
+
+A notification's text is included in the data export and deleted with the account.
+
 ## Seeding sample data (development only)
 
 Every seed command refuses to run when `DEBUG` is `False`, marks what it creates `is_synthetic`, and needs
