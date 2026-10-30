@@ -41,14 +41,14 @@ class ResolveTests(SimpleTestCase):
 
 
 class ProfileValuesTests(SimpleTestCase):
-    """The values are the tuning picks: skill-overlap for production, planted for demo."""
+    """The tuning picks: skill-overlap for production, planted for demo. Production's weight is chosen by hand."""
 
     def setUp(self):
         self.profiles = rp.load()
 
-    def test_production_is_the_skill_overlap_pick_content_only(self):
+    def test_production_is_the_skill_overlap_pick_with_a_chosen_collaborative_weight(self):
         values = self.profiles['production']
-        self.assertEqual(values['blend_max_weight'], 0.0)
+        self.assertEqual(values['blend_max_weight'], 0.5)
         self.assertEqual((values['band_good'], values['band_strong']), (0.13, 0.27))
         self.assertIsNone(values['database'])
         self.assertEqual((values['artifact_folder'], values['snapshot_folder']), ('', 'platform'))

@@ -81,11 +81,11 @@ live in `backend/config/recommender_profiles.json`, not in code.
 | | production (the default) | demo |
 |---|---|---|
 | Database | the ordinary one (`DB_NAME`, normally `gigconnect`) | `gigconnect_planted`, always |
-| Largest collaborative weight | 0, so recommendations are content only | 0.5 |
+| Largest collaborative weight | 0.5, chosen by hand (tuning picked 0, see `docs/recommender.md`) | 0.5 |
 | Ramp, factors, cold start | 20 gigs, 20 factors, below 5 gigs | 50 gigs, 2 factors, below 10 gigs |
 | Match band cut-offs (good, strong) | 0.13, 0.27 | 0.35, 0.6 |
 | Trained models and snapshot | `recommendations/artifacts/`, `datasets/platform/` | `recommendations/artifacts/demo/`, `datasets/platform/demo/` |
-| Where the values come from | tuning on the skill-overlap seed data | tuning on the planted data |
+| Where the values come from | tuning on the skill-overlap seed data, except the weight | tuning on the planted data |
 
 - If the variable is missing, production is used. Any other name is refused.
 - The demo profile refuses to start unless it is connected to the planted database, and only planted accounts are in

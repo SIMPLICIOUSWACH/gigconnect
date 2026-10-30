@@ -221,13 +221,13 @@ describe('RecommendedForYou as the Picked for you band', () => {
   })
 
   const band = (props = {}) =>
-    renderSection({ variant: 'band', heading: 'Picked for you, Amina', subheading: 'Based on the skills on your profile.', ...props })
+    renderSection({ variant: 'band', heading: 'Picked for you, Amina', subheading: 'Based on your skills and the gigs you show interest in.', ...props })
 
   it('shows the heading and subheading, and each pick as a card with its budget', async () => {
     fetchRecommendations.mockResolvedValue(answer({ results: [makeGig(1), makeGig(2)], count: 2 }))
     band({ limit: 10 })
     expect(screen.getByRole('heading', { name: 'Picked for you, Amina' })).toBeInTheDocument()
-    expect(screen.getByText('Based on the skills on your profile.')).toBeInTheDocument()
+    expect(screen.getByText('Based on your skills and the gigs you show interest in.')).toBeInTheDocument()
     expect(await screen.findByRole('link', { name: 'Gig 1' })).toHaveAttribute('href', '/gigs/g1')
     expect(screen.getAllByText('KES 1,000 – 2,000')).toHaveLength(2)
     expect(fetchRecommendations).toHaveBeenCalledWith({ page_size: 10 })
