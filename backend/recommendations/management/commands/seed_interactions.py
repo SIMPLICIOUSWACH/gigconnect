@@ -8,6 +8,7 @@ from django.db.models import F
 
 from accounts.models import User
 from gigs.models import Gig, GigInteraction
+from gigs.seed_helpers import ordered_by_preference, room_before_now, skill_ids_by_gig
 
 # How the seeded interactions are split. Applications are not made here: seed_applications does that,
 # together with the matching `apply` interaction.
@@ -19,11 +20,10 @@ TYPES = [
 ]
 CLICK_TYPES = {GigInteraction.Type.SEARCH_CLICK, GigInteraction.Type.RECOMMENDATION_CLICK}
 
-# A gig that shares a skill with the freelancer is this many times more likely to be picked than one that
-# does not, so freelancers with similar skills end up with similar histories. That is the pattern the
-# collaborative model looks for. It is made-up sample behaviour, not evidence about real freelancers.
-SKILL_PREFERENCE = 5
-SPREAD_DAYS = 30
+# Gigs that share a skill with the freelancer are about five times more likely to be picked (see
+# gigs/seed_helpers.py), so freelancers with similar skills end up with similar histories. That is the pattern
+# the collaborative model looks for. It is made-up sample behaviour, not evidence about real freelancers.
+SPREAD_DAYS = 30  # interactions are dated within the last month, and never before their gig existed
 
 
 class Command(BaseCommand):
@@ -70,7 +70,7 @@ class Command(BaseCommand):
         already = set(
             GigInteraction.objects.filter(is_synthetic=True, user__in=freelancers).values_list('user_id', 'gig_id')
         )
-        gig_skills = {gig.id: {skill.id for skill in gig.skills.all()} for gig in gigs}
+        gig_skills = skill_ids_by_gig(gigs)
         kinds = [kind for kind, _ in TYPES]
         shares = [share for _, share in TYPES]
 
@@ -80,7 +80,7 @@ class Command(BaseCommand):
             # not depend on anyone else's, so a rerun picks the same gigs and only fills in what is missing.
             rng = random.Random(f'{options["seed"]}-{user.id}')
             own = {skill.id for skill in user.freelancer_profile.skills.all()}
-            for gig in self._pick(rng, gigs, gig_skills, own, options['per_freelancer']):
+            for gig in ordered_by_preference(rng, gigs, gig_skills, own)[:options['per_freelancer']]:
                 if (user.id, gig.id) in already:
                     continue
                 kind = rng.choices(kinds, weights=shares)[0]
@@ -89,24 +89,12 @@ class Command(BaseCommand):
                     position=rng.randint(1, 10) if kind in CLICK_TYPES else None,
                 )
                 rows.append(row)
-                days_by_id[row.id] = rng.randint(0, SPREAD_DAYS - 1)
+                days_by_id[row.id] = rng.randint(0, min(SPREAD_DAYS - 1, room_before_now(gig).days))
         GigInteraction.objects.bulk_create(rows)
         self._spread_over_days(days_by_id)
         self.stdout.write(self.style.SUCCESS(
             f'Created {len(rows)} seeded interaction(s) for {len(freelancers)} freelancer(s) on {len(gigs)} gig(s).'
         ))
-
-    def _pick(self, rng, gigs, gig_skills, own_skills, count):
-        """
-        Choose `count` different gigs, favouring those that share a skill. This is weighted sampling without
-        replacement: each gig gets a random key raised to the power 1 / weight, and the largest keys win.
-        """
-        keyed = []
-        for gig in gigs:
-            weight = SKILL_PREFERENCE if own_skills & gig_skills[gig.id] else 1
-            keyed.append((rng.random() ** (1 / weight), str(gig.id), gig))
-        keyed.sort(key=lambda item: (item[0], item[1]), reverse=True)
-        return [gig for _, _, gig in keyed[:count]]
 
     def _spread_over_days(self, days_by_id):
         """Make the interactions look like they happened over the last month, not all just now."""

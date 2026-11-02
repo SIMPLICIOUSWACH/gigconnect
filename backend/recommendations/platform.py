@@ -26,8 +26,10 @@ def freelancers_for_training(include_synthetic=True):
 
 
 def gigs_for_training(include_synthetic=True):
-    """Gigs with their text, skills and category, whatever their status."""
-    gigs = Gig.objects.select_related('category').prefetch_related('skills')
+    """Gigs with their text, skills and category, whatever their status, except gigs an admin removed."""
+    gigs = Gig.objects.filter(moderation_status=Gig.Moderation.VISIBLE).select_related('category').prefetch_related(
+        'skills'
+    )
     if not include_synthetic:
         gigs = gigs.filter(is_synthetic=False)
     return gigs
@@ -36,20 +38,22 @@ def gigs_for_training(include_synthetic=True):
 def interactions_for_training(include_synthetic=True):
     """
     Signed-in freelancers' interactions. Anonymous visitors cannot be matched to a freelancer, and a
-    synthetic interaction or a synthetic freelancer both count as synthetic.
+    synthetic interaction or a synthetic freelancer both count as synthetic. Answers to "Is this gig relevant to
+    you?" are left out: they are for user acceptance testing and never feed training.
     """
     interactions = GigInteraction.objects.filter(
         user__isnull=False, user__role=User.Role.FREELANCER, user__is_active=True, user__deleted_at__isnull=True,
-    )
+    ).exclude(type__in=GigInteraction.RELEVANCE_TYPES)
     if not include_synthetic:
         interactions = interactions.filter(is_synthetic=False, user__is_synthetic=False)
     return interactions
 
 
 def applications_for_training(include_synthetic=True):
-    """Applications of active, non-deleted freelancers."""
+    """Applications of active, non-deleted freelancers, except applications an admin removed."""
     applications = Application.objects.filter(
         freelancer__is_active=True, freelancer__deleted_at__isnull=True,
+        moderation_status=Application.Moderation.VISIBLE,
     )
     if not include_synthetic:
         applications = applications.filter(is_synthetic=False, freelancer__is_synthetic=False)

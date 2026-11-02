@@ -29,7 +29,16 @@ class Category(models.Model):
         return self.name
 
 
+class ModerationStatus(models.TextChoices):
+    """Set by an admin, separately from a gig's or application's own status, so a restore puts it back as it was."""
+
+    VISIBLE = 'visible', 'Visible'
+    REMOVED = 'removed', 'Removed'
+
+
 class Gig(models.Model):
+    Moderation = ModerationStatus
+
     class Status(models.TextChoices):
         OPEN = 'open', 'Open'
         IN_PROGRESS = 'in_progress', 'In Progress'
@@ -63,6 +72,12 @@ class Gig(models.Model):
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.OPEN)
     skills = models.ManyToManyField(Skill, through='GigSkill', related_name='gigs')
     view_count = models.PositiveIntegerField(default=0)
+    # A removed gig is hidden everywhere but its owner's My gigs, where it is read-only. See gigs/feed.py.
+    moderation_status = models.CharField(
+        max_length=10, choices=ModerationStatus.choices, default=ModerationStatus.VISIBLE
+    )
+    removed_reason = models.TextField(blank=True)
+    removed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -97,6 +112,10 @@ class Gig(models.Model):
     def __str__(self):
         return self.title
 
+    @property
+    def is_removed(self):
+        return self.moderation_status == ModerationStatus.REMOVED
+
 
 class GigSkill(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -122,6 +141,13 @@ class GigInteraction(models.Model):
         APPLY = 'apply', 'Apply'  # written by the applications flow (Sprint 4)
         # Opening a gig from the "Recommended for You" list. Position is its place in that list.
         RECOMMENDATION_CLICK = 'recommendation_click', 'Recommendation click'
+        # A freelancer's answer to "Is this gig relevant to you?" on a recommended gig (Sprint 6, for user acceptance
+        # testing). One answer per freelancer and gig: a new answer replaces the old one. Position is the gig's place
+        # in the list when it was rated. These never feed training (recommendations/platform.py leaves them out).
+        RECOMMENDATION_RELEVANT = 'recommendation_relevant', 'Rated relevant'
+        RECOMMENDATION_NOT_RELEVANT = 'recommendation_not_relevant', 'Rated not relevant'
+
+    RELEVANCE_TYPES = (Type.RECOMMENDATION_RELEVANT, Type.RECOMMENDATION_NOT_RELEVANT)
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     # Null for anonymous visitors, who are identified by session_key instead.
@@ -130,7 +156,7 @@ class GigInteraction(models.Model):
     )
     session_key = models.CharField(max_length=40, blank=True)
     gig = models.ForeignKey(Gig, on_delete=models.CASCADE, related_name='interactions')
-    type = models.CharField(max_length=20, choices=Type.choices)
+    type = models.CharField(max_length=30, choices=Type.choices)
     # The search text and the result's rank when this came from a search; null otherwise.
     query = models.TextField(null=True, blank=True)
     position = models.PositiveIntegerField(null=True, blank=True)

@@ -5,8 +5,8 @@ export default function SidebarItem({ to, icon: Icon, label }) {
     <NavLink
       to={to}
       className={({ isActive }) =>
-        `flex items-center gap-3 pl-4 pr-3 py-3 rounded-lg text-nav transition-colors duration-150 ${
-          isActive ? 'bg-primary text-white' : 'text-muted hover:bg-bg hover:text-ink'
+        `flex items-center gap-3 pl-4 pr-3 py-3 rounded-pill text-nav transition-colors duration-150 ${
+          isActive ? 'bg-ink text-white font-semibold' : 'text-ink-soft hover:bg-sand hover:text-ink'
         }`
       }
     >

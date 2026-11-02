@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from . import skills as skill_names
+from .id_documents import validate_id_document
 from .models import ClientProfile, FreelancerProfile, PortfolioItem, Skill
 
 
@@ -65,10 +66,16 @@ class FreelancerProfileCompleteSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = FreelancerProfile
-        fields = ['bio', 'county', 'profile_photo', 'skills']
+        fields = [
+            'bio', 'county', 'profile_photo', 'skills',
+            'headline', 'starting_price', 'is_available', 'profile_colour',
+        ]
 
     def validate_county(self, value):
         return value or None
+
+    def validate_headline(self, value):
+        return value.strip()
 
 
 class FreelancerProfileSerializer(serializers.ModelSerializer):
@@ -76,13 +83,25 @@ class FreelancerProfileSerializer(serializers.ModelSerializer):
     skills = SkillSerializer(many=True, read_only=True)
     portfolio_items = PortfolioItemSerializer(many=True, read_only=True)
     verified = serializers.BooleanField(read_only=True)
+    gigs_completed = serializers.SerializerMethodField()
+    member_since = serializers.DateTimeField(source='user.created_at', read_only=True)
 
     class Meta:
         model = FreelancerProfile
         fields = [
-            'bio', 'county', 'profile_photo', 'skills', 'portfolio_items',
-            'verification_status', 'verified',
+            'headline', 'bio', 'county', 'profile_photo', 'skills', 'portfolio_items',
+            'starting_price', 'is_available', 'profile_colour',
+            'verification_status', 'verified', 'gigs_completed', 'member_since',
         ]
+
+    def get_gigs_completed(self, obj):
+        # Gigs the freelancer was hired for and the client then marked completed.
+        from applications.models import Application
+        from gigs.models import Gig
+
+        return Application.objects.filter(
+            freelancer_id=obj.user_id, status=Application.Status.HIRED, gig__status=Gig.Status.COMPLETED
+        ).count()
 
 
 class PublicProfileSerializer(serializers.Serializer):
@@ -111,24 +130,7 @@ class SubmitVerificationSerializer(serializers.ModelSerializer):
         model = FreelancerProfile
         fields = ['id_number', 'id_document']
 
-
-class AdminVerificationListSerializer(serializers.ModelSerializer):
-    email = serializers.EmailField(source='user.email', read_only=True)
-    full_name = serializers.CharField(source='user.full_name', read_only=True)
-
-    class Meta:
-        model = FreelancerProfile
-        fields = ['id', 'email', 'full_name', 'verification_status']
+    def validate_id_document(self, value):
+        return validate_id_document(value)
 
 
-class AdminVerificationUpdateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = FreelancerProfile
-        fields = ['id', 'verification_status']
-        read_only_fields = ['id']
-
-    def validate_verification_status(self, value):
-        allowed = (FreelancerProfile.VerificationStatus.VERIFIED, FreelancerProfile.VerificationStatus.REJECTED)
-        if value not in allowed:
-            raise serializers.ValidationError('Status must be either "verified" or "rejected".')
-        return value

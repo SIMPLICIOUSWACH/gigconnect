@@ -54,7 +54,7 @@ class ApplicationListSerializer(serializers.ModelSerializer):
         model = Application
         fields = [
             'id', 'gig_id', 'gig_title', 'gig_status', 'client_name', 'status', 'proposed_rate',
-            'created_at', 'updated_at',
+            'created_at', 'updated_at', 'moderation_status', 'removed_reason',
         ]
 
 

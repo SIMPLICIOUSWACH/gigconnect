@@ -1,6 +1,8 @@
 import { Link, useLocation } from 'react-router-dom'
+import { ArrowRight } from 'lucide-react'
 import { logSearchClick } from '../../api/gigs'
-import { formatBudget, formatDate, formatRelativeTime, isApplicationClosed, isUrgent } from '../../utils/gigFormat'
+import { formatBudget, formatShortDate, isApplicationClosed, isUrgent } from '../../utils/gigFormat'
+import { categoryColour, initials } from '../../utils/palette'
 
 const STATUS_LABELS = {
   in_progress: 'In Progress',
@@ -24,61 +26,78 @@ export default function GigCard({ gig, position, query, onOpen }) {
   const applicationsClosed = !statusBadge && isApplicationClosed(gig.application_deadline)
   const visibleSkills = gig.skills.slice(0, 4)
   const extraCount = gig.skills.length - visibleSkills.length
+  const colour = categoryColour(gig.category.slug || gig.category.name)
+  const where = locationLabel(gig)
+
+  const linkProps = {
+    to: `/gigs/${gig.id}`,
+    state: { from: `${location.pathname}${location.search}` },
+    onClick: () => (onOpen ? onOpen(gig, position) : logSearchClick(gig.id, { query, position })),
+  }
 
   return (
-    <div className="bg-surface rounded-xl border border-border p-6 hover:border-primary/40 transition-colors flex flex-col">
-      <div className="flex items-start justify-between gap-3 mb-2">
-        <Link
-          to={`/gigs/${gig.id}`}
-          state={{ from: `${location.pathname}${location.search}` }}
-          onClick={() => (onOpen ? onOpen(gig, position) : logSearchClick(gig.id, { query, position }))}
-          className="text-section-title text-ink hover:text-primary"
-        >
-          {gig.title}
-        </Link>
-        {urgent && (
-          <span className="text-caption font-medium px-2.5 py-1 rounded-full bg-red-50 text-red-700 shrink-0">
-            Urgent
-          </span>
+    <article className="bg-surface rounded-card p-[22px] flex flex-col gap-3.5 shadow-hairline">
+      <div className="flex flex-wrap gap-1.5">
+        <span className={`text-badge px-[11px] py-[5px] rounded-pill ${colour}`}>{gig.category.name}</span>
+        {urgent && !statusBadge && (
+          <span className="text-badge px-[11px] py-[5px] rounded-pill bg-coral-deep text-white">Urgent</span>
         )}
         {(statusBadge || applicationsClosed) && (
-          <span className="text-caption font-medium px-2.5 py-1 rounded-full bg-bg text-muted shrink-0">
+          <span className="text-badge px-[11px] py-[5px] rounded-pill bg-sand text-ink-soft">
             {statusBadge || 'Applications closed'}
           </span>
         )}
       </div>
 
-      <p className="text-body text-muted mb-3">
-        {gig.client_name} · {gig.category.name}
-        {locationLabel(gig) && ` · ${locationLabel(gig)}`}
-      </p>
+      <h3 className="font-display text-card-title">
+        <Link {...linkProps} className="text-ink hover:text-primary">
+          {gig.title}
+        </Link>
+      </h3>
 
-      <div className="flex flex-wrap gap-2 mb-4">
-        {visibleSkills.map((skill) => (
-          <span
-            key={skill.id}
-            className="text-caption font-medium px-2.5 py-1 rounded-full bg-primary-light text-primary"
-          >
-            {skill.name}
-          </span>
-        ))}
-        {extraCount > 0 && (
-          <span className="text-caption font-medium px-2.5 py-1 rounded-full bg-bg text-muted">
-            +{extraCount} more
-          </span>
-        )}
+      <div className="flex flex-wrap items-center gap-2.5">
+        <span
+          aria-hidden="true"
+          className={`w-[34px] h-[34px] rounded-full flex items-center justify-center font-bold text-[12px] ${colour}`}
+        >
+          {initials(gig.client_name)}
+        </span>
+        <span className="text-[14px] font-medium">{gig.client_name}</span>
+        {where && <span className="text-caption text-muted">· {where}</span>}
       </div>
 
-      <div className="flex items-end justify-between gap-4 pt-4 mt-auto border-t border-border">
-        <div>
-          <p className="text-section-title text-primary">{formatBudget(gig)}</p>
-          {gig.is_negotiable && <p className="text-caption text-muted mt-0.5">Negotiable</p>}
+      {visibleSkills.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {visibleSkills.map((skill) => (
+            <span key={skill.id} className="text-caption text-ink-soft bg-sand px-[11px] py-[5px] rounded-pill">
+              {skill.name}
+            </span>
+          ))}
+          {extraCount > 0 && (
+            <span className="text-caption text-muted bg-sand px-[11px] py-[5px] rounded-pill">+{extraCount} more</span>
+          )}
         </div>
-        <div className="text-right">
-          <p className="text-caption text-muted">Deadline {formatDate(gig.deadline)}</p>
-          <p className="text-caption text-muted mt-0.5">Posted {formatRelativeTime(gig.created_at)}</p>
+      )}
+
+      <div className="mt-auto flex flex-wrap items-center justify-between gap-3 pt-3.5 border-t border-dashed border-divider">
+        <div className="flex flex-col gap-0.5">
+          <span className="font-display text-[22px] font-extrabold tracking-[-0.01em] tabular-nums">
+            {formatBudget(gig)}
+          </span>
+          <span className="text-caption text-muted">
+            {gig.is_negotiable ? 'Negotiable' : 'Fixed price'}
+            {gig.application_deadline && ` · Apply by ${formatShortDate(gig.application_deadline)}`}
+          </span>
         </div>
+        <Link
+          {...linkProps}
+          aria-label={`Apply: ${gig.title}`}
+          className="inline-flex items-center gap-2 min-h-[46px] px-5 rounded-button bg-coral text-ink text-[15px] font-bold hover:bg-coral/90"
+        >
+          Apply
+          <ArrowRight size={16} strokeWidth={2.2} aria-hidden="true" />
+        </Link>
       </div>
-    </div>
+    </article>
   )
 }

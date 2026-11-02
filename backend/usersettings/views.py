@@ -12,15 +12,13 @@ from accounts.otp import issue_otp
 from accounts.serializers import UserSerializer
 from applications.privacy import erase_applications, export_applications
 from gigs.models import GigInteraction
+from notifications import events
+from notifications.models import Notification
+from notifications.serializers import NotificationSerializer
 
 from .models import NotificationPreference, UserSession
 from .serializers import AccountSettingsSerializer, NotificationPreferenceSerializer, UserSessionSerializer
-
-
-def _blacklist_all_tokens(user):
-    for token in OutstandingToken.objects.filter(user=user):
-        BlacklistedToken.objects.get_or_create(token=token)
-    UserSession.objects.filter(user=user).delete()
+from .sessions import revoke_all_sessions
 
 
 class AccountSettingsView(APIView):
@@ -65,7 +63,8 @@ class ChangePasswordView(APIView):
 
         user.set_password(new_password)
         user.save(update_fields=['password'])
-        _blacklist_all_tokens(user)
+        revoke_all_sessions(user)
+        events.password_changed(user)
 
         return Response({'detail': 'Password changed. All sessions have been logged out.'})
 
@@ -101,7 +100,7 @@ class LogoutAllView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        _blacklist_all_tokens(request.user)
+        revoke_all_sessions(request.user)
         return Response({'detail': 'Logged out of all devices.'})
 
 
@@ -125,6 +124,7 @@ class ExportDataView(APIView):
             'user': UserSerializer(user).data,
             'notification_preferences': NotificationPreferenceSerializer(preference).data,
             'applications': export_applications(user),
+            'notifications': NotificationSerializer(user.notifications.order_by('created_at'), many=True).data,
             'gig_interactions': [
                 {
                     'type': i.type,
@@ -153,6 +153,7 @@ class DeleteAccountView(APIView):
             # Browsing history is personal data and has no use once the account is gone, so it is
             # deleted outright rather than anonymised.
             GigInteraction.objects.filter(user=user).delete()
+            Notification.objects.filter(recipient=user).delete()
 
             # Applications are shared with the client reviewing them, so they are emptied of
             # personal text and closed rather than deleted. See applications/privacy.py.
@@ -166,6 +167,6 @@ class DeleteAccountView(APIView):
             user.set_unusable_password()
             user.save()
 
-        _blacklist_all_tokens(user)
+        revoke_all_sessions(user)
 
         return Response({'detail': 'Account deleted.'})
