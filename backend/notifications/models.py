@@ -6,8 +6,8 @@ from django.db import models
 
 class Notification(models.Model):
     """
-    A message to one user, shown in the app. Sprint 7 adds the list endpoint and the bell; for now the admin
-    actions write these, so nothing an admin does to someone's account goes unexplained.
+    A message to one user, shown under the bell in the header. See notifications/events.py for what creates them,
+    and adminpanel/moderation.py for the notices about admin actions.
     """
 
     class Kind(models.TextChoices):
@@ -19,6 +19,11 @@ class Notification(models.Model):
         APPLICATION_RESTORED = 'application_restored', 'Application restored'
         VERIFICATION_APPROVED = 'verification_approved', 'ID verification approved'
         VERIFICATION_REJECTED = 'verification_rejected', 'ID verification rejected'
+        NEW_APPLICATION = 'new_application', 'New application'
+        APPLICATION_WITHDRAWN = 'application_withdrawn', 'Application withdrawn'
+        APPLICATION_STATUS = 'application_status', 'Application status changed'
+        NEW_GIG_MATCH = 'new_gig_match', 'New gig match'
+        PASSWORD_CHANGED = 'password_changed', 'Password changed'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     recipient = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='notifications')

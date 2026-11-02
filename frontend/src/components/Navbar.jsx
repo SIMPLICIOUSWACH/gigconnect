@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import NotificationBell from './notifications/NotificationBell'
 import { initials, profileColour } from '../utils/palette'
 
 export const PROFILE_EDIT_PATH = '/profile/edit'
@@ -120,7 +121,8 @@ export default function Navbar() {
                 </NavLink>
               ))}
             </nav>
-            <div className="ml-auto sm:ml-0">
+            <div className="ml-auto sm:ml-0 flex items-center gap-1.5">
+              <NotificationBell />
               <AccountMenu user={user} onLogout={handleLogout} />
             </div>
           </>

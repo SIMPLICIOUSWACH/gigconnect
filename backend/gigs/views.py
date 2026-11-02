@@ -1,4 +1,5 @@
 
+from django.db import transaction
 from django.db.models import Count, F, Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404
@@ -10,6 +11,7 @@ from rest_framework.views import APIView
 
 from accounts.permissions import IsClientRole, IsEmailVerified
 from applications.models import Application
+from notifications import events
 
 from .feed import apply_feed_rules, hidden_from
 from .filters import GigFilterSerializer, apply_gig_filters
@@ -78,7 +80,9 @@ class GigListCreateView(generics.ListCreateAPIView):
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        gig = serializer.save()
+        with transaction.atomic():
+            gig = serializer.save()
+            events.new_gig_match(gig)
         detail = GigDetailSerializer(gig, context=self.get_serializer_context())
         return Response(detail.data, status=http_status.HTTP_201_CREATED)
 

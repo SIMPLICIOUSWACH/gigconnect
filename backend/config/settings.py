@@ -150,6 +150,8 @@ CORS_ALLOWED_ORIGINS = os.environ.get(
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 DEFAULT_FROM_EMAIL = 'GigConnect <no-reply@gigconnect.local>'
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
+# The most freelancers told about one new gig, so posting a gig can't send an unbounded batch of mail.
+NOTIFICATION_MATCH_LIMIT = 500
 
 # Synthetic rows (from the seed and data-pipeline commands) are shown in the public feed in dev
 # only, unless SHOW_SYNTHETIC is set explicitly.

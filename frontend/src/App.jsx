@@ -18,6 +18,7 @@ import ProfileSetup from './pages/ProfileSetup'
 import PublicProfile from './pages/PublicProfile'
 import ProfileEditPage from './pages/profile/ProfileEditPage'
 import Dashboard from './pages/Dashboard'
+import NotificationsPage from './pages/NotificationsPage'
 import GigForm from './pages/gigs/GigForm'
 import GigDetail from './pages/gigs/GigDetail'
 import BrowseGigs from './pages/gigs/BrowseGigs'
@@ -68,6 +69,7 @@ function App() {
 
           <Route element={<Layout />}>
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/profile/:id" element={<PublicProfile />} />
             <Route path="/gigs" element={<BrowseGigs />} />
             <Route path="/gigs/:id" element={<GigDetail />} />

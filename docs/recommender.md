@@ -443,8 +443,7 @@ Compared with the written proposal (shared in Sprint 6):
 - **Production runs the hybrid at a weight tuning did not pick.** Tuning on the validation split chose a weight of 0,
   because the seed data has no collaborative pattern. The project owner set 0.5 so the hybrid the proposal describes
   is live. The reported production scores are for weight 0.
-- **No stored recommendations table and no notifications table.** Recommendations are worked out on each request.
-  Notifications (real-time and email) are not built yet; they are planned first in Sprint 7.
+- **No stored recommendations table.** Recommendations are worked out on each request.
 - **The model is loaded the first time it is needed, not at startup**, so a missing or broken model can never stop the
   app from starting.
 - **Text choices instead of database ENUMs.** Statuses and types are Django text choices, checked by the app, not

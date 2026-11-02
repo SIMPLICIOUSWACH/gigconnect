@@ -26,6 +26,7 @@ from accounts.permissions import IsClientRole, IsEmailVerified, IsFreelancer
 from gigs.feed import hidden_from
 from gigs.models import Gig, GigInteraction
 from gigs.pagination import GigPagination
+from notifications import events
 from recommendations.matching import EMPTY_MATCH, applicant_matches
 
 from .models import Application, ApplicationStatusEvent
@@ -204,6 +205,7 @@ class GigApplicationsView(APIView):
                 user=request.user,
                 type=GigInteraction.Type.APPLY,
             )
+            events.new_application(application)
 
         out = ApplicationDetailSerializer(application, context={"request": request})
         return Response(out.data, status=status.HTTP_201_CREATED)
@@ -335,6 +337,7 @@ class WithdrawApplicationView(APIView):
                     "An application can only be withdrawn while it is pending or under review.",
                     code="invalid_transition",
                 )
+            events.application_withdrawn(application)
 
         out = ApplicationDetailSerializer(application, context={"request": request})
         return Response(out.data, status=status.HTTP_200_OK)
@@ -417,6 +420,7 @@ class ApplicationStatusView(APIView):
             if hiring and gig.status == Gig.Status.OPEN:
                 gig.status = Gig.Status.IN_PROGRESS
                 gig.save(update_fields=["status", "updated_at"])
+            events.application_status_changed(application)
 
         out = ApplicationDetailSerializer(application, context={"request": request})
         return Response(out.data, status=status.HTTP_200_OK)

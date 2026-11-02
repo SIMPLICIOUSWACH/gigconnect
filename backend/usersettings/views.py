@@ -12,6 +12,9 @@ from accounts.otp import issue_otp
 from accounts.serializers import UserSerializer
 from applications.privacy import erase_applications, export_applications
 from gigs.models import GigInteraction
+from notifications import events
+from notifications.models import Notification
+from notifications.serializers import NotificationSerializer
 
 from .models import NotificationPreference, UserSession
 from .serializers import AccountSettingsSerializer, NotificationPreferenceSerializer, UserSessionSerializer
@@ -61,6 +64,7 @@ class ChangePasswordView(APIView):
         user.set_password(new_password)
         user.save(update_fields=['password'])
         revoke_all_sessions(user)
+        events.password_changed(user)
 
         return Response({'detail': 'Password changed. All sessions have been logged out.'})
 
@@ -120,6 +124,7 @@ class ExportDataView(APIView):
             'user': UserSerializer(user).data,
             'notification_preferences': NotificationPreferenceSerializer(preference).data,
             'applications': export_applications(user),
+            'notifications': NotificationSerializer(user.notifications.order_by('created_at'), many=True).data,
             'gig_interactions': [
                 {
                     'type': i.type,
@@ -148,6 +153,7 @@ class DeleteAccountView(APIView):
             # Browsing history is personal data and has no use once the account is gone, so it is
             # deleted outright rather than anonymised.
             GigInteraction.objects.filter(user=user).delete()
+            Notification.objects.filter(recipient=user).delete()
 
             # Applications are shared with the client reviewing them, so they are emptied of
             # personal text and closed rather than deleted. See applications/privacy.py.
