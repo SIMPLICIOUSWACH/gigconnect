@@ -4,7 +4,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import Dashboard from './Dashboard'
 import { fetchRecommendations } from '../api/recommendations'
 
-vi.mock('../api/auth', () => ({ sendOtp: vi.fn() }))
 vi.mock('../api/gigs', () => ({ logRecommendationClick: vi.fn(), logSearchClick: vi.fn() }))
 vi.mock('../api/recommendations', () => ({ fetchRecommendations: vi.fn() }))
 
@@ -16,7 +15,6 @@ const makeUser = (role) => ({
   email: 'test@example.com',
   role,
   is_email_verified: true,
-  is_phone_verified: true,
   is_profile_complete: true,
   profile: { verification_status: 'unverified' },
 })
@@ -44,6 +42,24 @@ function renderDashboard(role) {
     </MemoryRouter>
   )
 }
+
+describe('Dashboard banners', () => {
+  it('links an unfinished profile to profile setup', () => {
+    mockUser = { ...makeUser('client'), is_profile_complete: false }
+    render(
+      <MemoryRouter>
+        <Dashboard />
+      </MemoryRouter>
+    )
+    expect(screen.getByRole('link', { name: 'Finish setting up your profile' })).toHaveAttribute('href', '/profile-setup')
+  })
+
+  it('never mentions phone verification', () => {
+    renderDashboard('client')
+    expect(screen.queryByText(/phone/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/otp/i)).not.toBeInTheDocument()
+  })
+})
 
 describe('Dashboard recommendations', () => {
   beforeEach(() => {
