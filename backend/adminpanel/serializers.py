@@ -55,7 +55,7 @@ class AdminUserDetailSerializer(AdminUserListSerializer):
 
     class Meta(AdminUserListSerializer.Meta):
         fields = AdminUserListSerializer.Meta.fields + [
-            'phone', 'is_phone_verified', 'suspended_reason', 'suspended_at', 'profile',
+            'phone', 'suspended_reason', 'suspended_at', 'profile',
         ]
 
     def get_profile(self, obj):

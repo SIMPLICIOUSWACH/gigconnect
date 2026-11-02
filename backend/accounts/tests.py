@@ -1,16 +1,14 @@
-from datetime import timedelta
 from io import StringIO
 
 from django.core import mail
 from django.core.management import call_command
 from django.test import TestCase
-from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from profiles.models import Skill
 
-from .models import OTP, User
+from .models import User
 from .tokens import make_email_verification_token
 
 
@@ -74,11 +72,10 @@ class RegistrationTests(APITestCase):
         self.assertIn('role', response.data)
         self.assertFalse(User.objects.filter(email='user@example.com').exists())
 
-    def test_new_user_is_not_email_or_phone_verified(self):
+    def test_new_user_is_not_email_verified(self):
         payload = self.base_payload(role='freelancer', skills=[str(self.skill.id)])
         response = self.client.post(self.url, payload)
         self.assertFalse(response.data['is_email_verified'])
-        self.assertFalse(response.data['is_phone_verified'])
         self.assertFalse(response.data['is_profile_complete'])
 
 
@@ -166,56 +163,6 @@ class MeViewTests(APITestCase):
     def test_me_requires_authentication(self):
         response = self.client.get('/api/auth/me/')
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-
-
-class OTPTests(APITestCase):
-    def setUp(self):
-        self.user = User.objects.create_user(
-            email='otp@example.com', password='StrongPass123!',
-            full_name='OTP User', phone='254700000000', role='client',
-        )
-        self.client.force_authenticate(user=self.user)
-
-    def _latest_otp(self):
-        return OTP.objects.filter(user=self.user).order_by('-created_at').first()
-
-    def test_send_otp_invalidates_prior_unused_otp(self):
-        self.client.post('/api/auth/send-otp/')
-        first_otp = self._latest_otp()
-        self.client.post('/api/auth/send-otp/')
-        first_otp.refresh_from_db()
-        self.assertTrue(first_otp.is_used)
-
-    def test_verify_otp_success(self):
-        self.client.post('/api/auth/send-otp/')
-        otp = self._latest_otp()
-        response = self.client.post('/api/auth/verify-otp/', {'code': otp.code})
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.user.refresh_from_db()
-        self.assertTrue(self.user.is_phone_verified)
-
-    def test_verify_otp_rejects_expired_code(self):
-        self.client.post('/api/auth/send-otp/')
-        otp = self._latest_otp()
-        otp.expires_at = timezone.now() - timedelta(seconds=1)
-        otp.save(update_fields=['expires_at'])
-        response = self.client.post('/api/auth/verify-otp/', {'code': otp.code})
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.user.refresh_from_db()
-        self.assertFalse(self.user.is_phone_verified)
-
-    def test_verify_otp_rejects_already_used_code(self):
-        self.client.post('/api/auth/send-otp/')
-        otp = self._latest_otp()
-        response = self.client.post('/api/auth/verify-otp/', {'code': otp.code})
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        second_response = self.client.post('/api/auth/verify-otp/', {'code': otp.code})
-        self.assertEqual(second_response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_verify_otp_rejects_wrong_code(self):
-        self.client.post('/api/auth/send-otp/')
-        response = self.client.post('/api/auth/verify-otp/', {'code': '000000'})
-        self.assertIn(response.status_code, (status.HTTP_400_BAD_REQUEST,))
 
 
 class SeedDataCommandTests(TestCase):

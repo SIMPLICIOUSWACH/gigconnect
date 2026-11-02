@@ -1,6 +1,6 @@
 # Entity Relationship Diagram
 
-Core domain entities as of Sprint 5. `NotificationPreference`, `UserSession`, `OTP` and `SkillAlias`
+Core domain entities as of Sprint 5. `NotificationPreference`, `UserSession` and `SkillAlias`
 (supporting tables) are omitted from the diagram to keep it readable, and some columns added since
 Sprint 2 (such as `county`, `is_remote` and `is_synthetic`) are only listed where they matter here. See
 `backend/*/models.py` for the full definitions.
@@ -26,7 +26,6 @@ erDiagram
         string phone
         string role "client / freelancer / admin"
         bool is_email_verified
-        bool is_phone_verified
         bool is_profile_complete
         datetime deleted_at "soft-delete"
     }

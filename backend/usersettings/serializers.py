@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from accounts.models import User
+from accounts.phones import clean_phone
 
 from .models import NotificationPreference, UserSession
 
@@ -9,6 +10,9 @@ class AccountSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['full_name', 'email', 'phone']
+
+    def validate_phone(self, value):
+        return clean_phone(value)
 
 
 class NotificationPreferenceSerializer(serializers.ModelSerializer):
