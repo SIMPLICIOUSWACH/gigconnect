@@ -68,6 +68,12 @@ class RegistrationTests(APITestCase):
         self.assertNotIn('id_number', response.data['profile'])
         self.assertNotIn('id_document', response.data['profile'])
 
+    def test_cannot_register_as_admin(self):
+        response = self.client.post(self.url, self.base_payload(role='admin'))
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('role', response.data)
+        self.assertFalse(User.objects.filter(email='user@example.com').exists())
+
     def test_new_user_is_not_email_or_phone_verified(self):
         payload = self.base_payload(role='freelancer', skills=[str(self.skill.id)])
         response = self.client.post(self.url, payload)
@@ -110,6 +116,39 @@ class LoginTests(APITestCase):
         self.assertIn('access', response.data)
         self.assertIn('refresh', response.data)
 
+    def suspend(self):
+        self.user.account_status = User.AccountStatus.SUSPENDED
+        self.user.save(update_fields=['account_status'])
+
+    def test_suspended_user_cannot_log_in_and_is_told_why(self):
+        self.suspend()
+        response = self.client.post('/api/auth/login/', {
+            'email': 'login@example.com', 'password': 'StrongPass123!',
+        })
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertIn('suspended', str(response.data['detail']))
+        self.assertEqual(response.data['code'], 'account_suspended')
+
+    def test_suspended_message_needs_the_right_password(self):
+        self.suspend()
+        response = self.client.post('/api/auth/login/', {'email': 'login@example.com', 'password': 'wrong'})
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertNotIn('suspended', str(response.data['detail']))
+
+    def test_access_token_stops_working_once_suspended(self):
+        tokens = self.client.post('/api/auth/login/', {
+            'email': 'login@example.com', 'password': 'StrongPass123!',
+        }).data
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {tokens["access"]}')
+        self.assertEqual(self.client.get('/api/auth/me/').status_code, status.HTTP_200_OK)
+
+        self.suspend()
+        response = self.client.get('/api/auth/me/')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.client.credentials()
+        refreshed = self.client.post('/api/auth/token/refresh/', {'refresh': tokens['refresh']})
+        self.assertEqual(refreshed.status_code, status.HTTP_401_UNAUTHORIZED)
+
 
 class MeViewTests(APITestCase):
     def test_me_returns_current_user(self):
@@ -121,6 +160,8 @@ class MeViewTests(APITestCase):
         response = self.client.get('/api/auth/me/')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['email'], 'me@example.com')
+        self.assertEqual(response.data['role'], 'client')
+        self.assertEqual(response.data['account_status'], 'active')
 
     def test_me_requires_authentication(self):
         response = self.client.get('/api/auth/me/')

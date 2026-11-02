@@ -29,7 +29,16 @@ class Category(models.Model):
         return self.name
 
 
+class ModerationStatus(models.TextChoices):
+    """Set by an admin, separately from a gig's or application's own status, so a restore puts it back as it was."""
+
+    VISIBLE = 'visible', 'Visible'
+    REMOVED = 'removed', 'Removed'
+
+
 class Gig(models.Model):
+    Moderation = ModerationStatus
+
     class Status(models.TextChoices):
         OPEN = 'open', 'Open'
         IN_PROGRESS = 'in_progress', 'In Progress'
@@ -63,6 +72,12 @@ class Gig(models.Model):
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.OPEN)
     skills = models.ManyToManyField(Skill, through='GigSkill', related_name='gigs')
     view_count = models.PositiveIntegerField(default=0)
+    # A removed gig is hidden everywhere but its owner's My gigs, where it is read-only. See gigs/feed.py.
+    moderation_status = models.CharField(
+        max_length=10, choices=ModerationStatus.choices, default=ModerationStatus.VISIBLE
+    )
+    removed_reason = models.TextField(blank=True)
+    removed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -96,6 +111,10 @@ class Gig(models.Model):
 
     def __str__(self):
         return self.title
+
+    @property
+    def is_removed(self):
+        return self.moderation_status == ModerationStatus.REMOVED
 
 
 class GigSkill(models.Model):

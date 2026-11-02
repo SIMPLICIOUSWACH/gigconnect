@@ -38,6 +38,8 @@ INSTALLED_APPS = [
     'gigs',
     'applications',
     'recommendations',
+    'notifications',
+    'adminpanel',
 ]
 
 MIDDLEWARE = [
@@ -112,12 +114,14 @@ STATIC_URL = 'static/'
 
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+# Uploads no URL may reach, such as ID documents. Must stay outside MEDIA_ROOT. See profiles/storage.py.
+PRIVATE_MEDIA_ROOT = Path(os.environ.get('PRIVATE_MEDIA_ROOT', BASE_DIR / 'private_media'))
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'accounts.authentication.ActiveAccountJWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
@@ -134,6 +138,8 @@ SIMPLE_JWT = {
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
     'UPDATE_LAST_LOGIN': True,
+    # Also refuses suspended accounts, at login and on token refresh.
+    'USER_AUTHENTICATION_RULE': 'accounts.authentication.user_can_log_in',
 }
 
 CORS_ALLOWED_ORIGINS = os.environ.get(

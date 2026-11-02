@@ -12,13 +12,15 @@ export function AuthProvider({ children }) {
     if (!tokenStorage.getAccess()) {
       setUser(null)
       setLoading(false)
-      return
+      return null
     }
     try {
       const me = await fetchMe()
       setUser(me)
+      return me
     } catch {
       setUser(null)
+      return null
     } finally {
       setLoading(false)
     }
@@ -31,7 +33,7 @@ export function AuthProvider({ children }) {
 
   const login = async (email, password) => {
     await apiLogin(email, password)
-    await loadUser()
+    return loadUser()
   }
 
   const logout = () => {

@@ -341,7 +341,7 @@ export default function BrowseGigs() {
           variant="band"
           limit={10}
           heading={firstName ? `Picked for you, ${firstName}` : 'Picked for you'}
-          subheading="Based on the skills on your profile."
+          subheading="Based on your skills and the gigs you show interest in."
         />
       )}
 

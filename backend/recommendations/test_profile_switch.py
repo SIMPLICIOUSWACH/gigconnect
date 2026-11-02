@@ -34,11 +34,12 @@ class ProfileSwitchTests(RecommenderTestBase):
         self.freelancer = self.freelancers['P'][0]
         GigInteraction.objects.create(user=self.freelancer, gig=self.gigs['X'][0], type='view')
 
-    def test_production_gives_content_only(self):
+    def test_production_blends_with_the_weight_its_settings_give(self):
+        # 10 gigs, cold start below 5, ramp 20, largest weight 0.5: step 6 of 20, so w = 0.5 * 6 / 20 = 0.15.
         with override_settings(**profile_settings('production')):
             result = recommend(self.model, self.freelancer)
-        self.assertEqual(result.weight, 0.0)
-        self.assertEqual({r.source for r in result.results}, {'content'})
+        self.assertAlmostEqual(result.weight, 0.15)
+        self.assertIn('hybrid', {r.source for r in result.results})
 
     def test_demo_blends_with_the_weight_its_settings_give(self):
         # 10 gigs, cold start below 10, ramp 50, largest weight 0.5: step 1 of 50, so w = 0.5 * 1 / 50 = 0.01.

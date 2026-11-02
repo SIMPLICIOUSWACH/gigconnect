@@ -463,6 +463,19 @@ class GigFilterSearchTests(GigTestBase):
         titles = sorted(g['title'] for g in response.data['results'])
         self.assertEqual(titles, ['Closes in 3 days', 'Closes today'])
 
+    def test_filter_by_client_lists_only_their_open_gigs(self):
+        self.create_gig(client_user=self.other_client, title='Other client gig')
+        self.create_gig(title='Closed gig', status=Gig.Status.CLOSED)
+        response = self.client.get('/api/gigs/', {'client': str(self.client_user.id)})
+        titles = sorted(g['title'] for g in response.data['results'])
+        self.assertEqual(titles, ['Bakery website in Nairobi', 'Logo design'])
+        other = self.client.get('/api/gigs/', {'client': str(self.other_client.id)})
+        self.assertEqual([g['title'] for g in other.data['results']], ['Other client gig'])
+
+    def test_filter_by_client_rejects_a_bad_id(self):
+        response = self.client.get('/api/gigs/', {'client': 'not-a-uuid'})
+        self.assertEqual(response.status_code, 400)
+
     def test_urgent_false_does_not_filter(self):
         response = self.client.get('/api/gigs/', {'urgent': 'false'})
         self.assertEqual(response.data['count'], 2)

@@ -1,3 +1,4 @@
+from django.utils import timezone
 from rest_framework import generics, permissions, status
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
@@ -5,13 +6,11 @@ from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from accounts.models import User
-from accounts.permissions import IsAdminRole, IsFreelancer
+from accounts.permissions import IsFreelancer
 
 from .counties import COUNTY_CHOICES
 from .models import FreelancerProfile, PortfolioItem, Skill
 from .serializers import (
-    AdminVerificationListSerializer,
-    AdminVerificationUpdateSerializer,
     ClientProfileCompleteSerializer,
     FreelancerProfileCompleteSerializer,
     PortfolioItemSerializer,
@@ -121,28 +120,14 @@ class SubmitVerificationView(APIView):
         profile = request.user.freelancer_profile
         serializer = SubmitVerificationSerializer(profile, data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save(verification_status=FreelancerProfile.VerificationStatus.PENDING)
+        serializer.save(
+            verification_status=FreelancerProfile.VerificationStatus.PENDING, verification_submitted_at=timezone.now(),
+        )
         # never echo id_number/id_document back — build the response by hand
         return Response({
             'detail': 'Verification submitted for review.',
             'verification_status': profile.verification_status,
         })
-
-
-class AdminVerificationListView(generics.ListAPIView):
-    serializer_class = AdminVerificationListSerializer
-    permission_classes = [permissions.IsAuthenticated, IsAdminRole]
-
-    def get_queryset(self):
-        status_param = self.request.query_params.get('status', FreelancerProfile.VerificationStatus.PENDING)
-        return FreelancerProfile.objects.filter(verification_status=status_param)
-
-
-class AdminVerificationDetailView(generics.UpdateAPIView):
-    queryset = FreelancerProfile.objects.all()
-    serializer_class = AdminVerificationUpdateSerializer
-    permission_classes = [permissions.IsAuthenticated, IsAdminRole]
-    http_method_names = ['patch']
 
 
 class CountyListView(APIView):

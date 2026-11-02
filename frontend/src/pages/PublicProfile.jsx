@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { fetchGigsPaged } from '../api/gigs'
 import { fetchPublicProfile } from '../api/profile'
 import { industryLabel } from '../constants'
 import { useAuth } from '../context/AuthContext'
 import Alert from '../components/Alert'
 import Button from '../components/Button'
 import Card from '../components/Card'
+import GigCard from '../components/gigs/GigCard'
+import GigCardSkeleton from '../components/gigs/GigCardSkeleton'
 import ProfilePreviewCard from '../components/profile/ProfilePreviewCard'
 
 function Avatar({ src, name }) {
@@ -98,14 +101,68 @@ function ClientView({ profile }) {
         </div>
       </Card>
 
-      <Card>
-        <h2 className="text-section-title text-ink mb-2">Posted Gigs</h2>
-        <p className="text-body text-muted">
-          This will list {p.company_name || profile.full_name}'s active gig postings once Gig Posting
-          (Sprint 2) is built — there's no gig data yet.
-        </p>
-      </Card>
+      <ClientGigs clientId={profile.id} name={p.company_name || profile.full_name} />
     </>
+  )
+}
+
+const CLIENT_GIGS_PAGE_SIZE = 12
+
+// The client's gigs that are open to applications right now: the same rules as the Browse gigs feed.
+function ClientGigs({ clientId, name }) {
+  const [result, setResult] = useState(null)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let alive = true
+    setResult(null)
+    setError('')
+    fetchGigsPaged({ client: clientId, page_size: CLIENT_GIGS_PAGE_SIZE })
+      .then((data) => alive && setResult(data))
+      .catch(() => alive && setError('Could not load these gigs.'))
+    return () => {
+      alive = false
+    }
+  }, [clientId])
+
+  return (
+    <section aria-labelledby="client-gigs-heading">
+      <div className="flex flex-wrap items-baseline justify-between gap-2 mb-4">
+        <h2 id="client-gigs-heading" className="text-section-heading text-ink">
+          Open gigs
+        </h2>
+        {result && result.count > result.results.length && (
+          <p className="text-caption text-muted">
+            Showing the newest {result.results.length} of {result.count}
+          </p>
+        )}
+      </div>
+
+      {error && <Alert type="error">{error}</Alert>}
+
+      {!result && !error && (
+        <div aria-label="Loading gigs" className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <GigCardSkeleton key={i} />
+          ))}
+        </div>
+      )}
+
+      {result?.results.length === 0 && (
+        <Card>
+          <p className="text-body text-muted">{name} has no gigs open for applications right now.</p>
+        </Card>
+      )}
+
+      {result?.results.length > 0 && (
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {result.results.map((gig, index) => (
+            // A profile is not a search, so opening a gig from here is not logged as a search click.
+            <GigCard key={gig.id} gig={gig} position={index + 1} onOpen={() => {}} />
+          ))}
+        </div>
+      )}
+    </section>
   )
 }
 

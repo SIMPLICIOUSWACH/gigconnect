@@ -45,7 +45,9 @@ class MyGigListSerializer(GigListSerializer):
     pending_application_count = serializers.IntegerField(read_only=True)
 
     class Meta(GigListSerializer.Meta):
-        fields = GigListSerializer.Meta.fields + ['application_count', 'pending_application_count']
+        fields = GigListSerializer.Meta.fields + [
+            'application_count', 'pending_application_count', 'moderation_status', 'removed_reason',
+        ]
 
 
 class GigClientSummarySerializer(serializers.Serializer):
@@ -82,7 +84,7 @@ class GigDetailSerializer(serializers.ModelSerializer):
             'id', 'title', 'description', 'client', 'category',
             'budget_min', 'budget_max', 'currency', 'deadline', 'application_deadline',
             'is_negotiable', 'county', 'is_remote', 'status', 'skills', 'view_count', 'created_at', 'updated_at',
-            'my_application',
+            'my_application', 'moderation_status', 'removed_reason',
         ]
 
 

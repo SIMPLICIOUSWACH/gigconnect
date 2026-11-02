@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from . import skills as skill_names
+from .id_documents import validate_id_document
 from .models import ClientProfile, FreelancerProfile, PortfolioItem, Skill
 
 
@@ -129,24 +130,7 @@ class SubmitVerificationSerializer(serializers.ModelSerializer):
         model = FreelancerProfile
         fields = ['id_number', 'id_document']
 
-
-class AdminVerificationListSerializer(serializers.ModelSerializer):
-    email = serializers.EmailField(source='user.email', read_only=True)
-    full_name = serializers.CharField(source='user.full_name', read_only=True)
-
-    class Meta:
-        model = FreelancerProfile
-        fields = ['id', 'email', 'full_name', 'verification_status']
+    def validate_id_document(self, value):
+        return validate_id_document(value)
 
 
-class AdminVerificationUpdateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = FreelancerProfile
-        fields = ['id', 'verification_status']
-        read_only_fields = ['id']
-
-    def validate_verification_status(self, value):
-        allowed = (FreelancerProfile.VerificationStatus.VERIFIED, FreelancerProfile.VerificationStatus.REJECTED)
-        if value not in allowed:
-            raise serializers.ValidationError('Status must be either "verified" or "rejected".')
-        return value

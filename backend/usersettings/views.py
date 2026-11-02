@@ -15,12 +15,7 @@ from gigs.models import GigInteraction
 
 from .models import NotificationPreference, UserSession
 from .serializers import AccountSettingsSerializer, NotificationPreferenceSerializer, UserSessionSerializer
-
-
-def _blacklist_all_tokens(user):
-    for token in OutstandingToken.objects.filter(user=user):
-        BlacklistedToken.objects.get_or_create(token=token)
-    UserSession.objects.filter(user=user).delete()
+from .sessions import revoke_all_sessions
 
 
 class AccountSettingsView(APIView):
@@ -65,7 +60,7 @@ class ChangePasswordView(APIView):
 
         user.set_password(new_password)
         user.save(update_fields=['password'])
-        _blacklist_all_tokens(user)
+        revoke_all_sessions(user)
 
         return Response({'detail': 'Password changed. All sessions have been logged out.'})
 
@@ -101,7 +96,7 @@ class LogoutAllView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        _blacklist_all_tokens(request.user)
+        revoke_all_sessions(request.user)
         return Response({'detail': 'Logged out of all devices.'})
 
 
@@ -166,6 +161,6 @@ class DeleteAccountView(APIView):
             user.set_unusable_password()
             user.save()
 
-        _blacklist_all_tokens(user)
+        revoke_all_sessions(user)
 
         return Response({'detail': 'Account deleted.'})

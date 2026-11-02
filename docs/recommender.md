@@ -105,8 +105,8 @@ hybrid = w * collaborative + (1 - w) * content        both on the 0 to 1 scale
 scores only (`w` is 0). From there `w` rises in equal steps over the ramp to the largest weight. The three numbers come
 from the recommender profile (`backend/config/recommender_profiles.json`, see the README):
 
-- **production**: a largest weight of **0**, chosen by tuning in Sprint 6, so recommendations are content only and
-  every result's `source` is `content`.
+- **production**: threshold 5, ramp 20, largest weight **0.5**, so `w` is 0.025 at 5 gigs and 0.5 from 24 gigs. The
+  weight is the project owner's choice, not the tuning pick of 0 (see "Tuned values against Sprint 5").
 - **demo** (the planted data): threshold 10, ramp 50, largest weight 0.5, so `w` is 0.01 at 10 gigs, 0.11 at 20 and
   0.31 at 40.
 
@@ -156,7 +156,7 @@ production value shown.
 | `RECOMMENDER_SVD_MIN_FREELANCERS`, `_MIN_GIGS`, `_MIN_INTERACTIONS` | 10, 20, 100 | Below any of these the collaborative model is skipped |
 | `RECOMMENDER_RANDOM_SEED` | 42 | Makes training repeatable |
 | `RECOMMENDER_COLD_START_MIN_GIGS` | 5 (*profile*) | Fewer different gigs than this: content scores only |
-| `RECOMMENDER_BLEND_RAMP_GIGS`, `_BLEND_MAX_WEIGHT` | 20, 0 (*profile*) | How fast and how far the collaborative weight rises |
+| `RECOMMENDER_BLEND_RAMP_GIGS`, `_BLEND_MAX_WEIGHT` | 20, 0.5 (*profile*) | How fast and how far the collaborative weight rises |
 | `RECOMMENDER_MODEL_CACHE_SECONDS` | 60 | How long a loaded model is trusted before asking whether a newer one exists |
 | `RECOMMENDER_BAND_STRONG`, `_BAND_GOOD` | 0.27, 0.13 (*profile*) | The client's match band cut-offs |
 
@@ -341,7 +341,11 @@ hybrid 0.700. Every other number, including K = 20, is in the reports in `datase
 | Cold-start threshold (gigs) | 5 | 5 (no effect at weight 0) | 10 |
 | Match bands, good and strong | 0.15, 0.30 | 0.13, 0.27 | 0.35, 0.60 |
 
-- **Production, weight 0.** On validation, content only scored 0.089 (mean of F1@5 and F1@10) against 0.030 for the
+- **Production now runs at weight 0.5, not the tuning pick.** The project owner set it on 30 October 2026 so the
+  hybrid runs on the main database. These are the same weight, ramp and factors as the Sprint 5 hybrid, which scored
+  lower than content only below, so the evaluation does not support this setting and the scores in this document
+  describe weight 0. They have not been re-measured, and the test part must not be scored again.
+- **Production, weight 0 (the tuning pick).** On validation, content only scored 0.089 (mean of F1@5 and F1@10) against 0.030 for the
   Sprint 5 hybrid: a gain of 0.058, larger than the random spread (0.012), with a paired interval of 0.013 to 0.110.
   The rule therefore changed the default. The best hybrid with any collaborative weight scored 0.083.
 - **Why the collaborative part adds nothing here.** On the skill-overlap seed the collaborative matrix (31 freelancers
@@ -369,7 +373,7 @@ hybrid 0.700. Every other number, including K = 20, is in the reports in `datase
   so the test set alone does not confirm the gain that validation showed.
 - 30 freelancers is a small sample: the intervals on the skill-overlap seed are wide.
 - **When there are real users**, run `check_collaborative_readiness` and `tune_recommender` again. If the readiness
-  check finds structure, the collaborative weight may come back above 0 in production.
+  check finds structure, the evidence may support the collaborative weight production now runs with.
 
 ## Performance
 
@@ -423,8 +427,6 @@ The proposal asks for API responses under 500 ms. With the cache every request a
   this does not affect it today.
 - **The collaborative part needs data with a collaborative pattern.** On the skill-overlap seed it was at chance; on
   the planted seed it found the hidden groups. Check with `check_collaborative_readiness` before relying on it.
-- **The cold-start note on the page** ("they will improve as you apply") is not true while the production weight is 0.
-  It has not been changed.
 
 ## Where the build differs from the proposal
 
@@ -438,10 +440,9 @@ Compared with the written proposal (shared in Sprint 6):
   hiring data; the build also uses views, search clicks, recommendation clicks and saves. Both were measured on the
   same split in Sprint 6 ("applications and hiring only" against "all interactions"); neither beat content only on
   the skill-overlap seed.
-- **In production the collaborative weight is 0**, so live recommendations are content only. The proposal describes a
-  hybrid. Tuning on the validation split chose this, because the seed data has no collaborative pattern. The hybrid
-  is fully built, runs under the demo profile, and can be switched back on by a profile once real data shows a
-  pattern.
+- **Production runs the hybrid at a weight tuning did not pick.** Tuning on the validation split chose a weight of 0,
+  because the seed data has no collaborative pattern. The project owner set 0.5 so the hybrid the proposal describes
+  is live. The reported production scores are for weight 0.
 - **No stored recommendations table and no notifications table.** Recommendations are worked out on each request.
   Notifications (real-time and email) are not built yet; they are planned first in Sprint 7.
 - **The model is loaded the first time it is needed, not at startup**, so a missing or broken model can never stop the
