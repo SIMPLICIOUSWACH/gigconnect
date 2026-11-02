@@ -105,7 +105,13 @@ export default function Register() {
         <form onSubmit={handleSubmit} className="space-y-6">
           <Input label="Full name" required value={form.full_name} onChange={update('full_name')} />
           <Input label="Email" type="email" required value={form.email} onChange={update('email')} />
-          <Input label="Phone" required placeholder="2547XXXXXXXX" value={form.phone} onChange={update('phone')} />
+          <Input
+            label="Phone (optional)"
+            placeholder="0712345678"
+            hint="Used for M-Pesa payments later. We won't send you codes."
+            value={form.phone}
+            onChange={update('phone')}
+          />
           <Input label="Password" type="password" required value={form.password} onChange={update('password')} />
           <Input
             label="Confirm password"

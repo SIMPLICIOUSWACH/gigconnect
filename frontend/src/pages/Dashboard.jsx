@@ -1,6 +1,4 @@
-import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { sendOtp } from '../api/auth'
 import { useAuth } from '../context/AuthContext'
 import Alert from '../components/Alert'
 import Button from '../components/Button'
@@ -9,14 +7,8 @@ import RecommendedForYou from '../components/recommendations/RecommendedForYou'
 
 export default function Dashboard() {
   const { user } = useAuth()
-  const [otpSent, setOtpSent] = useState(false)
 
   if (!user) return null
-
-  const handleSendOtp = async () => {
-    await sendOtp()
-    setOtpSent(true)
-  }
 
   return (
     <div className="max-w-[960px]">
@@ -25,23 +17,18 @@ export default function Dashboard() {
       <div className="space-y-4 mb-6">
         {!user.is_email_verified && (
           <Alert type="info">
-            Please verify your email — check your inbox for a verification link. Posting gigs and applying
+            Please verify your email: check your inbox for a verification link. Posting gigs and applying
             to gigs is blocked until you do.
           </Alert>
         )}
 
-        {!user.is_phone_verified && (
-          <Alert type="info">
-            Your phone isn't verified yet.{' '}
-            <button onClick={handleSendOtp} className="underline font-medium">
-              Send OTP
-            </button>{' '}
-            {otpSent && '— sent! Check the backend console in development.'}
-          </Alert>
-        )}
-
         {!user.is_profile_complete && (
-          <Alert type="info">Your profile setup isn't finished yet — visit Settings to complete it.</Alert>
+          <Alert type="info">
+            Your profile setup isn't finished yet.{' '}
+            <Link to="/profile-setup" className="underline font-medium">
+              Finish setting up your profile
+            </Link>
+          </Alert>
         )}
       </div>
 

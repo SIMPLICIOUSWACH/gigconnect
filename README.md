@@ -45,7 +45,7 @@ python manage.py create_admin --email admin@example.com --full-name "Platform Ad
 ```
 
 It asks for the password twice and checks it against the password rules. The new account has the admin role,
-verified email and phone, and `is_staff`. Admins log in on the normal login page and land on `/admin`, the
+a verified email, and `is_staff`. Admins log in on the normal login page and land on `/admin`, the
 GigConnect admin area. For a script, pass `--noinput` and put the password in `GIGCONNECT_ADMIN_PASSWORD`.
 
 Django's own `/admin/` site is kept for debugging by a superuser (`createsuperuser`). It is not the product's
@@ -132,7 +132,7 @@ synthetic accounts, never real ones.
 
 | Account | Email | What it shows |
 |---|---|---|
-| Amina Wanjiru | `planted-amina@example.test` | A premium freelancer: higher budget, negotiable gigs from verified clients |
+| Amina Wanjiru | `planted-amina@example.test` | A premium freelancer: higher budget, negotiable gigs from premium clients (a synthetic trait) |
 | Brian Otieno | `planted-brian@example.test` | A quick_cash freelancer: short, urgent, lower budget gigs |
 | Cynthia Achieng | `planted-cynthia@example.test` | A remote_only freelancer: remote gigs |
 | David Kamau | `planted-david@example.test` | A brand-new freelancer with no applications: skill matches only (cold start) |

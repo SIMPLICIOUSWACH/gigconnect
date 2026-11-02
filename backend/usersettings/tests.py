@@ -15,7 +15,6 @@ class AccountSettingsTests(APITestCase):
             full_name='Original Name', phone='254700000000', role='client',
         )
         self.user.is_email_verified = True
-        self.user.is_phone_verified = True
         self.user.save()
         self.client.force_authenticate(user=self.user)
 
@@ -28,19 +27,25 @@ class AccountSettingsTests(APITestCase):
         self.assertFalse(self.user.is_email_verified)
         self.assertEqual(len(mail.outbox), 1)
 
-    def test_changing_phone_resets_verification_and_sends_otp(self):
-        response = self.client.patch('/api/settings/account/', {'phone': '254711111111'})
+    def test_changing_phone_saves_it_normalised_and_keeps_the_email_verified(self):
+        response = self.client.patch('/api/settings/account/', {'phone': '0711111111'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['phone'], '+254711111111')
         self.user.refresh_from_db()
-        self.assertEqual(self.user.phone, '254711111111')
-        self.assertFalse(self.user.is_phone_verified)
+        self.assertEqual(self.user.phone, '+254711111111')
+        self.assertTrue(self.user.is_email_verified)
+
+    def test_phone_can_be_cleared_but_not_set_to_a_landline(self):
+        self.assertEqual(self.client.patch('/api/settings/account/', {'phone': ''}).data['phone'], '')
+        response = self.client.patch('/api/settings/account/', {'phone': '0202345678'})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('Landlines', str(response.data['phone']))
 
     def test_changing_full_name_does_not_affect_verification(self):
         response = self.client.patch('/api/settings/account/', {'full_name': 'New Name'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.user.refresh_from_db()
         self.assertTrue(self.user.is_email_verified)
-        self.assertTrue(self.user.is_phone_verified)
 
 
 class ChangePasswordTests(APITestCase):
