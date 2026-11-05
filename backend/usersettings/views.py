@@ -7,7 +7,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 
-from accounts.email import send_verification_email
+from accounts.email import send_verification_email_on_commit
 from accounts.otp import issue_otp
 from accounts.serializers import UserSerializer
 from applications.privacy import erase_applications, export_applications
@@ -32,17 +32,22 @@ class AccountSettingsView(APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
 
+        outcome = {}
         if user.email != old_email:
             user.is_email_verified = False
             user.save(update_fields=['is_email_verified'])
-            send_verification_email(user)
+            outcome = send_verification_email_on_commit(user)
 
         if user.phone != old_phone:
             user.is_phone_verified = False
             user.save(update_fields=['is_phone_verified'])
             issue_otp(user)
 
-        return Response(UserSerializer(user).data)
+        data = UserSerializer(user).data
+        # Only present when the email changed: whether the new verification link could be sent.
+        if 'sent' in outcome:
+            data['verification_email_sent'] = outcome['sent']
+        return Response(data)
 
 
 class ChangePasswordView(APIView):

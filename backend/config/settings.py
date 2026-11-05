@@ -129,6 +129,7 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_RATES': {
         'skill_create': '30/hour',
         'gig_interaction': '300/hour',
+        'verification_resend': '5/hour',
     },
 }
 
@@ -147,9 +148,20 @@ CORS_ALLOWED_ORIGINS = os.environ.get(
 ).split(',')
 
 # Console backend for dev — verification emails print to the runserver console.
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-DEFAULT_FROM_EMAIL = 'GigConnect <no-reply@gigconnect.local>'
-FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
+# Email. The default prints every email to the console, so development needs no mail server, and the test runner
+# swaps in its own in-memory backend whatever is set here. For real email (for example Gmail with an app password), set
+# these in .env; see "Sending email" in the README. An empty value counts as not set.
+EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND') or 'django.core.mail.backends.console.EmailBackend'
+EMAIL_HOST = os.environ.get('EMAIL_HOST') or 'localhost'
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT') or 25)
+EMAIL_USE_TLS = (os.environ.get('EMAIL_USE_TLS') or 'False') == 'True'
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER') or ''
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD') or ''
+# Seconds to wait for the mail server, so a slow one can't hold a request up for long.
+EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT') or 10)
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL') or 'GigConnect <no-reply@gigconnect.local>'
+# Where the links in emails point. Set it to the real site address when deployed.
+FRONTEND_URL = os.environ.get('FRONTEND_URL') or 'http://localhost:5173'
 # The most freelancers told about one new gig, so posting a gig can't send an unbounded batch of mail.
 NOTIFICATION_MATCH_LIMIT = 500
 
