@@ -58,9 +58,11 @@ class RegistrationTests(APITestCase):
 
     def test_registration_sends_verification_email(self):
         payload = self.base_payload(role='freelancer', skills=[str(self.skill.id)])
-        self.client.post(self.url, payload)
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(self.url, payload)
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn('verify-email', mail.outbox[0].body)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_registration_response_excludes_id_number(self):
         payload = self.base_payload(role='freelancer', skills=[str(self.skill.id)])

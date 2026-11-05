@@ -2,6 +2,7 @@ from django.urls import path
 
 from usersettings.token_views import TrackedTokenObtainPairView, TrackedTokenRefreshView
 
+from .verification_views import ResendVerificationView
 from .views import MeView, RegisterView, SendOTPView, VerifyEmailView, VerifyOTPView
 
 urlpatterns = [
@@ -12,4 +13,5 @@ urlpatterns = [
     path('verify-otp/', VerifyOTPView.as_view(), name='verify-otp'),
     path('login/', TrackedTokenObtainPairView.as_view(), name='login'),
     path('token/refresh/', TrackedTokenRefreshView.as_view(), name='token-refresh'),
+    path('resend-verification/', ResendVerificationView.as_view(), name='resend-verification'),
 ]
