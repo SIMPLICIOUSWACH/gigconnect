@@ -234,7 +234,7 @@ class EveryActionIsLoggedTests(AdminApiTestCase):
                 before = AdminAction.objects.count()
                 self.assertEqual(self.client.post(url, {'reason': reason}).status_code, 200)
                 self.assertEqual(AdminAction.objects.count(), before + 1)
-                row = AdminAction.objects.order_by('-created_at').first()
+                row = AdminAction.objects.get(action=action)  # each action happens once here
                 self.assertEqual((row.admin, row.action, row.reason), (self.admin, action, reason))
 
         log = self.client.get('/api/admin/audit-log/').data
