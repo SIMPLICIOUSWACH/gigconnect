@@ -4,6 +4,7 @@ from rest_framework import serializers
 
 from profiles.models import ClientProfile, Skill
 from profiles.serializers import ClientProfileSerializer, FreelancerProfileSerializer
+from profiles.verification import progress
 
 from .models import User
 from .phones import clean_phone
@@ -84,14 +85,21 @@ class RegisterSerializer(serializers.ModelSerializer):
 
 class UserSerializer(serializers.ModelSerializer):
     profile = serializers.SerializerMethodField()
+    verification = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
             'id', 'email', 'full_name', 'phone', 'role', 'account_status',
             'is_email_verified', 'is_profile_complete',
-            'created_at', 'profile',
+            'created_at', 'profile', 'verification',
         ]
+
+    def get_verification(self, obj):
+        """A freelancer's own ID check progress. Only here, in the serializer that describes the signed-in user."""
+        if obj.role != User.Role.FREELANCER or not hasattr(obj, 'freelancer_profile'):
+            return None
+        return progress(obj.freelancer_profile)
 
     def get_profile(self, obj):
         if obj.role == User.Role.CLIENT:

@@ -1,4 +1,3 @@
-from django.utils import timezone
 from rest_framework import generics, permissions, status
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
@@ -19,6 +18,7 @@ from .serializers import (
     SkillSerializer,
     SubmitVerificationSerializer,
 )
+from .verification import progress, send_for_review_if_ready
 
 
 class SkillListView(generics.ListCreateAPIView):
@@ -120,13 +120,19 @@ class SubmitVerificationView(APIView):
         profile = request.user.freelancer_profile
         serializer = SubmitVerificationSerializer(profile, data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save(
-            verification_status=FreelancerProfile.VerificationStatus.PENDING, verification_submitted_at=timezone.now(),
-        )
-        # never echo id_number/id_document back — build the response by hand
+        if profile.verification_status in (FreelancerProfile.VerificationStatus.PENDING,
+                                           FreelancerProfile.VerificationStatus.VERIFIED):
+            return Response({'detail': 'Your ID check is already with us.'}, status=status.HTTP_400_BAD_REQUEST)
+        serializer.save(needs_new_id=False)
+        # The check only joins the admin queue once the selfie is in too.
+        changed = send_for_review_if_ready(profile)
+        if changed:
+            profile.save(update_fields=changed)
+        # never echo id_number/id_document back: build the response by hand
         return Response({
-            'detail': 'Verification submitted for review.',
+            'detail': 'ID received.' if not changed else 'Verification submitted for review.',
             'verification_status': profile.verification_status,
+            'verification': progress(profile),
         })
 
 

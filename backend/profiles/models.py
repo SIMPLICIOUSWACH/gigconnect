@@ -112,8 +112,20 @@ class FreelancerProfile(models.Model):
     verification_status = models.CharField(
         max_length=20, choices=VerificationStatus.choices, default=VerificationStatus.UNVERIFIED
     )
-    # When the ID document was last sent in, so admins can work through the oldest first.
+    # When both parts were in and the check joined the admin queue, so admins can work through the oldest first.
     verification_submitted_at = models.DateTimeField(null=True, blank=True)
+
+    # The live selfie, in the same private storage as the ID. Only admins can read it. See profiles/selfie.py.
+    selfie = models.FileField(upload_to='selfies/', storage=PrivateStorage(), blank=True, null=True)
+    # The challenge the person was shown, and when it was issued.
+    selfie_challenge = models.CharField(max_length=200, blank=True)
+    selfie_challenge_issued_at = models.DateTimeField(null=True, blank=True)
+    # When they agreed that GigConnect may use the photo to confirm their identity.
+    selfie_consent_at = models.DateTimeField(null=True, blank=True)
+    selfie_submitted_at = models.DateTimeField(null=True, blank=True)
+    # Set when an admin rejects a check: the part or parts to send again. The rest is kept.
+    needs_new_id = models.BooleanField(default=False)
+    needs_new_selfie = models.BooleanField(default=False)
 
     def __str__(self):
         return f'FreelancerProfile<{self.user.email}>'
@@ -139,3 +151,19 @@ class PortfolioItem(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class VerificationChallenge(models.Model):
+    """A random gesture to perform in the selfie. Single use, and only good for ten minutes (see selfie.py)."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='verification_challenges')
+    text = models.CharField(max_length=200)
+    issued_at = models.DateTimeField(auto_now_add=True)
+    used_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-issued_at']
+
+    def __str__(self):
+        return f'Challenge<{self.user_id}: {self.text}>'

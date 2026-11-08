@@ -12,6 +12,7 @@ from accounts.models import User
 from applications.models import Application, ApplicationStatusEvent
 from gigs.models import Gig
 from profiles.models import FreelancerProfile
+from profiles.testing import add_selfie
 
 from .models import AdminAction
 from .recommender_info import latest_evaluation
@@ -259,6 +260,9 @@ class VerificationEndpointTests(AdminApiTestCase):
         override = override_settings(PRIVATE_MEDIA_ROOT=self.media)
         override.enable()
         self.addCleanup(override.disable)
+        # These tests send the ID and selfie themselves, so the freelancer starts from scratch.
+        FreelancerProfile.objects.filter(pk=self.profile.pk).update(verification_status='unverified')
+        self.freelancer = User.objects.get(pk=self.freelancer.pk)  # drop the cached pending profile
 
     def submit(self, user):
         self.client.force_authenticate(user)
@@ -268,7 +272,8 @@ class VerificationEndpointTests(AdminApiTestCase):
             format='multipart',
         )
         self.assertEqual(response.status_code, 200)
-        return user.freelancer_profile
+        profile, _ = add_selfie(user.freelancer_profile)
+        return profile
 
     def test_queue_is_oldest_first_and_shows_the_id_number_to_admins(self):
         first = self.submit(self.freelancer)

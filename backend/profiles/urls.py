@@ -1,5 +1,6 @@
 from django.urls import path
 
+from .selfie_views import ChallengeView, SelfieView
 from .views import (
     CountyListView,
     PortfolioItemDetailView,
@@ -18,4 +19,6 @@ urlpatterns = [
     path('profile/portfolio-items/', PortfolioItemListCreateView.as_view(), name='portfolio-item-list'),
     path('profile/portfolio-items/<uuid:pk>/', PortfolioItemDetailView.as_view(), name='portfolio-item-detail'),
     path('profile/submit-verification/', SubmitVerificationView.as_view(), name='submit-verification'),
+    path('profile/verification/challenge/', ChallengeView.as_view(), name='verification-challenge'),
+    path('profile/verification/selfie/', SelfieView.as_view(), name='verification-selfie'),
 ]

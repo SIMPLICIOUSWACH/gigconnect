@@ -16,6 +16,7 @@ from accounts.models import User
 from gigs.models import Category, Gig
 
 from .models import FreelancerProfile, PortfolioItem, Skill, SkillAlias
+from .testing import add_selfie
 
 
 class ProfileCompleteTests(APITestCase):
@@ -118,13 +119,16 @@ class IdentityVerificationTests(APITestCase):
     def _submit_verification(self):
         self.client.force_authenticate(user=self.freelancer)
         id_document = SimpleUploadedFile('id.pdf', b'%PDF-1.4 fake', content_type='application/pdf')
-        return self.client.post('/api/profile/submit-verification/', {
+        response = self.client.post('/api/profile/submit-verification/', {
             'id_number': '12345678', 'id_document': id_document,
         }, format='multipart')
+        add_selfie(self.freelancer.freelancer_profile)  # the check needs the selfie too before it is pending
+        return response
 
-    def test_submit_verification_sets_pending_status(self):
+    def test_submit_verification_sets_pending_status_once_the_selfie_is_in(self):
         response = self._submit_verification()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['verification_status'], FreelancerProfile.VerificationStatus.UNVERIFIED)
         self.freelancer.freelancer_profile.refresh_from_db()
         self.assertEqual(
             self.freelancer.freelancer_profile.verification_status,

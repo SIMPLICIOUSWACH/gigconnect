@@ -130,6 +130,7 @@ REST_FRAMEWORK = {
         'skill_create': '30/hour',
         'gig_interaction': '300/hour',
         'verification_resend': '5/hour',
+        'selfie_challenge': '30/hour',
     },
 }
 
