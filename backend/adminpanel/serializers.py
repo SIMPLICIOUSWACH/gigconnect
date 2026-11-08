@@ -3,6 +3,7 @@ from rest_framework import serializers
 from accounts.models import User
 from applications.models import Application
 from gigs.models import Gig
+from profiles import decisions
 from profiles.models import FreelancerProfile
 
 from .models import AdminAction
@@ -136,22 +137,38 @@ class AdminVerificationSerializer(serializers.ModelSerializer):
     user = PersonSerializer(read_only=True)
     email = serializers.EmailField(source='user.email', read_only=True)
     has_document = serializers.SerializerMethodField()
+    document_is_pdf = serializers.SerializerMethodField()
+    has_selfie = serializers.SerializerMethodField()
 
     class Meta:
         model = FreelancerProfile
         fields = [
             'id', 'user', 'email', 'verification_status', 'verification_submitted_at', 'id_number', 'has_document',
+            'document_is_pdf', 'has_selfie', 'selfie_challenge', 'selfie_challenge_issued_at', 'selfie_submitted_at',
+            'selfie_consent_at', 'face_match_score', 'face_match_model', 'verification_decided_at',
+            'needs_new_id', 'needs_new_selfie',
         ]
 
     def get_has_document(self, obj):
         return bool(obj.id_document)
 
+    def get_document_is_pdf(self, obj):
+        return bool(obj.id_document) and obj.id_document.name.lower().endswith('.pdf')
+
+    def get_has_selfie(self, obj):
+        return bool(obj.selfie)
+
 
 class VerificationDecisionSerializer(ReasonSerializer):
+    """Approve with every checklist item ticked, or reject with a reason code and the part to send again."""
+
     verification_status = serializers.ChoiceField(
         choices=[FreelancerProfile.VerificationStatus.VERIFIED, FreelancerProfile.VerificationStatus.REJECTED],
         error_messages={'invalid_choice': 'Status must be either "verified" or "rejected".'},
     )
+    checklist = serializers.DictField(child=serializers.BooleanField(), required=False, default=dict)
+    reason_code = serializers.ChoiceField(choices=list(decisions.REJECTION_REASONS), required=False, default='')
+    redo = serializers.ChoiceField(choices=list(decisions.REDO_CHOICES), required=False, default='')
 
 
 # ---------------------------------------------------------------------------

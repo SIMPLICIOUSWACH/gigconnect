@@ -130,6 +130,8 @@ class FreelancerProfile(models.Model):
     # model that said so, or why there is no score.
     face_match_score = models.FloatField(null=True, blank=True)
     face_match_model = models.CharField(max_length=120, blank=True)
+    # When an admin last approved or rejected the check. The ID and selfie images are deleted 90 days later.
+    verification_decided_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return f'FreelancerProfile<{self.user.email}>'

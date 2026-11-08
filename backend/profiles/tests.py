@@ -18,6 +18,8 @@ from gigs.models import Category, Gig
 from .models import FreelancerProfile, PortfolioItem, Skill, SkillAlias
 from .testing import add_selfie
 
+APPROVE = {'verification_status': 'verified', 'checklist': {'same_person': True, 'id_matches': True, 'challenge_done': True}}
+
 
 class ProfileCompleteTests(APITestCase):
     def setUp(self):
@@ -165,7 +167,7 @@ class IdentityVerificationTests(APITestCase):
         self._submit_verification()
         profile = self.freelancer.freelancer_profile
         self.client.force_authenticate(user=self.admin)
-        response = self.client.patch(f'/api/admin/verifications/{profile.id}/', {'verification_status': 'verified'})
+        response = self.client.patch(f'/api/admin/verifications/{profile.id}/', APPROVE, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         profile.refresh_from_db()
         self.assertTrue(profile.verified)
@@ -176,9 +178,9 @@ class IdentityVerificationTests(APITestCase):
         self.client.force_authenticate(user=self.admin)
         response = self.client.patch(f'/api/admin/verifications/{profile.id}/', {'verification_status': 'rejected'})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        response = self.client.patch(
-            f'/api/admin/verifications/{profile.id}/', {'verification_status': 'rejected', 'reason': 'Blurred photo.'},
-        )
+        response = self.client.patch(f'/api/admin/verifications/{profile.id}/', {
+            'verification_status': 'rejected', 'reason_code': 'photo_unclear', 'redo': 'selfie',
+        }, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         profile.refresh_from_db()
         self.assertEqual(profile.verification_status, FreelancerProfile.VerificationStatus.REJECTED)

@@ -13,6 +13,7 @@ from applications.models import Application
 from gigs.models import Gig
 from notifications.models import Notification
 from notifications.service import notify
+from profiles import decisions
 from profiles.models import FreelancerProfile
 from usersettings.sessions import revoke_all_sessions
 
@@ -194,30 +195,52 @@ def restore_application(admin, application, reason=''):
 # ID verification
 # ---------------------------------------------------------------------------
 
-def decide_verification(admin, profile, approve, reason=''):
-    reason = clean_reason(reason, required=not approve)
-    if profile.verification_status != FreelancerProfile.VerificationStatus.PENDING:
+def decide_verification(admin, profile, approve, reason='', checklist=None, reason_code='', redo=''):
+    """
+    Approve or reject an ID check. Approving needs both parts and every checklist item ticked. Rejecting needs a reason
+    and the part to send again (decisions.REDO_CHOICES); only that part is asked for, and the other is kept.
+    """
+    Status = FreelancerProfile.VerificationStatus
+    if profile.verification_status != Status.PENDING:
         raise ModerationError('This verification has already been decided.')
 
-    Status = FreelancerProfile.VerificationStatus
+    if approve:
+        reason = clean_reason(reason, required=False)
+        if not (profile.id_document and profile.selfie):
+            raise ModerationError('Both the ID and the selfie are needed before this can be approved.')
+        unticked = [label for key, label in decisions.CHECKLIST.items() if not (checklist or {}).get(key)]
+        if unticked:
+            raise ModerationError(f'Tick every check before approving. Still unticked: {"; ".join(unticked)}.')
+    else:
+        if reason_code not in decisions.REJECTION_REASONS:
+            raise ModerationError('Choose a reason for the rejection.')
+        reason = clean_reason(decisions.rejection_text(reason_code, reason or ''), required=True)
+        if redo not in decisions.REDO_CHOICES:
+            raise ModerationError('Choose what they need to send again: the ID, the selfie or both.')
+
     with transaction.atomic():
         profile.verification_status = Status.VERIFIED if approve else Status.REJECTED
-        profile.save(update_fields=['verification_status'])
+        profile.verification_decided_at = timezone.now()
+        profile.needs_new_id = not approve and redo in (decisions.REDO_ID, decisions.REDO_BOTH)
+        profile.needs_new_selfie = not approve and redo in (decisions.REDO_SELFIE, decisions.REDO_BOTH)
+        profile.save(update_fields=[
+            'verification_status', 'verification_decided_at', 'needs_new_id', 'needs_new_selfie',
+        ])
         action = _record(
             admin, Action.VERIFY_APPROVE if approve else Action.VERIFY_REJECT, Target.USER, profile.user_id, reason,
         )
         if approve:
             notify(
                 profile.user, Kind.VERIFICATION_APPROVED, 'Your ID is verified',
-                f'An administrator checked your ID document. Your profile now shows that you are verified.'
+                f'An administrator checked your ID and selfie. Your profile now shows that you are verified.'
                 f'{_because(reason)}',
                 link=f'/profile/{profile.user_id}', email_preference='status_change_email',
             )
         else:
             notify(
                 profile.user, Kind.VERIFICATION_REJECTED, 'Your ID verification was not approved',
-                f'An administrator could not approve your ID document. You can submit it again from Settings.'
-                f'{_because(reason)}',
+                f'An administrator could not approve your ID check.{_because(reason)} To try again, '
+                f'{decisions.REDO_WORDS[redo]} from Settings. Everything else you sent is kept.',
                 link='/settings/verification', email_preference='status_change_email',
             )
     return action
