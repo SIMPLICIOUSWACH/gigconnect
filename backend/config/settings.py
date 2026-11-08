@@ -116,6 +116,13 @@ MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 # Uploads no URL may reach, such as ID documents. Must stay outside MEDIA_ROOT. See profiles/storage.py.
 PRIVATE_MEDIA_ROOT = Path(os.environ.get('PRIVATE_MEDIA_ROOT', BASE_DIR / 'private_media'))
+# The two OpenCV face models for the advisory face-match score (fetch_face_models). Not in git.
+FACE_MODELS_DIR = Path(os.environ.get('FACE_MODELS_DIR') or BASE_DIR / 'face_models')
+# The secret for the keyed hash of ID numbers (see profiles/id_privacy.py). Set it once and keep it: with a different
+# key, a duplicate ID sent later would no longer match. Without it a key is derived from SECRET_KEY, with a warning.
+ID_HASH_KEY = os.environ.get('ID_HASH_KEY') or ''
+# Shown on the privacy page and in the selfie consent text, for questions and deletion requests.
+PRIVACY_CONTACT_EMAIL = os.environ.get('PRIVACY_CONTACT_EMAIL') or ''
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
@@ -130,6 +137,7 @@ REST_FRAMEWORK = {
         'skill_create': '30/hour',
         'gig_interaction': '300/hour',
         'verification_resend': '5/hour',
+        'selfie_challenge': '30/hour',
     },
 }
 

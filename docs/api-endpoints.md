@@ -23,9 +23,13 @@ All endpoints are prefixed with `/api/`. Auth uses JWT bearer tokens
 | PATCH | `/api/profile/complete/` | Required | Update bio/photo/skills (freelancer) or company info/logo (client) |
 | GET/POST | `/api/profile/portfolio-items/` | Required (freelancer) | List / create portfolio items |
 | GET/PATCH/DELETE | `/api/profile/portfolio-items/<id>/` | Required (freelancer, owner) | Manage a single portfolio item |
-| POST | `/api/profile/submit-verification/` | Required (freelancer) | Submit ID number + document for identity verification |
-| GET | `/api/admin/verifications/` | Required (admin) | List verification requests (filterable by `?status=`) |
-| PATCH | `/api/admin/verifications/<id>/` | Required (admin) | Approve or reject a verification request |
+| POST | `/api/profile/submit-verification/` | Required (freelancer) | Upload the ID number and document. Joins the admin queue only once the selfie is in too |
+| GET | `/api/profile/verification/challenge/` | Required (freelancer) | A random single-use gesture for the selfie, valid 10 minutes, with the consent text. 30 an hour |
+| POST | `/api/profile/verification/selfie/` | Required (freelancer) | Multipart `selfie`, `challenge_id`, `consent=true`. 400 with `code: "retake"` if there isn't exactly one face, or `code: "challenge_expired"` |
+| GET | `/api/meta/privacy/` | None | `contact_email` and `id_image_retention_days` for the privacy page |
+| GET | `/api/admin/verifications/` | Required (admin) | List verification requests (filterable by `?status=`), with the challenge, the advisory face score and any other account with the same ID number |
+| PATCH | `/api/admin/verifications/<id>/` | Required (admin) | Approve with `checklist` (`same_person`, `id_matches`, `challenge_done`, all true), or reject with `reason_code`, `redo` (`id`, `selfie` or `both`) and an optional `reason` (required for `other`) |
+| GET | `/api/admin/verifications/<id>/document/` | Required (admin) | The ID document, or the selfie with `?kind=selfie`. Nobody else can read either, the owner included |
 
 ## Settings (`/api/settings/`)
 

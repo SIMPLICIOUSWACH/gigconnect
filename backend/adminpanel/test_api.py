@@ -12,6 +12,7 @@ from accounts.models import User
 from applications.models import Application, ApplicationStatusEvent
 from gigs.models import Gig
 from profiles.models import FreelancerProfile
+from profiles.testing import add_selfie
 
 from .models import AdminAction
 from .recommender_info import latest_evaluation
@@ -259,6 +260,9 @@ class VerificationEndpointTests(AdminApiTestCase):
         override = override_settings(PRIVATE_MEDIA_ROOT=self.media)
         override.enable()
         self.addCleanup(override.disable)
+        # These tests send the ID and selfie themselves, so the freelancer starts from scratch.
+        FreelancerProfile.objects.filter(pk=self.profile.pk).update(verification_status='unverified')
+        self.freelancer = User.objects.get(pk=self.freelancer.pk)  # drop the cached pending profile
 
     def submit(self, user):
         self.client.force_authenticate(user)
@@ -268,7 +272,8 @@ class VerificationEndpointTests(AdminApiTestCase):
             format='multipart',
         )
         self.assertEqual(response.status_code, 200)
-        return user.freelancer_profile
+        profile, _ = add_selfie(user.freelancer_profile)
+        return profile
 
     def test_queue_is_oldest_first_and_shows_the_id_number_to_admins(self):
         first = self.submit(self.freelancer)
@@ -298,19 +303,50 @@ class VerificationEndpointTests(AdminApiTestCase):
         profile = self.submit(self.freelancer)
         self.as_admin()
         url = f'/api/admin/verifications/{profile.pk}/'
-        response = self.client.patch(url, {'verification_status': 'rejected'})
+        response = self.client.patch(url, {'verification_status': 'rejected'}, format='json')
         self.assertEqual(response.status_code, 400)
-        response = self.client.patch(url, {'verification_status': 'rejected', 'reason': 'The photo is blurred.'})
+        response = self.client.patch(url, {
+            'verification_status': 'rejected', 'reason_code': 'photo_unclear', 'redo': 'both', 'reason': 'Blurred.',
+        }, format='json')
         self.assertEqual((response.status_code, response.data['verification_status']), (200, 'rejected'))
+        self.assertEqual((response.data['needs_new_id'], response.data['needs_new_selfie']), (True, True))
 
         self.submit(self.freelancer)
         self.as_admin()
-        self.assertEqual(self.client.patch(url, {'verification_status': 'verified'}).status_code, 200)
+        approve = {'verification_status': 'verified', 'checklist': {'same_person': True, 'id_matches': True}}
+        self.assertEqual(self.client.patch(url, approve, format='json').status_code, 400)
+        approve['checklist']['challenge_done'] = True
+        self.assertEqual(self.client.patch(url, approve, format='json').status_code, 200)
         self.assertEqual(
             list(AdminAction.objects.order_by('created_at').values_list('action', 'reason')),
-            [('verify_reject', 'The photo is blurred.'), ('verify_approve', '')],
+            [('verify_reject', 'The photo is unclear. Blurred.'), ('verify_approve', '')],
         )
-        self.assertEqual(self.client.patch(url, {'verification_status': 'pending'}).status_code, 400)
+        self.assertEqual(self.client.patch(url, {'verification_status': 'pending'}, format='json').status_code, 400)
+
+    def test_the_selfie_is_served_to_admins_only(self):
+        profile = self.submit(self.freelancer)
+        url = f'/api/admin/verifications/{profile.pk}/document/?kind=selfie'
+        self.client.force_authenticate(None)
+        self.assertEqual(self.client.get(url).status_code, 401)
+        for user in (self.freelancer, self.client_user):  # the owner included
+            self.client.force_authenticate(user)
+            self.assertEqual(self.client.get(url).status_code, 403)
+        self.as_admin()
+        response = self.client.get(url)
+        self.assertEqual((response.status_code, response['Content-Type']), (200, 'image/jpeg'))
+        self.assertEqual(response['Cache-Control'], 'no-store')
+        b''.join(response.streaming_content)
+        self.assertEqual(self.client.get(url.replace('selfie', 'face')).status_code, 400)
+
+    def test_the_queue_shows_the_challenge_and_the_advisory_score(self):
+        profile = self.submit(self.freelancer)
+        FreelancerProfile.objects.filter(pk=profile.pk).update(face_match_score=0.78, face_match_model='SFace')
+        self.as_admin()
+        row = self.client.get('/api/admin/verifications/').data['results'][0]
+        self.assertTrue(row['has_selfie'])
+        self.assertTrue(row['selfie_challenge'].startswith('Hold your ID'))
+        self.assertEqual((row['face_match_score'], row['face_match_model']), (0.78, 'SFace'))
+        self.assertTrue(row['document_is_pdf'])
 
 
 class StatsTests(AdminApiTestCase):

@@ -206,27 +206,42 @@ class VerificationDetailView(AdminView):
         profile = get_object_or_404(FreelancerProfile.objects.select_related('user'), pk=pk)
         body = VerificationDecisionSerializer(data=request.data)
         body.is_valid(raise_exception=True)
-        approve = body.validated_data['verification_status'] == FreelancerProfile.VerificationStatus.VERIFIED
-        run_action(moderation.decide_verification, request.user, profile, approve, reason=body.validated_data['reason'])
+        values = body.validated_data
+        approve = values['verification_status'] == FreelancerProfile.VerificationStatus.VERIFIED
+        try:
+            moderation.decide_verification(
+                request.user, profile, approve, reason=values['reason'], checklist=values['checklist'],
+                reason_code=values['reason_code'], redo=values['redo'],
+            )
+        except moderation.ModerationError as error:
+            raise ValidationError({'detail': str(error)}) from error
         profile.refresh_from_db()
         return Response(AdminVerificationSerializer(profile).data)
 
 
 class VerificationDocumentView(AdminView):
-    """The uploaded ID document, streamed to admins only. Never cached by the browser."""
+    """
+    The uploaded ID document (the default) or, with ?kind=selfie, the selfie. Streamed to admins only, never cached.
+    Nobody else can read either file, including the person who sent it.
+    """
 
     def get(self, request, pk):
         profile = get_object_or_404(FreelancerProfile, pk=pk)
-        if not profile.id_document:
+        kind = request.query_params.get('kind', 'id')
+        if kind not in ('id', 'selfie'):
+            raise ValidationError({'kind': 'Use "id" or "selfie".'})
+        field = profile.selfie if kind == 'selfie' else profile.id_document
+        if not field:
             raise Http404
         try:
-            handle = profile.id_document.open('rb')
+            handle = field.open('rb')
         except FileNotFoundError as error:
             raise Http404 from error
-        name = profile.id_document.name
-        response = FileResponse(handle, content_type=content_type_for(name))
+        name = field.name
+        # Selfies are always stored as JPEG (re-encoded on upload).
+        response = FileResponse(handle, content_type='image/jpeg' if kind == 'selfie' else content_type_for(name))
         # A file from before the upload checks may be anything, so it is only ever downloaded, never opened here.
-        response['Content-Disposition'] = 'inline' if can_show_inline(name) else 'attachment'
+        response['Content-Disposition'] = 'inline' if kind == 'selfie' or can_show_inline(name) else 'attachment'
         response['Cache-Control'] = 'no-store'
         response['X-Content-Type-Options'] = 'nosniff'
         return response

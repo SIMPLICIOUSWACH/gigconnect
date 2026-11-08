@@ -14,6 +14,7 @@ from gigs.models import GigInteraction
 from notifications import events
 from notifications.models import Notification
 from notifications.serializers import NotificationSerializer
+from profiles.id_privacy import erase_id_images
 
 from .models import NotificationPreference, UserSession
 from .serializers import AccountSettingsSerializer, NotificationPreferenceSerializer, UserSessionSerializer
@@ -157,6 +158,11 @@ class DeleteAccountView(APIView):
             # Applications are shared with the client reviewing them, so they are emptied of
             # personal text and closed rather than deleted. See applications/privacy.py.
             erase_applications(user)
+
+            # ID images and the plain ID number go now; the keyed hash stays, so the same ID can't simply be reused.
+            profile = getattr(user, 'freelancer_profile', None)
+            if profile is not None:
+                erase_id_images(profile)
 
             user.full_name = 'Deleted User'
             user.email = f'deleted-{user.id}@gigconnect.invalid'

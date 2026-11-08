@@ -112,8 +112,32 @@ class FreelancerProfile(models.Model):
     verification_status = models.CharField(
         max_length=20, choices=VerificationStatus.choices, default=VerificationStatus.UNVERIFIED
     )
-    # When the ID document was last sent in, so admins can work through the oldest first.
+    # When both parts were in and the check joined the admin queue, so admins can work through the oldest first.
     verification_submitted_at = models.DateTimeField(null=True, blank=True)
+
+    # The live selfie, in the same private storage as the ID. Only admins can read it. See profiles/selfie.py.
+    selfie = models.FileField(upload_to='selfies/', storage=PrivateStorage(), blank=True, null=True)
+    # The challenge the person was shown, and when it was issued.
+    selfie_challenge = models.CharField(max_length=200, blank=True)
+    selfie_challenge_issued_at = models.DateTimeField(null=True, blank=True)
+    # When they agreed that GigConnect may use the photo to confirm their identity.
+    selfie_consent_at = models.DateTimeField(null=True, blank=True)
+    selfie_submitted_at = models.DateTimeField(null=True, blank=True)
+    # Set when an admin rejects a check: the part or parts to send again. The rest is kept.
+    needs_new_id = models.BooleanField(default=False)
+    needs_new_selfie = models.BooleanField(default=False)
+    # An advisory hint for the admin, never a decision: how alike the two faces look (see face_match.py), and the
+    # model that said so, or why there is no score.
+    face_match_score = models.FloatField(null=True, blank=True)
+    face_match_model = models.CharField(max_length=120, blank=True)
+    # When an admin last approved or rejected the check. The ID and selfie images are deleted 90 days later.
+    verification_decided_at = models.DateTimeField(null=True, blank=True)
+    # A keyed hash of the ID number and its last 3 characters. Kept after the number and images are deleted, so a
+    # second account with the same ID can still be spotted. See id_privacy.py.
+    id_number_hash = models.CharField(max_length=64, blank=True, db_index=True)
+    id_number_last3 = models.CharField(max_length=3, blank=True)
+    # When purge_id_images (or deleting the account) removed the images and the plain number.
+    id_images_purged_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return f'FreelancerProfile<{self.user.email}>'
@@ -139,3 +163,19 @@ class PortfolioItem(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class VerificationChallenge(models.Model):
+    """A random gesture to perform in the selfie. Single use, and only good for ten minutes (see selfie.py)."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='verification_challenges')
+    text = models.CharField(max_length=200)
+    issued_at = models.DateTimeField(auto_now_add=True)
+    used_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-issued_at']
+
+    def __str__(self):
+        return f'Challenge<{self.user_id}: {self.text}>'

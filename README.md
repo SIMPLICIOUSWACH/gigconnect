@@ -61,6 +61,56 @@ Back this folder up with the database. If you have older uploads, move them once
 python manage.py move_id_documents
 ```
 
+### ID verification with a live selfie
+
+A freelancer uploads their ID, then takes a live selfie holding it, with the camera only (no gallery upload). Before
+the photo they see a random challenge, such as "Hold your ID next to your face and show 3 fingers", which works once
+and expires after 10 minutes, and they tick a consent box. The check only reaches the admin queue once both the ID and
+the selfie are in. Admins compare the two side by side and must tick three checks before Approve works. A rejection
+says which part to redo, and the other part is kept.
+
+What the server checks, and what it can't:
+- The selfie must be a JPEG or PNG, at most 5 MB and at least 640 x 480. It is re-encoded as a JPEG with all EXIF data
+  (location, camera, time) removed.
+- It must show exactly one face (OpenCV's Haar cascade). Faces less than a third the size of the largest are ignored,
+  so the photo on the ID card held up next to the face doesn't count as a second person.
+- The challenge must be the person's own, unused and less than 10 minutes old.
+- **The server can't prove a photo is live.** It only knows a fresh challenge was used. The admin checklist covers the
+  rest: the reviewer checks the gesture was really done.
+- Browsers only allow the camera on `https://` or `localhost`. On a phone, the site has to be on HTTPS.
+
+**Advisory face score.** When the ID is an image (not a PDF), OpenCV's YuNet finds a face in each picture and SFace
+gives a similarity score, shown to admins as "System similarity: 0.78, advisory". It never approves or rejects
+anything. Without the model files, or for a PDF ID, it says "not available". Download the models once:
+
+```bash
+python manage.py fetch_face_models
+```
+
+They come from the official [OpenCV Zoo](https://github.com/opencv/opencv_zoo) repository, go into
+`backend/face_models/` (not in git), and each download is checked against the SHA-256 published there:
+
+| File | SHA-256 | Size | Licence |
+|---|---|---|---|
+| `face_detection_yunet_2023mar.onnx` | `8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4` | 232,589 bytes | MIT (Shiqi Yu) |
+| `face_recognition_sface_2021dec.onnx` | `0ba9fbfa01b5270c96627c4ef784da859931e02f04419c829e83484087c34e79` | 38,696,353 bytes | Apache-2.0 |
+
+**Privacy settings in `backend/.env`:**
+- `ID_HASH_KEY`: a long random secret. ID numbers are also stored as a keyed hash (HMAC-SHA256) plus the last 3
+  digits, so a second account with the same ID can be spotted after the number itself is deleted. Set it once and
+  never change it, or old and new hashes won't match. `manage.py check` warns while it is unset. After setting it,
+  run `python manage.py rehash_id_numbers` once so ID numbers stored before then get a hash with the new key.
+- `PRIVACY_CONTACT_EMAIL`: shown on the privacy page and in the selfie consent text.
+
+**Deleting ID images after 90 days.** `purge_id_images` deletes the ID image, the selfie and the plain ID number 90
+days after an admin's final decision, keeping the decision, its dates, the face score and the hash. Deleting an account
+does the same at once. Run the purge daily; `--dry-run` only counts. On Windows, schedule it with Task Scheduler, for
+example from a command prompt (change the paths to yours):
+
+```bash
+schtasks /Create /SC DAILY /ST 02:00 /TN "GigConnect purge ID images" /TR "C:\gigconnect\backend\venv\Scripts\python.exe C:\gigconnect\backend\manage.py purge_id_images"
+```
+
 ### Sending email
 
 By default every email (verification links, notifications) is printed in the terminal running the backend, not sent.

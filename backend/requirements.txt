@@ -1,13 +1,14 @@
 asgiref==3.12.1
-Django==5.2.17
 django-cors-headers==4.9.0
+Django==5.2.17
 djangorestframework==3.18.1
 djangorestframework_simplejwt==5.5.1
 joblib==1.6.0
 numpy==2.5.4
+opencv-python-headless==4.14.0.94
 pillow==12.3.0
-psycopg==3.3.5
 psycopg-binary==3.3.5
+psycopg==3.3.5
 PyJWT==2.14.0
 python-dotenv==1.2.3
 scikit-learn==1.9.1

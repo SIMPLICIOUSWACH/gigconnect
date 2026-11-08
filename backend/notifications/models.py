@@ -19,6 +19,7 @@ class Notification(models.Model):
         APPLICATION_RESTORED = 'application_restored', 'Application restored'
         VERIFICATION_APPROVED = 'verification_approved', 'ID verification approved'
         VERIFICATION_REJECTED = 'verification_rejected', 'ID verification rejected'
+        VERIFICATION_SELFIE_NEEDED = 'verification_selfie_needed', 'ID verification needs a selfie'
         NEW_APPLICATION = 'new_application', 'New application'
         APPLICATION_WITHDRAWN = 'application_withdrawn', 'Application withdrawn'
         APPLICATION_STATUS = 'application_status', 'Application status changed'

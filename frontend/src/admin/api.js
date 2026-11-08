@@ -16,11 +16,12 @@ export const suspendUser = (id, reason) => post(`users/${id}/suspend/`, { reason
 export const reinstateUser = (id, reason) => post(`users/${id}/reinstate/`, { reason })
 
 export const fetchVerifications = (params) => get('verifications/', cleanParams(params))
-export const decideVerification = (id, verificationStatus, reason = '') =>
-  api.patch(`/admin/verifications/${id}/`, { verification_status: verificationStatus, reason }).then((r) => r.data)
-// The ID document needs the admin's token, so it is fetched as a file rather than linked to.
-export const fetchVerificationDocument = (id) =>
-  api.get(`/admin/verifications/${id}/document/`, { responseType: 'blob' }).then((r) => r.data)
+// decision: { verification_status, checklist } to approve, or { verification_status, reason_code, redo, reason }.
+export const decideVerification = (id, decision) =>
+  api.patch(`/admin/verifications/${id}/`, decision).then((r) => r.data)
+// The ID document and the selfie need the admin's token, so they are fetched as files rather than linked to.
+export const fetchVerificationDocument = (id, kind = 'id') =>
+  api.get(`/admin/verifications/${id}/document/`, { params: { kind }, responseType: 'blob' }).then((r) => r.data)
 
 export const fetchGigs = (params) => get('gigs/', cleanParams(params))
 export const fetchGig = (id) => get(`gigs/${id}/`)
