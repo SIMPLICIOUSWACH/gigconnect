@@ -116,6 +116,8 @@ MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 # Uploads no URL may reach, such as ID documents. Must stay outside MEDIA_ROOT. See profiles/storage.py.
 PRIVATE_MEDIA_ROOT = Path(os.environ.get('PRIVATE_MEDIA_ROOT', BASE_DIR / 'private_media'))
+# The two OpenCV face models for the advisory face-match score (fetch_face_models). Not in git.
+FACE_MODELS_DIR = Path(os.environ.get('FACE_MODELS_DIR') or BASE_DIR / 'face_models')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 

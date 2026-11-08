@@ -5,6 +5,7 @@ admin asked to be redone.
 
 from django.utils import timezone
 
+from .face_match import record_face_match
 from .models import FreelancerProfile
 
 Status = FreelancerProfile.VerificationStatus
@@ -23,7 +24,7 @@ def send_for_review_if_ready(profile):
         return []
     profile.verification_status = Status.PENDING
     profile.verification_submitted_at = timezone.now()
-    return ['verification_status', 'verification_submitted_at']
+    return ['verification_status', 'verification_submitted_at', *record_face_match(profile)]
 
 
 def progress(profile):

@@ -126,6 +126,10 @@ class FreelancerProfile(models.Model):
     # Set when an admin rejects a check: the part or parts to send again. The rest is kept.
     needs_new_id = models.BooleanField(default=False)
     needs_new_selfie = models.BooleanField(default=False)
+    # An advisory hint for the admin, never a decision: how alike the two faces look (see face_match.py), and the
+    # model that said so, or why there is no score.
+    face_match_score = models.FloatField(null=True, blank=True)
+    face_match_model = models.CharField(max_length=120, blank=True)
 
     def __str__(self):
         return f'FreelancerProfile<{self.user.email}>'
