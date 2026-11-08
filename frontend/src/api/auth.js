@@ -16,6 +16,10 @@ export const fetchMe = () => api.get('/auth/me/').then((r) => r.data)
 
 export const verifyEmail = (token) => api.get(`/auth/verify-email/${token}/`).then((r) => r.data)
 
+// Signed out, pass the address. Signed in, leave it out: the server uses the account's own.
+export const resendVerification = (email) =>
+  api.post('/auth/resend-verification/', email ? { email } : {}).then((r) => r.data)
+
 export const sendOtp = () => api.post('/auth/send-otp/').then((r) => r.data)
 
 export const verifyOtp = (code) => api.post('/auth/verify-otp/', { code }).then((r) => r.data)

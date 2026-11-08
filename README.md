@@ -61,6 +61,23 @@ Back this folder up with the database. If you have older uploads, move them once
 python manage.py move_id_documents
 ```
 
+### Sending email
+
+By default every email (verification links, notifications) is printed in the terminal running the backend, not sent.
+Tests always use Django's in-memory mailbox, whatever is set here. To send real email through a Gmail account:
+
+1. Use a Gmail account just for GigConnect and turn on 2-Step Verification for it.
+2. Create an app password: Google Account, Security, App passwords. Gmail rejects the normal account password here.
+3. In `backend/.env`, set the email lines from `.env.example`: `EMAIL_BACKEND` to the SMTP backend,
+   `EMAIL_HOST=smtp.gmail.com`, `EMAIL_PORT=587`, `EMAIL_USE_TLS=True`, `EMAIL_HOST_USER` to the address,
+   `EMAIL_HOST_PASSWORD` to the app password, and `DEFAULT_FROM_EMAIL=GigConnect <the same address>`.
+4. Set `FRONTEND_URL` to the address people open the site at, because the links in emails use it.
+5. Restart the backend. `python manage.py check` warns if the SMTP backend is on without a login.
+
+Emails go out once the database change behind them is saved. If sending fails, the action still succeeds and the error
+is logged: after sign-up the page says the email couldn't be sent and offers Resend, and a signed-in user can resend
+from the Dashboard banner. Resending is limited to 5 an hour. Keep `.env` out of git; only `.env.example` is committed.
+
 ## Frontend setup
 
 ```bash
