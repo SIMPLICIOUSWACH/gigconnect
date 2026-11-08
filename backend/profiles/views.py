@@ -1,3 +1,4 @@
+from django.conf import settings
 from rest_framework import generics, permissions, status
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
@@ -8,6 +9,7 @@ from accounts.models import User
 from accounts.permissions import IsFreelancer
 
 from .counties import COUNTY_CHOICES
+from .id_privacy import RETENTION, fingerprint_fields
 from .models import FreelancerProfile, PortfolioItem, Skill
 from .serializers import (
     ClientProfileCompleteSerializer,
@@ -123,7 +125,10 @@ class SubmitVerificationView(APIView):
         if profile.verification_status in (FreelancerProfile.VerificationStatus.PENDING,
                                            FreelancerProfile.VerificationStatus.VERIFIED):
             return Response({'detail': 'Your ID check is already with us.'}, status=status.HTTP_400_BAD_REQUEST)
-        serializer.save(needs_new_id=False)
+        replaced = profile.id_document.name if profile.id_document else None
+        serializer.save(needs_new_id=False, **fingerprint_fields(serializer.validated_data['id_number']))
+        if replaced and replaced != profile.id_document.name:
+            profile.id_document.storage.delete(replaced)  # the old ID is not kept
         # The check only joins the admin queue once the selfie is in too.
         changed = send_for_review_if_ready(profile)
         if changed:
@@ -133,6 +138,18 @@ class SubmitVerificationView(APIView):
             'detail': 'ID received.' if not changed else 'Verification submitted for review.',
             'verification_status': profile.verification_status,
             'verification': progress(profile),
+        })
+
+
+class PrivacyInfoView(APIView):
+    """What the privacy page needs: the contact address and how long ID images are kept."""
+
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        return Response({
+            'contact_email': settings.PRIVACY_CONTACT_EMAIL,
+            'id_image_retention_days': RETENTION.days,
         })
 
 

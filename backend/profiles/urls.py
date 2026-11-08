@@ -5,6 +5,7 @@ from .views import (
     CountyListView,
     PortfolioItemDetailView,
     PortfolioItemListCreateView,
+    PrivacyInfoView,
     ProfileCompleteView,
     PublicProfileView,
     SkillListView,
@@ -13,6 +14,7 @@ from .views import (
 
 urlpatterns = [
     path('meta/counties/', CountyListView.as_view(), name='county-list'),
+    path('meta/privacy/', PrivacyInfoView.as_view(), name='privacy-info'),
     path('skills/', SkillListView.as_view(), name='skill-list'),
     path('profiles/<uuid:user_id>/', PublicProfileView.as_view(), name='public-profile'),
     path('profile/complete/', ProfileCompleteView.as_view(), name='profile-complete'),

@@ -24,3 +24,14 @@ def id_documents_are_private(app_configs, **kwargs):
         hint='Run "python manage.py move_id_documents" to move them to private storage.',
         id='profiles.W001',
     )]
+
+
+@register()
+def id_hash_key_is_set(app_configs, **kwargs):
+    if settings.ID_HASH_KEY:
+        return []
+    return [Warning(
+        'ID_HASH_KEY is not set, so ID numbers are hashed with a key derived from SECRET_KEY.',
+        hint='Set a long random ID_HASH_KEY in backend/.env once, before real ID checks, and never change it.',
+        id='profiles.W002',
+    )]

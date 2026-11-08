@@ -132,6 +132,12 @@ class FreelancerProfile(models.Model):
     face_match_model = models.CharField(max_length=120, blank=True)
     # When an admin last approved or rejected the check. The ID and selfie images are deleted 90 days later.
     verification_decided_at = models.DateTimeField(null=True, blank=True)
+    # A keyed hash of the ID number and its last 3 characters. Kept after the number and images are deleted, so a
+    # second account with the same ID can still be spotted. See id_privacy.py.
+    id_number_hash = models.CharField(max_length=64, blank=True, db_index=True)
+    id_number_last3 = models.CharField(max_length=3, blank=True)
+    # When purge_id_images (or deleting the account) removed the images and the plain number.
+    id_images_purged_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return f'FreelancerProfile<{self.user.email}>'

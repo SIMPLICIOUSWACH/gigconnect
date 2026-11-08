@@ -5,6 +5,7 @@ POST /api/profile/verification/selfie/     the selfie (multipart): `selfie`, `ch
 Freelancers only. Nothing here returns the photo; only admins can read it.
 """
 
+from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import permissions, serializers, status
@@ -25,6 +26,12 @@ CONSENT_TEXT = (
 )
 
 
+def consent_text():
+    """The consent wording, with the privacy contact when one is set."""
+    contact = settings.PRIVACY_CONTACT_EMAIL
+    return f'{CONSENT_TEXT} Questions or deletion requests: {contact}.' if contact else CONSENT_TEXT
+
+
 class ChallengeView(APIView):
     permission_classes = [permissions.IsAuthenticated, IsFreelancer]
     throttle_classes = [ScopedRateThrottle]
@@ -36,7 +43,7 @@ class ChallengeView(APIView):
             'id': str(challenge.id),
             'text': challenge.text,
             'expires_at': challenge.issued_at + selfie_rules.CHALLENGE_LIFETIME,
-            'consent_text': CONSENT_TEXT,
+            'consent_text': consent_text(),
         })
 
 
