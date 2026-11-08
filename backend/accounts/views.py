@@ -3,7 +3,7 @@ from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .email import send_verification_email
+from .email import send_verification_email_on_commit
 from .models import User
 from .serializers import RegisterSerializer, UserSerializer
 from .tokens import read_email_verification_token
@@ -26,8 +26,11 @@ class RegisterView(generics.CreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
-        send_verification_email(user)
-        return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
+        # A failed email never fails the sign-up: the page offers to resend instead.
+        outcome = send_verification_email_on_commit(user)
+        data = UserSerializer(user).data
+        data['verification_email_sent'] = outcome.get('sent')
+        return Response(data, status=status.HTTP_201_CREATED)
 
 
 class VerifyEmailView(APIView):

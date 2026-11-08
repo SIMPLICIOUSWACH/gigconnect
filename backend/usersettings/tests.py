@@ -20,7 +20,8 @@ class AccountSettingsTests(APITestCase):
 
     def test_changing_email_resets_verification_and_resends(self):
         from django.core import mail
-        response = self.client.patch('/api/settings/account/', {'email': 'new@example.com'})
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.patch('/api/settings/account/', {'email': 'new@example.com'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.user.refresh_from_db()
         self.assertEqual(self.user.email, 'new@example.com')

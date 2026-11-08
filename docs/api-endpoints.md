@@ -12,6 +12,7 @@ All endpoints are prefixed with `/api/`. Auth uses JWT bearer tokens
 | POST | `/api/auth/token/refresh/` | None (refresh token) | Rotates the refresh token, returns a new access token |
 | GET | `/api/auth/me/` | Required | Returns the logged-in user + their profile |
 | GET | `/api/auth/verify-email/<token>/` | None | Confirms a signed, time-limited email verification token |
+| POST | `/api/auth/resend-verification/` | Optional | Sends a new verification link. Signed in: to your own address, with `sent` true or a 503 if it failed. Signed out: `{"email"}`, and the same answer whether or not the account exists. 5 an hour |
 
 ## Profiles (`/api/`)
 

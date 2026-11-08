@@ -19,9 +19,15 @@ export default function AccountSettings() {
     setMessage('')
     setSubmitting(true)
     try {
-      await updateAccount(form)
+      const updated = await updateAccount(form)
       await refreshUser()
-      setMessage('Account updated.')
+      if (updated.verification_email_sent === false) {
+        setError("Account updated, but we couldn't send the email to verify your new address. Try Resend on your dashboard.")
+      } else {
+        setMessage(
+          updated.verification_email_sent ? 'Account updated. Check your new inbox for a verification link.' : 'Account updated.'
+        )
+      }
     } catch (err) {
       const data = err.response?.data
       setError(data ? Object.values(data).flat().join(' ') : 'Could not update account.')

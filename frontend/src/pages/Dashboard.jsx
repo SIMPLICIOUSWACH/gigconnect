@@ -4,6 +4,7 @@ import Alert from '../components/Alert'
 import Button from '../components/Button'
 import Card from '../components/Card'
 import RecommendedForYou from '../components/recommendations/RecommendedForYou'
+import ResendVerification from '../components/ResendVerification'
 
 export default function Dashboard() {
   const { user } = useAuth()
@@ -18,7 +19,7 @@ export default function Dashboard() {
         {!user.is_email_verified && (
           <Alert type="info">
             Please verify your email: check your inbox for a verification link. Posting gigs and applying
-            to gigs is blocked until you do.
+            to gigs is blocked until you do. <ResendVerification />
           </Alert>
         )}
 
