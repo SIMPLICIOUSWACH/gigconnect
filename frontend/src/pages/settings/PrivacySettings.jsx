@@ -6,6 +6,7 @@ import Alert from '../../components/Alert'
 import Button from '../../components/Button'
 import Card from '../../components/Card'
 import Input from '../../components/Input'
+import IdPrivacyNotice from '../../components/verification/IdPrivacyNotice'
 
 export default function PrivacySettings() {
   const { logout } = useAuth()
@@ -49,9 +50,14 @@ export default function PrivacySettings() {
         </Card>
 
         <Card>
+          <IdPrivacyNotice />
+        </Card>
+
+        <Card>
           <h2 className="text-section-title text-ink mb-2">Delete Account</h2>
           <p className="text-body text-muted mb-6">
-            Your account will be deactivated, your personal details anonymized, and your gig viewing history deleted. This cannot be undone.
+            Your account will be deactivated, your personal details anonymized, and your gig viewing history deleted.
+            Your ID images, selfie and ID number are deleted too. This cannot be undone.
           </p>
           {!confirming ? (
             <Button variant="danger" onClick={() => setConfirming(true)}>
