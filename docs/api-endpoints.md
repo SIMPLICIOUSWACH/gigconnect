@@ -7,14 +7,12 @@ All endpoints are prefixed with `/api/`. Auth uses JWT bearer tokens
 
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
-| POST | `/api/auth/register/` | None | Role-conditional registration (client or freelancer) |
+| POST | `/api/auth/register/` | None | Role-conditional registration (client or freelancer). `phone` is optional: a Kenyan mobile (`07`, `01`, `7`, `1`, `254` or `+254`), stored as `+2547XXXXXXXX` or `+2541XXXXXXXX` and never verified |
 | POST | `/api/auth/login/` | None | Returns access + refresh JWT pair |
 | POST | `/api/auth/token/refresh/` | None (refresh token) | Rotates the refresh token, returns a new access token |
 | GET | `/api/auth/me/` | Required | Returns the logged-in user + their profile |
 | GET | `/api/auth/verify-email/<token>/` | None | Confirms a signed, time-limited email verification token |
 | POST | `/api/auth/resend-verification/` | Optional | Sends a new verification link. Signed in: to your own address, with `sent` true or a 503 if it failed. Signed out: `{"email"}`, and the same answer whether or not the account exists. 5 an hour |
-| POST | `/api/auth/send-otp/` | Required | Sends a 6-digit phone OTP (5-min expiry) |
-| POST | `/api/auth/verify-otp/` | Required | Verifies the OTP, sets `is_phone_verified` |
 
 ## Profiles (`/api/`)
 
@@ -33,7 +31,7 @@ All endpoints are prefixed with `/api/`. Auth uses JWT bearer tokens
 
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
-| PATCH | `/api/settings/account/` | Required | Update full_name/email/phone (resets the matching verification flag) |
+| PATCH | `/api/settings/account/` | Required | Update full_name/email/phone. Changing the email resets its verification; the phone is checked and normalised as at registration |
 | POST | `/api/settings/change-password/` | Required | Change password (blacklists all existing sessions) |
 | GET | `/api/settings/sessions/` | Required | List active sessions |
 | DELETE | `/api/settings/sessions/<id>/` | Required | Revoke a single session |
@@ -363,7 +361,7 @@ it starts with that label. It never sets the live defaults.
 - About 250 freelancers, 300 gigs and 60 clients, with 15 to 25 applications per freelancer. A hidden popularity per
   gig means the median gig has well over 5 applicants.
 - Each freelancer belongs to one of five hidden taste groups: quick_cash (short window or short job, lower budget),
-  premium (higher budget, negotiable, a client with a verified phone), remote_only, client_loyal (two favourite
+  premium (higher budget, negotiable, a premium client, which is a synthetic trait in the generator), remote_only, client_loyal (two favourite
   clients among the ten that post the most) and cross_field (one neighbouring category whose skills they do not
   have). About 40% of each freelancer's applications follow their group, 40% skill overlap and 20% chance.
 - Habits only use budget, urgency, client, location and posting date, which the content model does not read. Gig

@@ -13,7 +13,6 @@ import Home from './pages/Home'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import VerifyEmail from './pages/VerifyEmail'
-import VerifyPhone from './pages/VerifyPhone'
 import ProfileSetup from './pages/ProfileSetup'
 import PublicProfile from './pages/PublicProfile'
 import ProfileEditPage from './pages/profile/ProfileEditPage'
@@ -64,7 +63,6 @@ function App() {
         />
 
         <Route element={<ProtectedRoute />}>
-          <Route path="/verify-phone" element={<VerifyPhone />} />
           <Route path="/profile-setup" element={<ProfileSetup />} />
 
           <Route element={<Layout />}>

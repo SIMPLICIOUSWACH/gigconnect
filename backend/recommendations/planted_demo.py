@@ -38,7 +38,7 @@ class DemoError(Exception):
     """The demo cannot be set up here. The message says why."""
 
 
-def fits_habit(group, gig):
+def fits_habit(group, gig, premium_clients=None):
     """Whether a gig in the database fits a group's habit, by the same rule the generator used (planted.is_habit)."""
     created = gig.created_at.date()
     planned = SimpleNamespace(
@@ -47,7 +47,9 @@ def fits_habit(group, gig):
         category=gig.category.name, skills=(),
     )
     freelancer = SimpleNamespace(group=group, favourite_clients=(), neighbour_category=None, skills=())
-    clients = {0: SimpleNamespace(verified=gig.client.is_phone_verified)}
+    if premium_clients is None:
+        premium_clients = planted.premium_client_emails()
+    clients = {0: SimpleNamespace(premium=gig.client.email in premium_clients)}
     return planted.is_habit(freelancer, planned, clients)
 
 
@@ -96,7 +98,7 @@ def create_demo_accounts(model):
             user.save()
         email, name = COLD_START_ACCOUNT
         newcomer = User(
-            email=email, full_name=name, phone='254792000000', role=User.Role.FREELANCER, is_email_verified=True,
+            email=email, full_name=name, phone='+254792000000', role=User.Role.FREELANCER, is_email_verified=True,
             is_profile_complete=True, is_synthetic=True,
         )
         newcomer.set_password(DEMO_PASSWORD)
@@ -144,10 +146,11 @@ def _row(recommendation, group):
     closes = (gig.application_deadline - date.today()).days
     collaborative = recommendation.collaborative_score
     fits = '' if group is None else ('yes' if fits_habit(group, gig) else 'no')
+    premium = 'premium ' if gig.client.email in planted.premium_client_emails() else ' ' * 8
     return (
         f'  {gig.title[:34]:34} {int(gig.budget_min):>6}-{int(gig.budget_max):<6} '
         f'{"urgent" if window <= planted.URGENT_WINDOW else "":6} closes in {closes:>2}d  '
-        f'{"verified" if gig.client.is_phone_verified else "        "}  {"remote" if gig.is_remote else "      "}  '
+        f'{premium}  {"remote" if gig.is_remote else "      "}  '
         f'content {recommendation.content_score:.3f}  '
         f'collab {"  -  " if collaborative is None else f"{collaborative:.3f}"}  '
         f'score {recommendation.score:.3f}  {fits}'
@@ -166,6 +169,7 @@ def demo_lines(model):
         f'{settings.RECOMMENDER_BLEND_MAX_WEIGHT}, ramp {settings.RECOMMENDER_BLEND_RAMP_GIGS} gigs, cold start below '
         f'{settings.RECOMMENDER_COLD_START_MIN_GIGS}, {settings.RECOMMENDER_SVD_COMPONENTS} factors.',
         f'Open gigs today: {open_gig_count()} ({open_gigs_with_applicants()} of them already have applicants).',
+        "'premium' marks a premium client, a synthetic trait of the planted world.",
         '',
     ]
     accounts = [(group, *DEMO_ACCOUNTS[group]) for group in DEMO_GROUPS] + [(None, *COLD_START_ACCOUNT)]

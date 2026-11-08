@@ -65,7 +65,7 @@ class Command(BaseCommand):
         return f'{random.choice(FIRST_NAMES)} {random.choice(LAST_NAMES)}'
 
     def _random_phone(self):
-        return f'2547{random.randint(10000000, 99999999)}'
+        return f'+2547{random.randint(10000000, 99999999)}'
 
     @transaction.atomic
     def _seed_clients(self, count, industries):

@@ -23,7 +23,9 @@ export default function Login() {
     setSubmitting(true)
     try {
       const me = await login(email, password)
-      navigate(me?.role === 'admin' ? ADMIN_HOME : '/dashboard')
+      if (me?.role === 'admin') navigate(ADMIN_HOME)
+      else if (location.state?.emailVerified && !me?.is_profile_complete) navigate('/profile-setup')
+      else navigate('/dashboard')
     } catch (err) {
       const suspended = err.response?.data?.code === 'account_suspended'
       setError(suspended ? err.response.data.detail : 'Invalid email or password.')
@@ -37,6 +39,12 @@ export default function Login() {
       <Card variant="elevated" className="w-full max-w-sm">
         <h1 className="text-page-title text-primary">Welcome back</h1>
         <p className="text-body text-muted mt-1 mb-8">Log in to your GigConnect account.</p>
+
+        {location.state?.emailVerified && (
+          <div className="mb-6">
+            <Alert type="success">Your email is verified. Log in to set up your profile.</Alert>
+          </div>
+        )}
 
         {location.state?.registered && (
           <div className="mb-6">

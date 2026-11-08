@@ -8,7 +8,6 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 
 from accounts.email import send_verification_email_on_commit
-from accounts.otp import issue_otp
 from accounts.serializers import UserSerializer
 from applications.privacy import erase_applications, export_applications
 from gigs.models import GigInteraction
@@ -26,7 +25,7 @@ class AccountSettingsView(APIView):
 
     def patch(self, request):
         user = request.user
-        old_email, old_phone = user.email, user.phone
+        old_email = user.email
 
         serializer = AccountSettingsSerializer(user, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
@@ -37,11 +36,6 @@ class AccountSettingsView(APIView):
             user.is_email_verified = False
             user.save(update_fields=['is_email_verified'])
             outcome = send_verification_email_on_commit(user)
-
-        if user.phone != old_phone:
-            user.is_phone_verified = False
-            user.save(update_fields=['is_phone_verified'])
-            issue_otp(user)
 
         data = UserSerializer(user).data
         # Only present when the email changed: whether the new verification link could be sent.
