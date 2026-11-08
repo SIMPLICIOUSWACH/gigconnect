@@ -199,3 +199,22 @@ class HashKeyCheckTests(TestCase):
         with override_settings(PRIVATE_MEDIA_ROOT=private):
             user.freelancer_profile.id_document.save('id.pdf', ContentFile(b'%PDF-1.4'), save=True)
             self.assertTrue((Path(private) / user.freelancer_profile.id_document.name).exists())
+
+
+class RehashTests(PrivacyTestCase):
+    def test_rehashing_uses_the_current_key_for_numbers_still_stored(self):
+        profile = self.send_id()
+        with override_settings(ID_HASH_KEY='a-new-key'):
+            output = StringIO()
+            call_command('rehash_id_numbers', stdout=output)
+            expected = hash_id_number('12345678')
+        profile.refresh_from_db()
+        self.assertIn('Updated 1', output.getvalue())
+        self.assertEqual(profile.id_number_hash, expected)
+
+    def test_numbers_already_deleted_are_reported_not_changed(self):
+        profile = self.send_id()
+        FreelancerProfile.objects.filter(pk=profile.pk).update(id_number='')
+        output = StringIO()
+        call_command('rehash_id_numbers', stdout=output)
+        self.assertIn('1 hash(es) belong to numbers already deleted', output.getvalue())

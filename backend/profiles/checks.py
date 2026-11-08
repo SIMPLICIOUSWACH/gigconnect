@@ -32,6 +32,6 @@ def id_hash_key_is_set(app_configs, **kwargs):
         return []
     return [Warning(
         'ID_HASH_KEY is not set, so ID numbers are hashed with a key derived from SECRET_KEY.',
-        hint='Set a long random ID_HASH_KEY in backend/.env once, before real ID checks, and never change it.',
+        hint='Set a long random ID_HASH_KEY in backend/.env once, then run "python manage.py rehash_id_numbers".',
         id='profiles.W002',
     )]

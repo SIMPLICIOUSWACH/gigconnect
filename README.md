@@ -98,7 +98,8 @@ They come from the official [OpenCV Zoo](https://github.com/opencv/opencv_zoo) r
 **Privacy settings in `backend/.env`:**
 - `ID_HASH_KEY`: a long random secret. ID numbers are also stored as a keyed hash (HMAC-SHA256) plus the last 3
   digits, so a second account with the same ID can be spotted after the number itself is deleted. Set it once and
-  never change it, or old and new hashes won't match. `manage.py check` warns while it is unset.
+  never change it, or old and new hashes won't match. `manage.py check` warns while it is unset. After setting it,
+  run `python manage.py rehash_id_numbers` once so ID numbers stored before then get a hash with the new key.
 - `PRIVACY_CONTACT_EMAIL`: shown on the privacy page and in the selfie consent text.
 
 **Deleting ID images after 90 days.** `purge_id_images` deletes the ID image, the selfie and the plain ID number 90
