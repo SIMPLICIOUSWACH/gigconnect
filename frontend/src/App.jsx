@@ -1,5 +1,7 @@
+import { Suspense, lazy } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
+import AdminRoute from './components/AdminRoute'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
 import PublicLayout from './components/PublicLayout'
@@ -14,7 +16,9 @@ import VerifyEmail from './pages/VerifyEmail'
 import VerifyPhone from './pages/VerifyPhone'
 import ProfileSetup from './pages/ProfileSetup'
 import PublicProfile from './pages/PublicProfile'
+import ProfileEditPage from './pages/profile/ProfileEditPage'
 import Dashboard from './pages/Dashboard'
+import NotificationsPage from './pages/NotificationsPage'
 import GigForm from './pages/gigs/GigForm'
 import GigDetail from './pages/gigs/GigDetail'
 import BrowseGigs from './pages/gigs/BrowseGigs'
@@ -27,8 +31,14 @@ import SecuritySettings from './pages/settings/SecuritySettings'
 import NotificationSettings from './pages/settings/NotificationSettings'
 import PrivacySettings from './pages/settings/PrivacySettings'
 import CompanyProfileSettings from './pages/settings/CompanyProfileSettings'
-import FreelancerProfileSettings from './pages/settings/FreelancerProfileSettings'
 import VerificationSettings from './pages/settings/VerificationSettings'
+
+// The admin area is its own bundle, downloaded only when an admin opens it.
+const AdminApp = lazy(() => import('./admin/AdminApp'))
+
+function AdminLoading() {
+  return <p className="min-h-screen bg-bg p-8 text-body text-muted">Loading the admin area…</p>
+}
 
 function App() {
   return (
@@ -42,12 +52,24 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/verify-email/:token" element={<VerifyEmail />} />
 
+        <Route
+          path="/admin/*"
+          element={
+            <AdminRoute>
+              <Suspense fallback={<AdminLoading />}>
+                <AdminApp />
+              </Suspense>
+            </AdminRoute>
+          }
+        />
+
         <Route element={<ProtectedRoute />}>
           <Route path="/verify-phone" element={<VerifyPhone />} />
           <Route path="/profile-setup" element={<ProfileSetup />} />
 
           <Route element={<Layout />}>
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/profile/:id" element={<PublicProfile />} />
             <Route path="/gigs" element={<BrowseGigs />} />
             <Route path="/gigs/:id" element={<GigDetail />} />
@@ -55,6 +77,7 @@ function App() {
 
             <Route element={<RoleRoute role="freelancer" />}>
               <Route path="/applications" element={<MyApplications />} />
+              <Route path="/profile/edit" element={<ProfileEditPage />} />
             </Route>
 
             <Route element={<RoleRoute role="client" />}>
@@ -75,7 +98,7 @@ function App() {
                 <Route path="company-profile" element={<CompanyProfileSettings />} />
               </Route>
               <Route element={<RoleRoute role="freelancer" />}>
-                <Route path="freelancer-profile" element={<FreelancerProfileSettings />} />
+                <Route path="freelancer-profile" element={<Navigate to="/profile/edit" replace />} />
                 <Route path="verification" element={<VerificationSettings />} />
               </Route>
             </Route>

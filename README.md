@@ -30,11 +30,53 @@ venv/Scripts/activate       # venv\Scripts\activate on Windows cmd
 pip install -r requirements.txt
 cp .env.example .env        # then edit DB_* values to match your Postgres setup
 python manage.py migrate
-python manage.py createsuperuser
+python manage.py create_admin --email admin@example.com
 python manage.py runserver
 ```
 
 The API serves at `http://localhost:8000`.
+
+### Admin accounts
+
+Nobody can sign up as an admin. `create_admin` is the only way to make one:
+
+```bash
+python manage.py create_admin --email admin@example.com --full-name "Platform Admin"
+```
+
+It asks for the password twice and checks it against the password rules. The new account has the admin role,
+verified email and phone, and `is_staff`. Admins log in on the normal login page and land on `/admin`, the
+GigConnect admin area. For a script, pass `--noinput` and put the password in `GIGCONNECT_ADMIN_PASSWORD`.
+
+Django's own `/admin/` site is kept for debugging by a superuser (`createsuperuser`). It is not the product's
+admin area.
+
+### ID documents
+
+ID uploads are PDF, JPG or PNG files up to 5 MB. They are kept in `PRIVATE_MEDIA_ROOT` (default `backend/private_media/`),
+outside the media folder, so no URL reaches them. Admins read them through `/api/admin/verifications/<id>/document/`.
+Back this folder up with the database. If you have older uploads, move them once; `manage.py check` warns until you do:
+
+```bash
+python manage.py move_id_documents
+```
+
+### Sending email
+
+By default every email (verification links, notifications) is printed in the terminal running the backend, not sent.
+Tests always use Django's in-memory mailbox, whatever is set here. To send real email through a Gmail account:
+
+1. Use a Gmail account just for GigConnect and turn on 2-Step Verification for it.
+2. Create an app password: Google Account, Security, App passwords. Gmail rejects the normal account password here.
+3. In `backend/.env`, set the email lines from `.env.example`: `EMAIL_BACKEND` to the SMTP backend,
+   `EMAIL_HOST=smtp.gmail.com`, `EMAIL_PORT=587`, `EMAIL_USE_TLS=True`, `EMAIL_HOST_USER` to the address,
+   `EMAIL_HOST_PASSWORD` to the app password, and `DEFAULT_FROM_EMAIL=GigConnect <the same address>`.
+4. Set `FRONTEND_URL` to the address people open the site at, because the links in emails use it.
+5. Restart the backend. `python manage.py check` warns if the SMTP backend is on without a login.
+
+Emails go out once the database change behind them is saved. If sending fails, the action still succeeds and the error
+is logged: after sign-up the page says the email couldn't be sent and offers Resend, and a signed-in user can resend
+from the Dashboard banner. Resending is limited to 5 an hour. Keep `.env` out of git; only `.env.example` is committed.
 
 ## Frontend setup
 
@@ -57,6 +99,69 @@ If you run Postgres natively instead (as this project's own dev machine does), y
 may listen on a different port. For example, a native Windows Postgres install commonly ends
 up on **3204**, not the default 5432. Whatever your actual port is, set `DB_PORT` in
 `backend/.env` to match; don't assume 5432 just because that's the Docker default.
+
+## Recommender profiles and the planted demo
+
+The recommender runs under one of two profiles, chosen by the `RECOMMENDER_PROFILE` environment variable. The values
+live in `backend/config/recommender_profiles.json`, not in code.
+
+| | production (the default) | demo |
+|---|---|---|
+| Database | the ordinary one (`DB_NAME`, normally `gigconnect`) | `gigconnect_planted`, always |
+| Largest collaborative weight | 0.5, chosen by hand (tuning picked 0, see `docs/recommender.md`) | 0.5 |
+| Ramp, factors, cold start | 20 gigs, 20 factors, below 5 gigs | 50 gigs, 2 factors, below 10 gigs |
+| Match band cut-offs (good, strong) | 0.13, 0.27 | 0.35, 0.6 |
+| Trained models and snapshot | `recommendations/artifacts/`, `datasets/platform/` | `recommendations/artifacts/demo/`, `datasets/platform/demo/` |
+| Where the values come from | tuning on the skill-overlap seed data, except the weight | tuning on the planted data |
+
+- If the variable is missing, production is used. Any other name is refused.
+- The demo profile refuses to start unless it is connected to the planted database, and only planted accounts are in
+  it. It is labelled **synthetic_planted - demonstrates pipeline mechanics, not real-world accuracy** in the admin
+  header and in every report. Every report also names the profile it was made under.
+- Recommendations are worked out on each request and never stored, so switching the profile and restarting the server
+  is all it takes. There is nothing to regenerate.
+
+How the demo blends: a freelancer below 10 different gigs gets content scores only. From 10 gigs the collaborative
+share rises by 0.5 / 50 = 1 point per gig, so 0 at 0 or 5 gigs, 1% at 10, 11% at 20 and 31% at 40, until it reaches
+50%. The planted freelancers have 15 to 25 applications, so their share is between 6% and 16%.
+
+### Running the demo
+
+Once, create an empty PostgreSQL database called `gigconnect_planted`, then from `backend/` (PowerShell):
+
+```powershell
+$env:RECOMMENDER_PROFILE = "demo"
+python manage.py migrate
+python manage.py refresh_planted_demo
+python manage.py runserver
+```
+
+`refresh_planted_demo` rebuilds the planted world dated up to today (the same seed, so the same world), retrains the
+demo model, makes the demo accounts and prints how many gigs are open today and each demo account's top 5. Run it the
+day before a presentation, because the planted gigs close as the days pass. `show_planted_demo` prints the same
+without rebuilding anything. To go back to production, close that terminal or run `Remove-Item Env:RECOMMENDER_PROFILE`
+and restart the server.
+
+### Demo accounts
+
+All of them sign in with the demo password `DemoPass123!`. They exist only in the planted database: a local demo on
+synthetic accounts, never real ones.
+
+| Account | Email | What it shows |
+|---|---|---|
+| Amina Wanjiru | `planted-amina@example.test` | A premium freelancer: higher budget, negotiable gigs from verified clients |
+| Brian Otieno | `planted-brian@example.test` | A quick_cash freelancer: short, urgent, lower budget gigs |
+| Cynthia Achieng | `planted-cynthia@example.test` | A remote_only freelancer: remote gigs |
+| David Kamau | `planted-david@example.test` | A brand-new freelancer with no applications: skill matches only (cold start) |
+| Demo Admin | `planted-admin@example.test` | The admin area at `/admin`, on the planted data |
+
+The demo admin is made with `create_admin` like any other admin. Its email starts with `planted-` because the demo
+profile refuses to start on a database that holds any other kind of account. `seed_planted --delete` removes it with
+the rest of the planted world, so run `create_admin` again after reseeding.
+
+Each of the first three is the member of their hidden group whose top 5 recommendations show the group's habit most
+clearly. The habit only shows in the gigs the collaborative part pulls in, which are often gigs that share no skill with
+them (a content score of 0). The groups themselves are only in `datasets/synthetic_planted/ground_truth.csv`.
 
 ## Tests
 

@@ -65,8 +65,10 @@ export default function Register() {
 
     setSubmitting(true)
     try {
-      await register(payload)
-      navigate('/login', { state: { registered: true } })
+      const created = await register(payload)
+      navigate('/login', {
+        state: { registered: true, emailSent: created.verification_email_sent !== false, email: form.email },
+      })
     } catch (err) {
       const data = err.response?.data
       if (data && typeof data === 'object') {

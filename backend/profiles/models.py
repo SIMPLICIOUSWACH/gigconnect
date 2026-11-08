@@ -5,6 +5,7 @@ from django.db import models
 
 from .counties import COUNTY_CHOICES
 from .skills import display_name, match_key
+from .storage import PrivateStorage
 
 
 class Skill(models.Model):
@@ -83,20 +84,36 @@ class FreelancerProfile(models.Model):
         VERIFIED = 'verified', 'Verified'
         REJECTED = 'rejected', 'Rejected'
 
+    # The colour of the freelancer's avatar and profile header.
+    class Colour(models.TextChoices):
+        TEAL = 'teal', 'Teal'
+        CORAL = 'coral', 'Coral'
+        SUN = 'sun', 'Sunflower'
+        VIOLET = 'violet', 'Violet'
+        ROSE = 'rose', 'Rose'
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='freelancer_profile'
     )
     skills = models.ManyToManyField(Skill, related_name='freelancers', blank=True)
+    headline = models.CharField(max_length=120, blank=True)
     bio = models.CharField(max_length=300, blank=True)
+    # In KES. Empty means "on request".
+    starting_price = models.PositiveIntegerField(null=True, blank=True)
+    is_available = models.BooleanField(default=True)
+    profile_colour = models.CharField(max_length=10, choices=Colour.choices, default=Colour.TEAL)
     county = models.CharField(max_length=40, choices=COUNTY_CHOICES, null=True, blank=True)
     profile_photo = models.ImageField(upload_to='profile_photos/', blank=True, null=True)
     # write-only in every serializer — never include in a response, even to the owner
     id_number = models.CharField(max_length=20, blank=True)
-    id_document = models.FileField(upload_to='id_documents/', blank=True, null=True)
+    # In private storage: no URL reaches it. Admins read it through /api/admin/verifications/<id>/document/.
+    id_document = models.FileField(upload_to='id_documents/', storage=PrivateStorage(), blank=True, null=True)
     verification_status = models.CharField(
         max_length=20, choices=VerificationStatus.choices, default=VerificationStatus.UNVERIFIED
     )
+    # When the ID document was last sent in, so admins can work through the oldest first.
+    verification_submitted_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return f'FreelancerProfile<{self.user.email}>'

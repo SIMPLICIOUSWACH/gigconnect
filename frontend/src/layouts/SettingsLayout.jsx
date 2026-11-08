@@ -18,7 +18,7 @@ export default function SettingsLayout() {
       ? [{ to: '/settings/company-profile', label: 'Company Profile', icon: Building2 }]
       : user?.role === 'freelancer'
         ? [
-            { to: '/settings/freelancer-profile', label: 'Profile & Portfolio', icon: Briefcase },
+            { to: '/profile/edit', label: 'Profile & Portfolio', icon: Briefcase },
             { to: '/settings/verification', label: 'Verification', icon: BadgeCheck },
           ]
         : []

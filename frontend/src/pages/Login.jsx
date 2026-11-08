@@ -5,6 +5,8 @@ import Alert from '../components/Alert'
 import Button from '../components/Button'
 import Card from '../components/Card'
 import Input from '../components/Input'
+import { ADMIN_HOME } from '../components/AdminRoute'
+import ResendVerification from '../components/ResendVerification'
 
 export default function Login() {
   const { login } = useAuth()
@@ -20,10 +22,11 @@ export default function Login() {
     setError('')
     setSubmitting(true)
     try {
-      await login(email, password)
-      navigate('/dashboard')
-    } catch {
-      setError('Invalid email or password.')
+      const me = await login(email, password)
+      navigate(me?.role === 'admin' ? ADMIN_HOME : '/dashboard')
+    } catch (err) {
+      const suspended = err.response?.data?.code === 'account_suspended'
+      setError(suspended ? err.response.data.detail : 'Invalid email or password.')
     } finally {
       setSubmitting(false)
     }
@@ -37,7 +40,17 @@ export default function Login() {
 
         {location.state?.registered && (
           <div className="mb-6">
-            <Alert type="success">Account created. Check your email to verify before you can post or apply to gigs.</Alert>
+            {location.state.emailSent === false ? (
+              <Alert type="error">
+                Your account was created, but we couldn&apos;t send the email. Try Resend.{' '}
+                <ResendVerification email={location.state.email} label="Resend" />
+              </Alert>
+            ) : (
+              <Alert type="success">
+                Account created. Check your email to verify before you can post or apply to gigs.{' '}
+                <ResendVerification email={location.state.email} label="Didn't get it? Resend" />
+              </Alert>
+            )}
           </div>
         )}
 

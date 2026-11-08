@@ -112,8 +112,8 @@ erDiagram
         uuid user_id FK "null for an anonymous visitor"
         string session_key "set instead of user_id for anonymous visitors"
         uuid gig_id FK
-        string type "view / search_click / save / apply / recommendation_click"
-        int position "place in the list, for the two click types"
+        string type "view / search_click / save / apply / recommendation_click / recommendation_relevant / recommendation_not_relevant (up to 30 characters)"
+        int position "place in the list, for the click types and the relevance answers"
         bool is_synthetic
         datetime created_at
     }
@@ -185,6 +185,12 @@ model. The types are `view` (logged by the server, once per visitor and gig), `s
 `save`, and `apply` (written when an application is created). A freelancer's interactions are deleted when
 they delete their account.
 
+Two more types were added in Sprint 6 for user acceptance testing: `recommendation_relevant` and
+`recommendation_not_relevant`, a freelancer's answer to "Is this gig relevant to you?" under a recommended gig, with
+the gig's place in the list. There is at most one answer per freelancer and gig (a new answer replaces the old one).
+They are left out of training, do not count as history for the blend, are in the data export and are deleted with
+the account. Adding them widened `type` from 20 to 30 characters (migration `gigs.0012`); there is no new column.
+
 **`RecommenderModelVersion`** has one row per training run, and the newest row is the model in use. It
 holds no model: the trained files live in a gitignored folder (`RECOMMENDER_ARTIFACT_DIR`), and the row is
 written last, after the files are in place, so a row always has its files. It records what the model was
@@ -192,4 +198,9 @@ trained on, so any score can be traced to its data: how many gigs, freelancers a
 was synthetic, why the collaborative part was skipped if it was, and every parameter used.
 
 Nothing is stored per person about what was recommended to them. Recommendations are worked out when
-they are asked for, from the loaded model.
+they are asked for, from the loaded model. The only thing kept about a recommendation is a freelancer's own relevance
+answer, as an interaction.
+
+The recommender profile (`production` or `demo`) chooses the database and the tuned settings; it is configuration,
+not a table. The planted demo runs in a database of its own (`gigconnect_planted`) with the same schema, and its
+hidden taste groups are kept in `datasets/synthetic_planted/ground_truth.csv`, never in a table.

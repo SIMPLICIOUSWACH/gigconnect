@@ -1,11 +1,30 @@
+from rest_framework.exceptions import AuthenticationFailed
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+
+from accounts.authentication import SUSPENDED_ERROR
 
 from .models import UserSession
 
 
+class LoginSerializer(TokenObtainPairSerializer):
+    """Tells a suspended user, once their password is right, why they can't log in."""
+
+    def validate(self, attrs):
+        try:
+            return super().validate(attrs)
+        except AuthenticationFailed:
+            user = getattr(self, 'user', None)
+            if user is not None and user.is_suspended:
+                raise AuthenticationFailed(SUSPENDED_ERROR) from None
+            raise
+
+
 class TrackedTokenObtainPairView(TokenObtainPairView):
     """Same as SimpleJWT's login view, but records a UserSession row per issued refresh token."""
+
+    serializer_class = LoginSerializer
 
     def post(self, request, *args, **kwargs):
         response = super().post(request, *args, **kwargs)

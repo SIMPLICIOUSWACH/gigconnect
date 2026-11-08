@@ -95,6 +95,28 @@ class BlendWeightTests(SimpleTestCase):
         self.assertTrue(hybrid.in_cold_start(4))
         self.assertFalse(hybrid.in_cold_start(5))
 
+    def test_the_numbers_can_be_given_instead_of_read_from_the_settings(self):
+        # Minimum 0, ramp 5, maximum 1.0: the first gig is step 1 of 5 (0.2), the fifth reaches the maximum.
+        self.assertAlmostEqual(hybrid.blend_weight(0, minimum=0, ramp=5, maximum=1.0), 0.2)
+        self.assertAlmostEqual(hybrid.blend_weight(2, minimum=0, ramp=5, maximum=1.0), 0.6)
+        self.assertAlmostEqual(hybrid.blend_weight(4, minimum=0, ramp=5, maximum=1.0), 1.0)
+        self.assertAlmostEqual(hybrid.blend_weight(40, minimum=0, ramp=5, maximum=1.0), 1.0)
+        # Minimum 3, ramp 5, maximum 0.75: nothing below 3 gigs, then 0.75 / 5 = 0.15 per step.
+        self.assertEqual(hybrid.blend_weight(2, minimum=3, ramp=5, maximum=0.75), 0.0)
+        self.assertAlmostEqual(hybrid.blend_weight(3, minimum=3, ramp=5, maximum=0.75), 0.15)
+        self.assertAlmostEqual(hybrid.blend_weight(7, minimum=3, ramp=5, maximum=0.75), 0.75)
+
+    def test_a_maximum_of_zero_means_the_collaborative_score_is_never_used(self):
+        for gigs in (0, 5, 24, 500):
+            self.assertEqual(hybrid.blend_weight(gigs, maximum=0.0), 0.0)
+
+    def test_given_numbers_beat_the_settings_and_left_out_ones_still_come_from_them(self):
+        with override_settings(
+            RECOMMENDER_COLD_START_MIN_GIGS=2, RECOMMENDER_BLEND_RAMP_GIGS=4, RECOMMENDER_BLEND_MAX_WEIGHT=0.8,
+        ):
+            self.assertAlmostEqual(hybrid.blend_weight(2, ramp=2), 0.4)  # minimum 2 and maximum 0.8 from settings
+            self.assertAlmostEqual(hybrid.blend_weight(2, minimum=0, ramp=4, maximum=1.0), 0.75)
+
 
 class HybridScoreTests(SimpleTestCase):
     def test_the_blend_is_w_times_collaborative_plus_the_rest_times_content(self):

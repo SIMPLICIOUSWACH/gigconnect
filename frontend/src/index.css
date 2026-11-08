@@ -3,7 +3,14 @@
 @tailwind utilities;
 
 body {
-  font-family: 'Inter', system-ui, sans-serif;
-  background-color: #F7F8FA;
-  color: #1A1F2B;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  background-color: #FBF8F3;
+  color: #1E1B2E;
+}
+
+@layer base {
+  h1,
+  h2 {
+    font-family: 'Bricolage Grotesque', 'DM Sans', sans-serif;
+  }
 }

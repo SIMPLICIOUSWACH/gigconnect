@@ -7,20 +7,18 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 
-from accounts.email import send_verification_email
+from accounts.email import send_verification_email_on_commit
 from accounts.otp import issue_otp
 from accounts.serializers import UserSerializer
 from applications.privacy import erase_applications, export_applications
 from gigs.models import GigInteraction
+from notifications import events
+from notifications.models import Notification
+from notifications.serializers import NotificationSerializer
 
 from .models import NotificationPreference, UserSession
 from .serializers import AccountSettingsSerializer, NotificationPreferenceSerializer, UserSessionSerializer
-
-
-def _blacklist_all_tokens(user):
-    for token in OutstandingToken.objects.filter(user=user):
-        BlacklistedToken.objects.get_or_create(token=token)
-    UserSession.objects.filter(user=user).delete()
+from .sessions import revoke_all_sessions
 
 
 class AccountSettingsView(APIView):
@@ -34,17 +32,22 @@ class AccountSettingsView(APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
 
+        outcome = {}
         if user.email != old_email:
             user.is_email_verified = False
             user.save(update_fields=['is_email_verified'])
-            send_verification_email(user)
+            outcome = send_verification_email_on_commit(user)
 
         if user.phone != old_phone:
             user.is_phone_verified = False
             user.save(update_fields=['is_phone_verified'])
             issue_otp(user)
 
-        return Response(UserSerializer(user).data)
+        data = UserSerializer(user).data
+        # Only present when the email changed: whether the new verification link could be sent.
+        if 'sent' in outcome:
+            data['verification_email_sent'] = outcome['sent']
+        return Response(data)
 
 
 class ChangePasswordView(APIView):
@@ -65,7 +68,8 @@ class ChangePasswordView(APIView):
 
         user.set_password(new_password)
         user.save(update_fields=['password'])
-        _blacklist_all_tokens(user)
+        revoke_all_sessions(user)
+        events.password_changed(user)
 
         return Response({'detail': 'Password changed. All sessions have been logged out.'})
 
@@ -101,7 +105,7 @@ class LogoutAllView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        _blacklist_all_tokens(request.user)
+        revoke_all_sessions(request.user)
         return Response({'detail': 'Logged out of all devices.'})
 
 
@@ -125,6 +129,7 @@ class ExportDataView(APIView):
             'user': UserSerializer(user).data,
             'notification_preferences': NotificationPreferenceSerializer(preference).data,
             'applications': export_applications(user),
+            'notifications': NotificationSerializer(user.notifications.order_by('created_at'), many=True).data,
             'gig_interactions': [
                 {
                     'type': i.type,
@@ -153,6 +158,7 @@ class DeleteAccountView(APIView):
             # Browsing history is personal data and has no use once the account is gone, so it is
             # deleted outright rather than anonymised.
             GigInteraction.objects.filter(user=user).delete()
+            Notification.objects.filter(recipient=user).delete()
 
             # Applications are shared with the client reviewing them, so they are emptied of
             # personal text and closed rather than deleted. See applications/privacy.py.
@@ -166,6 +172,6 @@ class DeleteAccountView(APIView):
             user.set_unusable_password()
             user.save()
 
-        _blacklist_all_tokens(user)
+        revoke_all_sessions(user)
 
         return Response({'detail': 'Account deleted.'})

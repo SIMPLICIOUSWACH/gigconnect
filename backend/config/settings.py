@@ -9,6 +9,8 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from config import recommender_profiles
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / '.env')
 
@@ -36,6 +38,8 @@ INSTALLED_APPS = [
     'gigs',
     'applications',
     'recommendations',
+    'notifications',
+    'adminpanel',
 ]
 
 MIDDLEWARE = [
@@ -68,10 +72,17 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
+# The recommender profile: which database and which tuned recommender settings the app runs with. The values are in
+# config/recommender_profiles.json. RECOMMENDER_PROFILE=demo runs the planted database with the planted tuning pick;
+# anything else is refused, and production is used when the variable is missing. See config/recommender_profiles.py.
+RECOMMENDER_PROFILE, _PROFILE = recommender_profiles.resolve(os.environ)
+RECOMMENDER_PROFILE_LABEL = _PROFILE['label']
+RECOMMENDER_PLANTED_DATABASE = recommender_profiles.load()['demo']['database']
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DB_NAME', 'gigconnect'),
+        'NAME': recommender_profiles.database_name(_PROFILE, os.environ),
         'USER': os.environ.get('DB_USER', 'gigconnect'),
         'PASSWORD': os.environ.get('DB_PASSWORD', 'gigconnect'),
         'HOST': os.environ.get('DB_HOST', 'localhost'),
@@ -103,12 +114,14 @@ STATIC_URL = 'static/'
 
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+# Uploads no URL may reach, such as ID documents. Must stay outside MEDIA_ROOT. See profiles/storage.py.
+PRIVATE_MEDIA_ROOT = Path(os.environ.get('PRIVATE_MEDIA_ROOT', BASE_DIR / 'private_media'))
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'accounts.authentication.ActiveAccountJWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
@@ -116,6 +129,7 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_RATES': {
         'skill_create': '30/hour',
         'gig_interaction': '300/hour',
+        'verification_resend': '5/hour',
     },
 }
 
@@ -125,6 +139,8 @@ SIMPLE_JWT = {
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
     'UPDATE_LAST_LOGIN': True,
+    # Also refuses suspended accounts, at login and on token refresh.
+    'USER_AUTHENTICATION_RULE': 'accounts.authentication.user_can_log_in',
 }
 
 CORS_ALLOWED_ORIGINS = os.environ.get(
@@ -132,9 +148,22 @@ CORS_ALLOWED_ORIGINS = os.environ.get(
 ).split(',')
 
 # Console backend for dev — verification emails print to the runserver console.
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-DEFAULT_FROM_EMAIL = 'GigConnect <no-reply@gigconnect.local>'
-FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
+# Email. The default prints every email to the console, so development needs no mail server, and the test runner
+# swaps in its own in-memory backend whatever is set here. For real email (for example Gmail with an app password), set
+# these in .env; see "Sending email" in the README. An empty value counts as not set.
+EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND') or 'django.core.mail.backends.console.EmailBackend'
+EMAIL_HOST = os.environ.get('EMAIL_HOST') or 'localhost'
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT') or 25)
+EMAIL_USE_TLS = (os.environ.get('EMAIL_USE_TLS') or 'False') == 'True'
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER') or ''
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD') or ''
+# Seconds to wait for the mail server, so a slow one can't hold a request up for long.
+EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT') or 10)
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL') or 'GigConnect <no-reply@gigconnect.local>'
+# Where the links in emails point. Set it to the real site address when deployed.
+FRONTEND_URL = os.environ.get('FRONTEND_URL') or 'http://localhost:5173'
+# The most freelancers told about one new gig, so posting a gig can't send an unbounded batch of mail.
+NOTIFICATION_MATCH_LIMIT = 500
 
 # Synthetic rows (from the seed and data-pipeline commands) are shown in the public feed in dev
 # only, unless SHOW_SYNTHETIC is set explicitly.
@@ -170,36 +199,40 @@ RECOMMENDER_INTERACTION_WEIGHTS = {
 RECOMMENDER_APPLICATION_WEIGHTS = {
     'pending': 3, 'under_review': 3, 'shortlisted': 4, 'hired': 5, 'rejected': 3, 'withdrawn': 3,
 }
-# The most latent factors the SVD learns (fewer if the data is smaller). Below any of these three minimums
-# the collaborative model is skipped altogether and the recommender uses content scores only.
-RECOMMENDER_SVD_COMPONENTS = 20
+# The most latent factors the SVD learns (fewer if the data is smaller), from the profile. Below any of these three
+# minimums the collaborative model is skipped altogether and the recommender uses content scores only.
+RECOMMENDER_SVD_COMPONENTS = _PROFILE['svd_components']
 RECOMMENDER_SVD_MIN_FREELANCERS = 10
 RECOMMENDER_SVD_MIN_GIGS = 20
 RECOMMENDER_SVD_MIN_INTERACTIONS = 100
 RECOMMENDER_RANDOM_SEED = 42
 
 # Whether recommendations are switched on at all. Off by default: with no trained model there is nothing
-# honest to show, and the pages say so instead of guessing. Set RECOMMENDATIONS_ENABLED=True to turn on.
-RECOMMENDATIONS_ENABLED = os.environ.get('RECOMMENDATIONS_ENABLED', 'False') == 'True'
-# Where trained models are saved (not tracked by git).
+# honest to show, and the pages say so instead of guessing. Set RECOMMENDATIONS_ENABLED=True to turn on. The demo
+# profile switches them on itself.
+RECOMMENDATIONS_ENABLED = recommender_profiles.recommendations_enabled(_PROFILE, os.environ)
+# Where trained models are saved (not tracked by git). The demo profile has a folder of its own inside it, so
+# training the demo can never overwrite a production model.
 RECOMMENDER_ARTIFACT_DIR = Path(
-    os.environ.get('RECOMMENDER_ARTIFACT_DIR', BASE_DIR / 'recommendations' / 'artifacts')
+    os.environ.get('RECOMMENDER_ARTIFACT_DIR', BASE_DIR / 'recommendations' / 'artifacts' / _PROFILE['artifact_folder'])
 )
+# Where a training run writes its copy of the data it used, inside RECOMMENDER_DATA_DIR. The demo profile has its own.
+RECOMMENDER_SNAPSHOT_FOLDER = _PROFILE['snapshot_folder']
 # Whether training uses the synthetic seed rows by default. On in development, off otherwise, and the
 # share of synthetic data is recorded on every trained model either way.
 RECOMMENDER_INCLUDE_SYNTHETIC = os.environ.get('RECOMMENDER_INCLUDE_SYNTHETIC', str(DEBUG)) == 'True'
 # Cold start: a freelancer who has interacted with fewer than this many different gigs gets content scores
 # only. From there the weight on the collaborative score ramps up over the next RAMP gigs, to the maximum.
-# These are starting values for Sprint 6 to tune on a validation split.
-RECOMMENDER_COLD_START_MIN_GIGS = 5
-RECOMMENDER_BLEND_RAMP_GIGS = 20
-RECOMMENDER_BLEND_MAX_WEIGHT = 0.5
+# The values come from the profile: tuned on the validation split in Sprint 6 (see docs/recommender.md).
+RECOMMENDER_COLD_START_MIN_GIGS = _PROFILE['cold_start_min_gigs']
+RECOMMENDER_BLEND_RAMP_GIGS = _PROFILE['blend_ramp_gigs']
+RECOMMENDER_BLEND_MAX_WEIGHT = _PROFILE['blend_max_weight']
 # How long a loaded model is trusted before the database is asked whether a newer one was trained.
 RECOMMENDER_MODEL_CACHE_SECONDS = 60
 
-# How a client's match score is described. These cut-offs come from the scores measured on the development
-# data in Sprint 5, where freelancers sharing a skill with a gig had a median score of 0.15 and a 90th
-# percentile of 0.31. That data is mostly synthetic, so they are provisional and Sprint 6 should recheck them.
-# A band is only given when the freelancer and the gig really share a skill.
-RECOMMENDER_BAND_STRONG = 0.30
-RECOMMENDER_BAND_GOOD = 0.15
+# How a client's match score is described, from the profile. The cut-offs are the median ("good") and the 90th
+# percentile ("strong") of the content scores of freelancer and gig pairs that share a skill, re-derived on the
+# validation split in Sprint 6. The data is mostly synthetic, so they are provisional. A band is only given when
+# the freelancer and the gig really share a skill.
+RECOMMENDER_BAND_STRONG = _PROFILE['band_strong']
+RECOMMENDER_BAND_GOOD = _PROFILE['band_good']

@@ -311,6 +311,29 @@ class CategoryTests(GigTestBase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertGreaterEqual(len(response.data), 1)
 
+    def test_open_gig_count_follows_the_feed_rules(self):
+        self.create_gig(title='Open')
+        self.create_gig(title='Open too')
+        self.create_gig(title='In progress', status=Gig.Status.IN_PROGRESS)
+        self.create_gig(title='Applications closed', application_deadline=date.today() - timedelta(days=1))
+        with self.settings(SHOW_SYNTHETIC=False):
+            self.create_gig(title='Synthetic', is_synthetic=True)
+            response = self.client.get('/api/categories/')
+        counts = {c['slug']: c['open_gig_count'] for c in response.data}
+        self.assertEqual(counts[self.category.slug], 2)
+
+    def test_categories_stay_in_name_order(self):
+        Category.objects.create(name='Zebra Category')
+        Category.objects.create(name='Alpha Category')
+        names = [c['name'] for c in self.client.get('/api/categories/').data]
+        self.assertEqual(names, sorted(names))
+
+    def test_category_with_no_open_gigs_counts_zero(self):
+        empty = Category.objects.create(name='Empty Category')
+        response = self.client.get('/api/categories/')
+        counts = {c['slug']: c['open_gig_count'] for c in response.data}
+        self.assertEqual(counts[empty.slug], 0)
+
 
 class GigPrerequisiteFieldTests(GigTestBase):
     def test_application_deadline_defaults_to_deadline_when_not_given(self):
@@ -430,6 +453,32 @@ class GigFilterSearchTests(GigTestBase):
         response = self.client.get('/api/gigs/', {'posted_within': '7'})
         titles = [g['title'] for g in response.data['results']]
         self.assertNotIn('Old gig', titles)
+
+    def test_urgent_filter_keeps_gigs_whose_applications_close_within_three_days(self):
+        today = date.today()
+        self.create_gig(title='Closes today', application_deadline=today)
+        self.create_gig(title='Closes in 3 days', application_deadline=today + timedelta(days=3))
+        self.create_gig(title='Closes in 4 days', application_deadline=today + timedelta(days=4))
+        response = self.client.get('/api/gigs/', {'urgent': 'true'})
+        titles = sorted(g['title'] for g in response.data['results'])
+        self.assertEqual(titles, ['Closes in 3 days', 'Closes today'])
+
+    def test_filter_by_client_lists_only_their_open_gigs(self):
+        self.create_gig(client_user=self.other_client, title='Other client gig')
+        self.create_gig(title='Closed gig', status=Gig.Status.CLOSED)
+        response = self.client.get('/api/gigs/', {'client': str(self.client_user.id)})
+        titles = sorted(g['title'] for g in response.data['results'])
+        self.assertEqual(titles, ['Bakery website in Nairobi', 'Logo design'])
+        other = self.client.get('/api/gigs/', {'client': str(self.other_client.id)})
+        self.assertEqual([g['title'] for g in other.data['results']], ['Other client gig'])
+
+    def test_filter_by_client_rejects_a_bad_id(self):
+        response = self.client.get('/api/gigs/', {'client': 'not-a-uuid'})
+        self.assertEqual(response.status_code, 400)
+
+    def test_urgent_false_does_not_filter(self):
+        response = self.client.get('/api/gigs/', {'urgent': 'false'})
+        self.assertEqual(response.data['count'], 2)
 
     def test_filters_combine_with_and(self):
         response = self.client.get('/api/gigs/', {
@@ -715,6 +764,13 @@ class GigInteractionEndpointTests(GigTestBase):
         self.assertEqual((interaction.query, interaction.position), ('logo design', 4))
         self.assertEqual(interaction.user, self.freelancer)
 
+    def test_the_relevance_answers_cannot_be_posted_through_the_click_endpoint(self):
+        # They have their own endpoint, for signed-in freelancers only, that keeps one answer per gig.
+        self.client.force_authenticate(user=self.freelancer)
+        for kind in GigInteraction.RELEVANCE_TYPES:
+            self.assertEqual(self.post(type=kind).status_code, status.HTTP_400_BAD_REQUEST, kind)
+        self.assertFalse(GigInteraction.objects.exists())
+
     def test_query_and_position_are_optional(self):
         self.client.force_authenticate(user=self.freelancer)
         self.assertEqual(self.post().status_code, status.HTTP_201_CREATED)
@@ -776,12 +832,17 @@ class GigInteractionModelTests(GigTestBase):
         interaction.refresh_from_db()
         self.assertEqual((interaction.query, interaction.position), ('logo', 3))
 
-    def test_type_choices_are_the_five_agreed_values(self):
-        # recommendation_click was added in Sprint 5 for opening a gig from the "Recommended for You" list.
+    def test_type_choices_are_the_seven_agreed_values(self):
+        # recommendation_click was added in Sprint 5 for opening a gig from the "Recommended for You" list, and the
+        # two relevance answers in Sprint 6 for user acceptance testing.
         self.assertEqual(
             set(GigInteraction.Type.values),
-            {'view', 'search_click', 'save', 'apply', 'recommendation_click'},
+            {
+                'view', 'search_click', 'save', 'apply', 'recommendation_click', 'recommendation_relevant',
+                'recommendation_not_relevant',
+            },
         )
+
 
     def test_indexes_for_the_collaborative_filter_exist(self):
         names = {index.name for index in GigInteraction._meta.indexes}
