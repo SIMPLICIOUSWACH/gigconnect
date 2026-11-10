@@ -139,6 +139,7 @@ REST_FRAMEWORK = {
         'gig_interaction': '300/hour',
         'verification_resend': '5/hour',
         'selfie_challenge': '30/hour',
+        'message_send': '20/min',
     },
 }
 
