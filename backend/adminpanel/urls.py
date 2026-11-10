@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import views
+from . import chat_views, views
 
 urlpatterns = [
     path('stats/', views.StatsView.as_view(), name='admin-stats'),
@@ -22,5 +22,11 @@ urlpatterns = [
     path('applications/', views.ApplicationListView.as_view(), name='admin-application-list'),
     path('applications/<uuid:pk>/remove/', views.RemoveApplicationView.as_view(), name='admin-application-remove'),
     path('applications/<uuid:pk>/restore/', views.RestoreApplicationView.as_view(), name='admin-application-restore'),
+    path('chat-reports/', chat_views.ChatReportListView.as_view(), name='admin-chat-report-list'),
+    path('chat-reports/<uuid:pk>/', chat_views.ChatReportDetailView.as_view(), name='admin-chat-report-detail'),
+    path(
+        'chat-reports/<uuid:pk>/resolve/', chat_views.ResolveChatReportView.as_view(),
+        name='admin-chat-report-resolve',
+    ),
     path('audit-log/', views.AuditLogView.as_view(), name='admin-audit-log'),
 ]

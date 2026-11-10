@@ -3,6 +3,7 @@ from rest_framework import serializers
 from accounts.models import User
 from applications.models import Application
 from gigs.models import Gig
+from messaging.models import Conversation
 from profiles import decisions
 from profiles.id_privacy import other_accounts_with_same_id
 from profiles.models import FreelancerProfile
@@ -218,4 +219,10 @@ def target_labels(actions):
         )
         for pk, name, title in rows:
             labels[(Target.APPLICATION, pk)] = f'{name} on "{title}"'
+    if Target.CONVERSATION in wanted:
+        rows = Conversation.objects.filter(pk__in=wanted[Target.CONVERSATION]).values_list(
+            'pk', 'client__full_name', 'freelancer__full_name', 'gig__title',
+        )
+        for pk, client, freelancer, title in rows:
+            labels[(Target.CONVERSATION, pk)] = f'Chat between {client} and {freelancer} on "{title}"'
     return labels

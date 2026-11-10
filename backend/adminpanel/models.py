@@ -23,12 +23,16 @@ class AdminAction(models.Model):
         RESTORE_GIG = 'restore_gig', 'Restored gig'
         REMOVE_APPLICATION = 'remove_application', 'Removed application'
         RESTORE_APPLICATION = 'restore_application', 'Restored application'
+        # Opening a reported chat is logged every time, because it means reading private messages.
+        CHAT_VIEWED = 'chat_viewed', 'Viewed reported chat'
+        CHAT_REPORT_RESOLVED = 'chat_report_resolved', 'Resolved chat report'
 
     class TargetType(models.TextChoices):
         # ID verification decisions target the freelancer's user account.
         USER = 'user', 'User'
         GIG = 'gig', 'Gig'
         APPLICATION = 'application', 'Application'
+        CONVERSATION = 'conversation', 'Conversation'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     # Kept if the admin's account is ever deleted, so the log still shows what happened.
