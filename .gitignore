@@ -5,6 +5,7 @@ __pycache__/
 backend/media/
 backend/private_media/
 backend/face_models/
+Claude outputs/
 backend/staticfiles/
 db.sqlite3
 .env

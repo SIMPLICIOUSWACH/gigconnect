@@ -25,6 +25,8 @@ class Notification(models.Model):
         APPLICATION_STATUS = 'application_status', 'Application status changed'
         NEW_GIG_MATCH = 'new_gig_match', 'New gig match'
         PASSWORD_CHANGED = 'password_changed', 'Password changed'
+        CHAT_OPENED = 'chat_opened', 'Chat opened after a hire'
+        NEW_MESSAGE = 'new_message', 'New message'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     recipient = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='notifications')

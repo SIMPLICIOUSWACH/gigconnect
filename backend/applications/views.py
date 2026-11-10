@@ -26,6 +26,7 @@ from accounts.permissions import IsClientRole, IsEmailVerified, IsFreelancer
 from gigs.feed import hidden_from
 from gigs.models import Gig, GigInteraction
 from gigs.pagination import GigPagination
+from messaging.service import open_conversation_on_hire
 from notifications import events
 from recommendations.matching import EMPTY_MATCH, applicant_matches
 
@@ -421,6 +422,8 @@ class ApplicationStatusView(APIView):
                 gig.status = Gig.Status.IN_PROGRESS
                 gig.save(update_fields=["status", "updated_at"])
             events.application_status_changed(application)
+            if hiring:
+                open_conversation_on_hire(application)
 
         out = ApplicationDetailSerializer(application, context={"request": request})
         return Response(out.data, status=status.HTTP_200_OK)

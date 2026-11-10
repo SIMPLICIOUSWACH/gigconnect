@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'applications',
     'recommendations',
     'notifications',
+    'messaging',
     'adminpanel',
 ]
 
