@@ -36,7 +36,7 @@ MAX_NEWER = 200
 
 def conversations_of(user):
     """The user's conversations, with the last message and their unread count worked out in the same query."""
-    latest = Message.objects.filter(conversation=OuterRef('pk')).order_by('-created_at', '-id')
+    latest = Message.objects.filter(conversation=OuterRef('pk')).order_by('-id')
     unread = Q(messages__read_at__isnull=True) & ~Q(messages__sender=user)
     return (
         Conversation.objects.filter(Q(client=user) | Q(freelancer=user))
@@ -83,8 +83,8 @@ class UnreadCountView(APIView):
 
 
 class MessageQuerySerializer(serializers.Serializer):
-    after = serializers.UUIDField(required=False)
-    before = serializers.UUIDField(required=False)
+    after = serializers.IntegerField(required=False, min_value=1)
+    before = serializers.IntegerField(required=False, min_value=1)
 
 
 class MessagesView(APIView):
@@ -103,21 +103,18 @@ class MessagesView(APIView):
         messages = conversation.messages.all()
 
         def anchor(key):
-            message = messages.filter(pk=query.validated_data[key]).first()
-            if message is None:
+            message_id = query.validated_data[key]
+            if not messages.filter(pk=message_id).exists():
                 raise serializers.ValidationError({key: 'That message is not in this conversation.'})
-            return Q(created_at=message.created_at, id__gt=message.id) | Q(created_at__gt=message.created_at), \
-                Q(created_at=message.created_at, id__lt=message.id) | Q(created_at__lt=message.created_at)
+            return message_id
 
         has_earlier = False
         if 'after' in query.validated_data:
-            newer, _ = anchor('after')
-            rows = list(messages.filter(newer).order_by('created_at', 'id')[:MAX_NEWER])
+            rows = list(messages.filter(id__gt=anchor('after')).order_by('id')[:MAX_NEWER])
         else:
             if 'before' in query.validated_data:
-                _, older = anchor('before')
-                messages = messages.filter(older)
-            page = list(messages.order_by('-created_at', '-id')[:PAGE + 1])
+                messages = messages.filter(id__lt=anchor('before'))
+            page = list(messages.order_by('-id')[:PAGE + 1])
             has_earlier = len(page) > PAGE
             rows = list(reversed(page[:PAGE]))
         data = MessageSerializer(rows, many=True, context={'request': request}).data

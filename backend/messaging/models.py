@@ -49,9 +49,13 @@ class Conversation(models.Model):
 
 
 class Message(models.Model):
-    """One plain-text message. No attachments."""
+    """
+    One plain-text message. No attachments. The id is a plain increasing number, so it gives the true order even
+    when two messages share a timestamp, and polling can ask for everything after an id. Access is still checked per
+    conversation, so a guessable id reveals nothing.
+    """
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    id = models.BigAutoField(primary_key=True)
     conversation = models.ForeignKey(Conversation, on_delete=models.CASCADE, related_name='messages')
     sender = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='sent_messages')
     body = models.TextField()
@@ -60,8 +64,8 @@ class Message(models.Model):
     read_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        ordering = ['created_at', 'id']
-        indexes = [models.Index(fields=['conversation', 'created_at'], name='message_conversation_time_idx')]
+        ordering = ['id']
+        indexes = [models.Index(fields=['conversation', 'id'], name='message_conversation_idx')]
 
     def __str__(self):
         return f'Message<{self.conversation_id} from {self.sender_id}>'
