@@ -6,7 +6,7 @@ from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from accounts.models import User
-from applications.models import Application
+from applications.models import Application, ApplicationStatusEvent
 from gigs.models import Gig
 from notifications.models import Notification
 
@@ -140,6 +140,25 @@ class ExistingHiresMigrationTests(ChatTestMixin, APITestCase):
 
         module.remove_unused(apps, None)
         self.assertFalse(Conversation.objects.exists())
+
+    def test_existing_hires_are_dated_from_the_hire(self):
+        client = self.make_user('client@example.com', User.Role.CLIENT)
+        freelancer = self.make_user('freelancer@example.com', User.Role.FREELANCER)
+        with_event = self.apply(self.make_gig(client, title='Hired'), freelancer, status='hired')
+        hired_on = timezone.now() - timedelta(days=40)
+        event = ApplicationStatusEvent.objects.create(
+            application=with_event, from_status='shortlisted', to_status='hired',
+        )
+        ApplicationStatusEvent.objects.filter(pk=event.pk).update(created_at=hired_on)
+        without_event = self.apply(self.make_gig(client, title='Old'), freelancer, status='hired')
+        updated_on = timezone.now() - timedelta(days=90)
+        Application.objects.filter(pk=without_event.pk).update(updated_at=updated_on)
+
+        importlib.import_module('messaging.migrations.0002_conversations_for_existing_hires').open_for_existing_hires(
+            apps, None,
+        )
+        self.assertEqual(Conversation.objects.get(application=with_event).created_at, hired_on)
+        self.assertEqual(Conversation.objects.get(application=without_event).created_at, updated_on)
 
     def test_going_back_keeps_conversations_people_wrote_in(self):
         conversation = self.make_hire()

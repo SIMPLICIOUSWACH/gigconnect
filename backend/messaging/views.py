@@ -7,7 +7,8 @@ reported, through /api/admin/chat-reports/.)
     GET  /api/conversations/unread-count/         {"unread": n} for the navbar badge
     GET  /api/conversations/<id>/                 one conversation
     GET  /api/conversations/<id>/messages/        the latest 50; ?before=<message id> for earlier ones,
-                                                  ?after=<message id> for newer ones (polling)
+                                                  ?after=<message id> for newer ones (polling);
+                                                  seen_up_to is my newest message the other person has read
     POST /api/conversations/<id>/messages/        send {"body"}: 20 a minute at most
     POST /api/conversations/<id>/read/            mark the other person's messages as read
     POST /api/conversations/<id>/report/          {"reason"}: flag the chat for an admin
@@ -118,7 +119,9 @@ class MessagesView(APIView):
             has_earlier = len(page) > PAGE
             rows = list(reversed(page[:PAGE]))
         data = MessageSerializer(rows, many=True, context={'request': request}).data
-        return Response({'results': data, 'has_earlier': has_earlier})
+        # The newest of my messages the other person has read, so "Seen" updates while polling with ?after=.
+        seen = conversation.messages.filter(sender=request.user, read_at__isnull=False).order_by('-id').first()
+        return Response({'results': data, 'has_earlier': has_earlier, 'seen_up_to': seen.pk if seen else None})
 
     def post(self, request, pk):
         conversation = conversation_or_404(request.user, pk)

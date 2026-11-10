@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import MessagesNavLink from './messages/MessagesNavLink'
 import NotificationBell from './notifications/NotificationBell'
 import { initials, profileColour } from '../utils/palette'
 
@@ -32,6 +33,7 @@ function navItems(role) {
     items.push({ to: PROFILE_EDIT_PATH, label: 'My profile' })
   }
   if (role === 'client') items.push({ to: '/gigs/mine', label: 'My gigs' })
+  if (role === 'client' || role === 'freelancer') items.push({ to: '/messages', label: 'Messages', messages: true })
   if (role === 'admin') items.push({ to: '/admin', label: 'Admin' })
   return items
 }
@@ -115,11 +117,15 @@ export default function Navbar() {
         {user && (
           <>
             <nav aria-label="Main" className="flex-auto flex flex-wrap gap-1.5 justify-center order-last sm:order-none w-full sm:w-auto">
-              {navItems(user.role).map((item) => (
-                <NavLink key={item.to} to={item.to} end={item.end} className={navLinkClass}>
-                  {item.label}
-                </NavLink>
-              ))}
+              {navItems(user.role).map((item) =>
+                item.messages ? (
+                  <MessagesNavLink key={item.to} className={navLinkClass} />
+                ) : (
+                  <NavLink key={item.to} to={item.to} end={item.end} className={navLinkClass}>
+                    {item.label}
+                  </NavLink>
+                )
+              )}
             </nav>
             <div className="ml-auto sm:ml-0 flex items-center gap-1.5">
               <NotificationBell />

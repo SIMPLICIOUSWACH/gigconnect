@@ -141,6 +141,18 @@ class UnreadTests(ChatApiTestCase):
         rows = self.client.get(self.url + 'messages/').data['results']
         self.assertTrue(all(row['read_at'] for row in rows))  # the client sees "Seen"
 
+    def test_seen_up_to_comes_with_polling(self):
+        first = self.say(self.conversation, self.client_user, 'one')
+        second = self.say(self.conversation, self.client_user, 'two')
+        self.client.force_authenticate(self.client_user)
+        self.assertIsNone(self.client.get(self.url + 'messages/', {'after': second.pk}).data['seen_up_to'])
+        self.client.force_authenticate(self.freelancer)
+        self.client.post(self.url + 'read/')
+        self.client.force_authenticate(self.client_user)
+        polled = self.client.get(self.url + 'messages/', {'after': second.pk}).data
+        self.assertEqual((polled['results'], polled['seen_up_to']), ([], second.pk))
+        self.assertGreater(second.pk, first.pk)
+
     def test_the_list_puts_the_latest_activity_first(self):
         older = self.make_hire(client_email='client@example.com', freelancer_email='f2@example.com', title='Older')
         self.say(older, older.client, 'earlier')
