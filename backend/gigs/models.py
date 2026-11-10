@@ -70,6 +70,9 @@ class Gig(models.Model):
     county = models.CharField(max_length=40, choices=COUNTY_CHOICES, null=True, blank=True)
     is_remote = models.BooleanField(default=False)
     is_synthetic = models.BooleanField(default=False)
+    # Extra rows seed_demo_conversations adds to the planted demo so it has chats to show. The recommender never
+    # trains or evaluates on them, so the demo's model sees the same world with or without them.
+    is_demo_extra = models.BooleanField(default=False)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.OPEN)
     # When the status last changed, set by save(). A chat about a completed or closed gig turns read-only 30 days
     # after this (see messaging/rules.py).

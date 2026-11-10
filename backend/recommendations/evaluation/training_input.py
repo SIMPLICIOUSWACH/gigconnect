@@ -59,7 +59,9 @@ def status_as_of(events, cutoff, final_status):
 def load_status_events(freelancer_ids):
     """{(freelancer id, gig id): [(time, to_status), ...]} for these freelancers' applications."""
     events = defaultdict(list)
-    rows = ApplicationStatusEvent.objects.filter(application__freelancer_id__in=freelancer_ids).values_list(
+    rows = ApplicationStatusEvent.objects.filter(
+        application__freelancer_id__in=freelancer_ids, application__is_demo_extra=False,
+    ).values_list(
         'application__freelancer_id', 'application__gig_id', 'created_at', 'to_status',
     )
     for freelancer_id, gig_id, when, to_status in rows:

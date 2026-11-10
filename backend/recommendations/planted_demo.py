@@ -179,7 +179,7 @@ def demo_lines(model):
             lines.append(f'{name} <{email}>: not found. Run refresh_planted_demo.')
             continue
         outcome = recommend(model, user)
-        applications = Application.objects.filter(freelancer=user).count()
+        applications = Application.objects.filter(freelancer=user, is_demo_extra=False).count()
         habit = f'hidden group {group}' if group else 'new freelancer, no applications'
         lines.append(
             f'{name} <{email}>, {habit}: {applications} applications, {outcome.gigs_interacted_with} different gigs, '

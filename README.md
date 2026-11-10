@@ -220,6 +220,13 @@ synthetic accounts, never real ones.
 | Cynthia Achieng | `planted-cynthia@example.test` | A remote_only freelancer: remote gigs |
 | David Kamau | `planted-david@example.test` | A brand-new freelancer with no applications: skill matches only (cold start) |
 | Demo Admin | `planted-admin@example.test` | The admin area at `/admin`, on the planted data |
+| Baraka Home Services | `planted-demo-client@example.test` | A client who hired Amina, Brian and Cynthia, with sample chats under Messages |
+
+**Sample chats.** `python manage.py seed_demo_conversations` (with `RECOMMENDER_PROFILE=demo`) adds the demo client,
+three in-progress gigs with Amina, Brian and Cynthia hired, and a short chat with each, the client writing first.
+Running it again replaces them. These gigs and applications are flagged `is_demo_extra` and are never used to train or
+evaluate the recommender, so `train_recommender` on the demo sees the same world with or without them. Run it again
+after `refresh_planted_demo` or reseeding, which remove them.
 
 The demo admin is made with `create_admin` like any other admin. Its email starts with `planted-` because the demo
 profile refuses to start on a database that holds any other kind of account. `seed_planted --delete` removes it with
