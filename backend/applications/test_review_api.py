@@ -4,6 +4,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from gigs.models import Gig
+from messaging.models import Conversation
 
 from .models import Application, ApplicationStatusEvent
 from .test_api import LETTER, ApplicationApiBase
@@ -282,10 +283,15 @@ class MyGigsCountTests(ApplicationApiBase):
         self.assertNotIn('application_count', feed[0])
 
     def test_query_count_does_not_grow_with_gigs(self):
+        # The gigs with their counts, their skills, and the chats with hired freelancers (one query each).
         self.make_application()
-        with self.assertNumQueries(2):
+        with self.assertNumQueries(3):
             self.client.get(self.url)
         for index in range(4):
             self.make_application(gig=self.make_gig(f'Extra {index}'))
-        with self.assertNumQueries(2):
+        hired = self.make_application(gig=self.make_gig('Hired'))
+        Conversation.objects.create(
+            application=hired, gig=hired.gig, client=hired.gig.client, freelancer=hired.freelancer,
+        )
+        with self.assertNumQueries(3):
             self.client.get(self.url)

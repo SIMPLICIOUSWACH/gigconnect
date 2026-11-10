@@ -49,13 +49,19 @@ class ApplicationListSerializer(serializers.ModelSerializer):
     gig_title = serializers.CharField(source='gig.title', read_only=True)
     gig_status = serializers.CharField(source='gig.status', read_only=True)
     client_name = serializers.CharField(source='gig.client.full_name', read_only=True)
+    conversation_id = serializers.SerializerMethodField()
 
     class Meta:
         model = Application
         fields = [
             'id', 'gig_id', 'gig_title', 'gig_status', 'client_name', 'status', 'proposed_rate',
-            'created_at', 'updated_at', 'moderation_status', 'removed_reason',
+            'created_at', 'updated_at', 'moderation_status', 'removed_reason', 'conversation_id',
         ]
+
+    def get_conversation_id(self, obj):
+        """The chat opened when this application was hired, if there is one. Only its two people see this."""
+        conversation = getattr(obj, 'conversation', None)
+        return str(conversation.pk) if conversation else None
 
 
 class ApplicationDetailSerializer(ApplicationListSerializer):

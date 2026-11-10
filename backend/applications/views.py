@@ -104,7 +104,9 @@ class GigApplicationsView(APIView):
         status_counts["total"] = sum(status_counts.values())
 
         qs = (
-            base_qs.select_related("gig", "gig__client", "freelancer", "freelancer__freelancer_profile")
+            base_qs.select_related(
+                "gig", "gig__client", "freelancer", "freelancer__freelancer_profile", "conversation"
+            )
             .prefetch_related("events__changed_by", "freelancer__freelancer_profile__skills")
             .order_by("-created_at", "-id")
         )
@@ -229,7 +231,7 @@ class MyApplicationsView(generics.ListAPIView):
     def get_queryset(self):
         return (
             Application.objects.filter(freelancer=self.request.user)
-            .select_related("gig", "gig__client")
+            .select_related("gig", "gig__client", "conversation")
             .order_by("-created_at", "-id")
         )
 
@@ -286,6 +288,7 @@ class ApplicationDetailView(generics.RetrieveAPIView):
                 "gig__client",
                 "freelancer",
                 "freelancer__freelancer_profile",
+                "conversation",
             )
             .prefetch_related(
                 "events__changed_by",

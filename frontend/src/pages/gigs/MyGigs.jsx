@@ -4,6 +4,7 @@ import { deleteGig, fetchMyGigs, updateGigStatus } from '../../api/gigs'
 import Alert from '../../components/Alert'
 import Button from '../../components/Button'
 import Card from '../../components/Card'
+import { MessageFreelancerButton } from '../../components/messages/ChatLinks'
 
 const STATUS_LABELS = {
   open: { text: 'Open', className: 'bg-accent-light text-accent' },
@@ -117,7 +118,16 @@ export default function MyGigs() {
                 </p>
               )}
 
-              <div className="flex items-center gap-3 mt-4 pt-4 border-t border-border">
+              <div className="flex flex-wrap items-center gap-3 mt-4 pt-4 border-t border-border">
+                {gig.chats?.map((chat) => (
+                  <MessageFreelancerButton
+                    key={chat.conversation_id}
+                    conversationId={chat.conversation_id}
+                    name={chat.freelancer_name}
+                    started={chat.started}
+                    size="sm"
+                  />
+                ))}
                 <Link to={`/gigs/${gig.id}/applicants`} className="text-body text-primary font-medium">
                   {gig.application_count} applicant{gig.application_count === 1 ? '' : 's'}
                   {gig.pending_application_count > 0 && ` (${gig.pending_application_count} pending)`}
