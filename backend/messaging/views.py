@@ -45,9 +45,11 @@ def conversations_of(user):
         .annotate(
             last_body=Subquery(latest.values('body')[:1]),
             last_sender_id=Subquery(latest.values('sender_id')[:1]),
+            last_message_id=Subquery(latest.values('id')[:1]),
             unread_count=Count('messages', filter=unread),
         )
-        .order_by(F('last_message_at').desc(nulls_last=True), '-created_at')
+        # Message ids only go up, so the newest message decides the order even when two share a timestamp.
+        .order_by(F('last_message_id').desc(nulls_last=True), '-created_at')
     )
 
 
