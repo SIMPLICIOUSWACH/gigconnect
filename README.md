@@ -111,6 +111,22 @@ example from a command prompt (change the paths to yours):
 schtasks /Create /SC DAILY /ST 02:00 /TN "GigConnect purge ID images" /TR "C:\gigconnect\backend\venv\Scripts\python.exe C:\gigconnect\backend\manage.py purge_id_images"
 ```
 
+**Chat emails and old chats.** Two more commands keep the chat running. Both take `--dry-run`, which only counts:
+- `send_message_emails` emails people about chat messages still unread after 15 minutes (at most one email per chat an
+  hour, and only if their "New messages" email setting is on). Run it every 5 minutes. Running it twice never sends
+  the same email twice.
+- `purge_old_conversations` deletes a whole conversation 12 months after it became read-only (30 days after its gig
+  was completed or closed, or as soon as a gig or application is removed or an account is suspended or deleted). Run
+  it daily.
+
+```bash
+schtasks /Create /SC MINUTE /MO 5 /TN "GigConnect message emails" /TR "C:\gigconnect\backend\venv\Scripts\python.exe C:\gigconnect\backend\manage.py send_message_emails"
+```
+
+```bash
+schtasks /Create /SC DAILY /ST 02:15 /TN "GigConnect purge old chats" /TR "C:\gigconnect\backend\venv\Scripts\python.exe C:\gigconnect\backend\manage.py purge_old_conversations"
+```
+
 ### Sending email
 
 By default every email (verification links, notifications) is printed in the terminal running the backend, not sent.

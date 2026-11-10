@@ -34,6 +34,11 @@ export const restoreApplication = (id, reason) => post(`applications/${id}/resto
 
 export const fetchAuditLog = (params) => get('audit-log/', cleanParams(params))
 
+export const fetchChatReports = (params) => get('chat-reports/', cleanParams(params))
+// Opening a report shows the whole chat, and the server records that in the audit log every time.
+export const fetchChatReport = (id) => get(`chat-reports/${id}/`)
+export const resolveChatReport = (id, note) => post(`chat-reports/${id}/resolve/`, { note })
+
 export const fetchCategories = () => api.get('/categories/').then((r) => r.data)
 
 // The message to show for a failed admin call: the server's own words when it gave any.

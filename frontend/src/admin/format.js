@@ -56,6 +56,8 @@ export const ACTION_LABELS = {
   restore_gig: 'Restored gig',
   remove_application: 'Removed application',
   restore_application: 'Restored application',
+  chat_viewed: 'Viewed reported chat',
+  chat_report_resolved: 'Resolved chat report',
 }
 
 export const NEGATIVE_ACTIONS = new Set(['verify_reject', 'suspend_user', 'remove_gig', 'remove_application'])
@@ -64,7 +66,8 @@ export const NEGATIVE_ACTIONS = new Set(['verify_reject', 'suspend_user', 'remov
 export function targetPath(row) {
   if (row.target_type === 'user') return `/admin/users/${row.target_id}`
   if (row.target_type === 'gig') return `/admin/gigs/${row.target_id}`
+  if (row.target_type === 'conversation') return `/admin/chat-reports?status=all&conversation=${row.target_id}`
   return `/admin/applications?id=${row.target_id}`
 }
 
-export const TARGET_TYPE_LABELS = { user: 'User', gig: 'Gig', application: 'Application' }
+export const TARGET_TYPE_LABELS = { user: 'User', gig: 'Gig', application: 'Application', conversation: 'Chat' }

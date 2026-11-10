@@ -74,6 +74,13 @@ class ReportedChatTests(ChatTestMixin, APITestCase):
         self.assertEqual(len(resolved), 1)
         self.assertEqual(self.client.post(self.url + 'resolve/', {}).status_code, 400)
 
+    def test_one_chats_reports(self):
+        other = self.make_hire(client_email='c2@example.com', freelancer_email='f2@example.com', title='Other')
+        ChatReport.objects.create(conversation=other, reporter=other.client, reason='Rude.')
+        rows = self.client.get('/api/admin/chat-reports/', {'conversation': self.conversation.pk}).data['results']
+        self.assertEqual([row['reason'] for row in rows], ['Asked to pay outside.'])
+        self.assertEqual(rows[0]['freelancer']['account_status'], 'active')
+
     def test_admins_still_cannot_open_chats_through_the_chat_api(self):
         self.assertEqual(self.client.get(f'/api/conversations/{self.conversation.pk}/messages/').status_code, 404)
 

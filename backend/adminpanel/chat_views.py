@@ -2,7 +2,8 @@
 Reported chats. Admins can't browse chats: they only see a conversation a participant reported, and every time they
 open one an AdminAction (chat_viewed) is written. All under /api/admin/, IsPlatformAdmin like the rest.
 
-    GET  /api/admin/chat-reports/?status=open|resolved|all   the reports, newest first (no messages)
+    GET  /api/admin/chat-reports/?status=open|resolved|all   the reports, newest first (no messages);
+                                                             &conversation=<id> for one chat's reports
     GET  /api/admin/chat-reports/<id>/                       the report and the whole chat; logged as chat_viewed
     POST /api/admin/chat-reports/<id>/resolve/               {"note"}: close the report; logged
 """
@@ -22,7 +23,9 @@ from .views import AdminListView, AdminView
 
 
 def person(user):
-    return None if user is None else {'id': str(user.pk), 'full_name': display_name(user)}
+    if user is None:
+        return None
+    return {'id': str(user.pk), 'full_name': display_name(user), 'account_status': user.account_status}
 
 
 def report_row(report):
@@ -50,6 +53,7 @@ def reports():
 
 class ReportFilterSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=['open', 'resolved', 'all'], required=False, default='open')
+    conversation = serializers.UUIDField(required=False)
 
 
 class ChatReportListView(AdminListView):
@@ -58,6 +62,8 @@ class ChatReportListView(AdminListView):
         query.is_valid(raise_exception=True)
         status = query.validated_data['status']
         rows = reports().order_by('-created_at')
+        if 'conversation' in query.validated_data:
+            rows = rows.filter(conversation_id=query.validated_data['conversation'])
         if status == 'open':
             rows = rows.filter(resolved_at__isnull=True)
         elif status == 'resolved':
