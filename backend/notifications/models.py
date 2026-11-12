@@ -27,6 +27,7 @@ class Notification(models.Model):
         PASSWORD_CHANGED = 'password_changed', 'Password changed'
         CHAT_OPENED = 'chat_opened', 'Chat opened after a hire'
         NEW_MESSAGE = 'new_message', 'New message'
+        GIG_CLOSED = 'gig_closed', 'Gig closed because an account was removed'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     recipient = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='notifications')

@@ -142,6 +142,8 @@ class DeletedAccountTests(ChatTestMixin, APITestCase):
                          ('Thanks, starting today.', 'Wanjiru Bakers', 'Logo'))
 
     def test_the_other_person_keeps_the_chat_read_only_with_a_deleted_user(self):
+        # Finished today, so the chat is still open; an in-progress hire would block the deletion.
+        Gig.objects.filter(pk=self.conversation.gig_id).update(status='completed', status_changed_at=timezone.now())
         self.client.force_authenticate(self.freelancer)
         response = self.client.post('/api/settings/delete-account/', {'password': PASSWORD})
         self.assertEqual(response.status_code, 200)
