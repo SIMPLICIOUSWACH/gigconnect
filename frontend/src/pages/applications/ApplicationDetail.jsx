@@ -6,6 +6,7 @@ import StatusBadge from '../../components/applications/StatusBadge'
 import Button from '../../components/Button'
 import Card from '../../components/Card'
 import Label from '../../components/Label'
+import { FreelancerMessagesLink } from '../../components/messages/ChatLinks'
 import { formatDateTime, statusLabel } from '../../utils/applicationStatus'
 
 export default function ApplicationDetail() {
@@ -74,6 +75,12 @@ export default function ApplicationDetail() {
         <p className="text-body text-muted mb-6">
           {application.client_name} · Applied {formatDateTime(application.created_at)}
         </p>
+
+        {application.conversation_id && (
+          <div className="mb-6">
+            <FreelancerMessagesLink conversationId={application.conversation_id} clientName={application.client_name} />
+          </div>
+        )}
 
         <div className="mb-6">
           <Label>Cover letter</Label>

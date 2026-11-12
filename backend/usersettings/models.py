@@ -17,6 +17,8 @@ class NotificationPreference(models.Model):
     new_match_inapp = models.BooleanField(default=True)
     security_alert_email = models.BooleanField(default=True)
     security_alert_inapp = models.BooleanField(default=True)
+    new_message_email = models.BooleanField(default=True)
+    new_message_inapp = models.BooleanField(default=True)
 
     def __str__(self):
         return f'NotificationPreference<{self.user.email}>'

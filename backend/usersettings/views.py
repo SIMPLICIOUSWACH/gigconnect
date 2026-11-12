@@ -11,6 +11,7 @@ from accounts.email import send_verification_email_on_commit
 from accounts.serializers import UserSerializer
 from applications.privacy import erase_applications, export_applications
 from gigs.models import GigInteraction
+from messaging.privacy import export_messages
 from notifications import events
 from notifications.models import Notification
 from notifications.serializers import NotificationSerializer
@@ -125,6 +126,8 @@ class ExportDataView(APIView):
             'notification_preferences': NotificationPreferenceSerializer(preference).data,
             'applications': export_applications(user),
             'notifications': NotificationSerializer(user.notifications.order_by('created_at'), many=True).data,
+            # Messages the user sent. The other person's messages are theirs, so they aren't included.
+            'messages_sent': export_messages(user),
             'gig_interactions': [
                 {
                     'type': i.type,
@@ -158,6 +161,9 @@ class DeleteAccountView(APIView):
             # Applications are shared with the client reviewing them, so they are emptied of
             # personal text and closed rather than deleted. See applications/privacy.py.
             erase_applications(user)
+
+            # Chats are kept for the other person, who sees "Deleted user" and a read-only chat. The whole
+            # conversation is deleted 12 months later by purge_old_conversations. See messaging/privacy.py.
 
             # ID images and the plain ID number go now; the keyed hash stays, so the same ID can't simply be reused.
             profile = getattr(user, 'freelancer_profile', None)

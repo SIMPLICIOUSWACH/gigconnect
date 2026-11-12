@@ -59,6 +59,9 @@ class PermissionMatrixTests(AdminApiTestCase):
             ('get', '/api/admin/applications/'),
             ('post', f'/api/admin/applications/{app}/remove/'),
             ('post', f'/api/admin/applications/{app}/restore/'),
+            ('get', '/api/admin/chat-reports/'),
+            ('get', f'/api/admin/chat-reports/{ZERO}/'),
+            ('post', f'/api/admin/chat-reports/{ZERO}/resolve/'),
             ('get', '/api/admin/audit-log/'),
         ]
 

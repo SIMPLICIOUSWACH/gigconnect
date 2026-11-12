@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { formatDateTime } from '../../utils/applicationStatus'
+import { FreelancerMessagesLink } from '../messages/ChatLinks'
 import StatusBadge from './StatusBadge'
 
 export default function ApplicationRow({ application }) {
@@ -23,7 +24,12 @@ export default function ApplicationRow({ application }) {
           </p>
         )}
       </div>
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center gap-4">
+        <FreelancerMessagesLink
+          conversationId={application.conversation_id}
+          clientName={application.client_name}
+          size="sm"
+        />
         {removed ? (
           <span className="text-caption font-semibold px-2.5 py-1 rounded-pill bg-coral-light text-coral-ink">
             Removed

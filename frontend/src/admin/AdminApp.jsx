@@ -2,6 +2,8 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import AdminLayout from './AdminLayout'
 import ApplicationsPage from './pages/ApplicationsPage'
 import AuditLogPage from './pages/AuditLogPage'
+import ChatReportPage from './pages/ChatReportPage'
+import ChatReportsPage from './pages/ChatReportsPage'
 import GigPreviewPage from './pages/GigPreviewPage'
 import GigsPage from './pages/GigsPage'
 import OverviewPage from './pages/OverviewPage'
@@ -22,6 +24,8 @@ export default function AdminApp() {
         <Route path="gigs" element={<GigsPage />} />
         <Route path="gigs/:id" element={<GigPreviewPage />} />
         <Route path="applications" element={<ApplicationsPage />} />
+        <Route path="chat-reports" element={<ChatReportsPage />} />
+        <Route path="chat-reports/:id" element={<ChatReportPage />} />
         <Route path="audit-log" element={<AuditLogPage />} />
         <Route path="recommender" element={<RecommenderPage />} />
         <Route path="*" element={<Navigate to="/admin" replace />} />

@@ -41,8 +41,8 @@ All endpoints are prefixed with `/api/`. Auth uses JWT bearer tokens
 | DELETE | `/api/settings/sessions/<id>/` | Required | Revoke a single session |
 | POST | `/api/settings/sessions/logout-all/` | Required | Revoke every session |
 | GET/PATCH | `/api/settings/notifications/` | Required | View/update notification preferences |
-| GET | `/api/settings/export-data/` | Required | JSON export of the user's own data: account, notification preferences, gig interactions and `applications` (each with its cover letter, link, rate and status history) |
-| POST | `/api/settings/delete-account/` | Required | Soft-delete (anonymise + deactivate) the account. Also deletes the user's gig interactions and closes and empties their applications (see below) |
+| GET | `/api/settings/export-data/` | Required | JSON export of the user's own data: account, notification preferences, gig interactions, `applications` (each with its cover letter, link, rate and status history), `notifications` and `messages_sent` (every chat message the user wrote, with the gig and who it went to) |
+| POST | `/api/settings/delete-account/` | Required | Soft-delete (anonymise + deactivate) the account. Also deletes the user's gig interactions and closes and empties their applications (see below). Chats are kept for the other person (see Chat) |
 
 **Deleting a freelancer's account and their applications:** pending, under review and shortlisted
 applications become `withdrawn` with a system status event, and the cover letter, portfolio link and
@@ -245,12 +245,62 @@ What creates them, and which setting (`/api/settings/notifications/`) controls e
 | The password is changed | The account holder | `security_alert` |
 | An admin removes or restores a gig or application, or decides an ID check | The person affected | Email follows `status_change`; the in-app notice is always written |
 | An admin suspends or reinstates an account | The person affected | Email follows `security_alert`; the in-app notice is always written |
+| A client hires a freelancer | The client: "You hired <name>. Send them a message to get started." | `new_message` |
+| A chat message arrives | The other person: one in-app notice per chat, updated as more arrive. An email only if it is still unread after 15 minutes, at most one per chat an hour | `new_message` |
 
 **Delivery.** Emails go out after the database transaction commits, and a mail failure is logged without failing the
 request. The bell checks the unread count every 30 seconds and when the tab comes back into view, so in-app
 notifications appear within about half a minute. There are no WebSockets, so this is near real time, not instant.
 
 A notification's text is included in the data export and deleted with the account.
+
+## Chat (`/api/`)
+
+A client and the freelancer they hired can message each other. Hiring opens the conversation (one per hired
+application). Every endpoint is for the two participants only: anyone else, admins included, gets 404.
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/conversations/` | The user's chats, latest activity first, paginated. Each has `other`, `gig`, `hired_at`, `last_message`, `unread_count`, `read_only_reason`, `waiting_for_client` and `can_send` |
+| GET | `/api/conversations/unread-count/` | `{"unread": n}`, the number on the navbar's Messages link |
+| GET | `/api/conversations/<id>/` | One chat |
+| GET | `/api/conversations/<id>/messages/` | The latest 50, oldest first, with `has_earlier`. `?before=<message id>` for the 50 before that; `?after=<message id>` for newer ones (polling). `seen_up_to` is the user's newest message the other person has read |
+| POST | `/api/conversations/<id>/messages/` | Send `{"body"}`: 1 to 2,000 characters, plain text, trimmed. At most 20 a minute (429 after that) |
+| POST | `/api/conversations/<id>/read/` | Mark the other person's messages as read. Returns `{"marked": n}` |
+| POST | `/api/conversations/<id>/report/` | `{"reason"}` (up to 1,000 characters): flag the chat for an administrator |
+
+**The client writes first.** Until the client sends the first message, the freelancer's sends get 403 with
+`code: "waiting_for_client"`, and the app shows "Waiting for <client> to start the conversation".
+
+**Read-only chats.** Sending gets 403 with `code: "read_only"` and `read_only_reason` explains why when: the gig was
+completed or closed more than 30 days ago; an admin removed the gig or the application; either account is suspended;
+or either account was deleted. It is worked out each time, so reinstating an account opens the chat again.
+
+**Safety tip.** When a message contains a phone number, an email address, or M-Pesa or payment wording with a number,
+the send response carries `safety_tip` ("Keep payments on GigConnect so you're protected."), once per person per chat.
+It never blocks the message.
+
+**Deleted accounts.** The other person keeps the chat. The deleted person shows as "Deleted user" and the chat is
+read-only. The deleted person's messages are in their data export (`messages_sent`), which they can download first.
+
+**Keeping chats.** `purge_old_conversations` deletes a whole conversation, with its messages and reports, 12 months
+after it became read-only. Run it daily (see the README); `--dry-run` only counts.
+
+**Emails about unread messages.** `send_message_emails` emails a message that is still unread after 15 minutes, if the
+recipient's "New messages" email setting is on, at most one email per chat an hour. The email names the sender and links
+to the chat, without the message text. Run it every 5 minutes; running it twice never sends twice, and `--dry-run` only
+counts.
+
+### Reported chats (`/api/admin/`, admins only)
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/admin/chat-reports/` | Reports, newest first, without messages. `?status=open` (default), `resolved` or `all`; `?conversation=<id>` for one chat |
+| GET | `/api/admin/chat-reports/<id>/` | The report, every report on that chat, and the whole conversation. Each request writes an audit log row (`chat_viewed`) |
+| POST | `/api/admin/chat-reports/<id>/resolve/` | `{"note"}` (optional): close the report. Writes `chat_report_resolved` to the audit log |
+
+Admins can't list or open chats any other way. Suspending a participant uses the usual
+`POST /api/admin/users/<id>/suspend/`.
 
 ## Seeding sample data (development only)
 

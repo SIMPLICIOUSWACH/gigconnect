@@ -7,6 +7,9 @@ next training run. The text of an erased application was already cleared at dele
 
 Synthetic rows (flagged is_synthetic by the seed commands) are included or left out by one flag, so a
 trained model can always say how much of what it learned from was synthetic.
+
+The gigs and applications seed_demo_conversations adds so the demo has chats to show (is_demo_extra) are always left
+out, so training and evaluation on the demo see exactly the same world as before they were added.
 """
 
 from accounts.models import User
@@ -27,8 +30,9 @@ def freelancers_for_training(include_synthetic=True):
 
 def gigs_for_training(include_synthetic=True):
     """Gigs with their text, skills and category, whatever their status, except gigs an admin removed."""
-    gigs = Gig.objects.filter(moderation_status=Gig.Moderation.VISIBLE).select_related('category').prefetch_related(
-        'skills'
+    gigs = (
+        Gig.objects.filter(moderation_status=Gig.Moderation.VISIBLE, is_demo_extra=False)
+        .select_related('category').prefetch_related('skills')
     )
     if not include_synthetic:
         gigs = gigs.filter(is_synthetic=False)
@@ -43,7 +47,7 @@ def interactions_for_training(include_synthetic=True):
     """
     interactions = GigInteraction.objects.filter(
         user__isnull=False, user__role=User.Role.FREELANCER, user__is_active=True, user__deleted_at__isnull=True,
-    ).exclude(type__in=GigInteraction.RELEVANCE_TYPES)
+    ).exclude(type__in=GigInteraction.RELEVANCE_TYPES).exclude(gig__is_demo_extra=True)
     if not include_synthetic:
         interactions = interactions.filter(is_synthetic=False, user__is_synthetic=False)
     return interactions
@@ -53,7 +57,7 @@ def applications_for_training(include_synthetic=True):
     """Applications of active, non-deleted freelancers, except applications an admin removed."""
     applications = Application.objects.filter(
         freelancer__is_active=True, freelancer__deleted_at__isnull=True,
-        moderation_status=Application.Moderation.VISIBLE,
+        moderation_status=Application.Moderation.VISIBLE, is_demo_extra=False, gig__is_demo_extra=False,
     )
     if not include_synthetic:
         applications = applications.filter(is_synthetic=False, freelancer__is_synthetic=False)

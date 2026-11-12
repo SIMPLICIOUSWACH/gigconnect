@@ -45,6 +45,9 @@ class Application(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     is_synthetic = models.BooleanField(default=False)
+    # Extra rows seed_demo_conversations adds to the planted demo so it has chats to show. The recommender never
+    # trains or evaluates on them, so the demo's model sees the same world with or without them.
+    is_demo_extra = models.BooleanField(default=False)
 
     class Meta:
         ordering = ['-created_at']

@@ -111,6 +111,22 @@ example from a command prompt (change the paths to yours):
 schtasks /Create /SC DAILY /ST 02:00 /TN "GigConnect purge ID images" /TR "C:\gigconnect\backend\venv\Scripts\python.exe C:\gigconnect\backend\manage.py purge_id_images"
 ```
 
+**Chat emails and old chats.** Two more commands keep the chat running. Both take `--dry-run`, which only counts:
+- `send_message_emails` emails people about chat messages still unread after 15 minutes (at most one email per chat an
+  hour, and only if their "New messages" email setting is on). Run it every 5 minutes. Running it twice never sends
+  the same email twice.
+- `purge_old_conversations` deletes a whole conversation 12 months after it became read-only (30 days after its gig
+  was completed or closed, or as soon as a gig or application is removed or an account is suspended or deleted). Run
+  it daily.
+
+```bash
+schtasks /Create /SC MINUTE /MO 5 /TN "GigConnect message emails" /TR "C:\gigconnect\backend\venv\Scripts\python.exe C:\gigconnect\backend\manage.py send_message_emails"
+```
+
+```bash
+schtasks /Create /SC DAILY /ST 02:15 /TN "GigConnect purge old chats" /TR "C:\gigconnect\backend\venv\Scripts\python.exe C:\gigconnect\backend\manage.py purge_old_conversations"
+```
+
 ### Sending email
 
 By default every email (verification links, notifications) is printed in the terminal running the backend, not sent.
@@ -204,6 +220,13 @@ synthetic accounts, never real ones.
 | Cynthia Achieng | `planted-cynthia@example.test` | A remote_only freelancer: remote gigs |
 | David Kamau | `planted-david@example.test` | A brand-new freelancer with no applications: skill matches only (cold start) |
 | Demo Admin | `planted-admin@example.test` | The admin area at `/admin`, on the planted data |
+| Baraka Home Services | `planted-demo-client@example.test` | A client who hired Amina, Brian and Cynthia, with sample chats under Messages |
+
+**Sample chats.** `python manage.py seed_demo_conversations` (with `RECOMMENDER_PROFILE=demo`) adds the demo client,
+three in-progress gigs with Amina, Brian and Cynthia hired, and a short chat with each, the client writing first.
+Running it again replaces them. These gigs and applications are flagged `is_demo_extra` and are never used to train or
+evaluate the recommender, so `train_recommender` on the demo sees the same world with or without them. Run it again
+after `refresh_planted_demo` or reseeding, which remove them.
 
 The demo admin is made with `create_admin` like any other admin. Its email starts with `planted-` because the demo
 profile refuses to start on a database that holds any other kind of account. `seed_planted --delete` removes it with

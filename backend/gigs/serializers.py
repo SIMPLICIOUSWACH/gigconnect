@@ -3,6 +3,7 @@ from datetime import date
 from django.db import transaction
 from rest_framework import serializers
 
+from messaging.serializers import display_name
 from profiles.models import Skill
 from profiles.serializers import SkillSerializer
 
@@ -43,10 +44,22 @@ class MyGigListSerializer(GigListSerializer):
 
     application_count = serializers.IntegerField(read_only=True)
     pending_application_count = serializers.IntegerField(read_only=True)
+    chats = serializers.SerializerMethodField()
 
     class Meta(GigListSerializer.Meta):
         fields = GigListSerializer.Meta.fields + [
-            'application_count', 'pending_application_count', 'moderation_status', 'removed_reason',
+            'application_count', 'pending_application_count', 'moderation_status', 'removed_reason', 'chats',
+        ]
+
+    def get_chats(self, obj):
+        """A chat for each freelancer hired on this gig, for the "Message <name>" buttons."""
+        return [
+            {
+                'conversation_id': str(conversation.pk),
+                'freelancer_name': display_name(conversation.freelancer),
+                'started': conversation.first_message_at is not None,
+            }
+            for conversation in sorted(obj.conversations.all(), key=lambda c: c.created_at)
         ]
 
 
