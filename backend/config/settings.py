@@ -141,6 +141,7 @@ REST_FRAMEWORK = {
         'verification_resend': '5/hour',
         'selfie_challenge': '30/hour',
         'message_send': '20/min',
+        'freelancer_search': '60/min',
     },
 }
 

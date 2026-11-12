@@ -105,5 +105,10 @@ class UserSerializer(serializers.ModelSerializer):
         if obj.role == User.Role.CLIENT:
             return ClientProfileSerializer(obj.client_profile, context=self.context).data
         if obj.role == User.Role.FREELANCER:
-            return FreelancerProfileSerializer(obj.freelancer_profile, context=self.context).data
+            profile = obj.freelancer_profile
+            # Their own setting, so it is only here and not on the public profile.
+            return {
+                **FreelancerProfileSerializer(profile, context=self.context).data,
+                'search_visible': profile.search_visible,
+            }
         return None
