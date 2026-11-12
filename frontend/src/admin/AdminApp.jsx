@@ -8,6 +8,7 @@ import GigPreviewPage from './pages/GigPreviewPage'
 import GigsPage from './pages/GigsPage'
 import OverviewPage from './pages/OverviewPage'
 import RecommenderPage from './pages/RecommenderPage'
+import ReviewsPage from './pages/ReviewsPage'
 import UserDetailPage from './pages/UserDetailPage'
 import UsersPage from './pages/UsersPage'
 import VerificationsPage from './pages/VerificationsPage'
@@ -24,6 +25,7 @@ export default function AdminApp() {
         <Route path="gigs" element={<GigsPage />} />
         <Route path="gigs/:id" element={<GigPreviewPage />} />
         <Route path="applications" element={<ApplicationsPage />} />
+        <Route path="reviews" element={<ReviewsPage />} />
         <Route path="chat-reports" element={<ChatReportsPage />} />
         <Route path="chat-reports/:id" element={<ChatReportPage />} />
         <Route path="audit-log" element={<AuditLogPage />} />

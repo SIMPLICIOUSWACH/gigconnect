@@ -7,6 +7,7 @@ from messaging.models import Conversation
 from profiles import decisions
 from profiles.id_privacy import other_accounts_with_same_id
 from profiles.models import FreelancerProfile
+from reviews.models import Review
 
 from .models import AdminAction
 
@@ -152,6 +153,22 @@ class AdminApplicationSerializer(serializers.ModelSerializer):
         return {'id': str(obj.gig_id), 'title': obj.gig.title, 'moderation_status': obj.gig.moderation_status}
 
 
+class AdminReviewSerializer(serializers.ModelSerializer):
+    gig = serializers.SerializerMethodField()
+    freelancer = PersonSerializer(read_only=True)
+    client = PersonSerializer(read_only=True)
+
+    class Meta:
+        model = Review
+        fields = [
+            'id', 'gig', 'freelancer', 'client', 'rating', 'text', 'freelancer_reply', 'reply_at',
+            'moderation_status', 'removed_reason', 'removed_at', 'created_at', 'updated_at',
+        ]
+
+    def get_gig(self, obj):
+        return {'id': str(obj.gig_id), 'title': obj.gig.title}
+
+
 # ---------------------------------------------------------------------------
 # Verifications
 # ---------------------------------------------------------------------------
@@ -252,4 +269,10 @@ def target_labels(actions):
         )
         for pk, client, freelancer, title in rows:
             labels[(Target.CONVERSATION, pk)] = f'Chat between {client} and {freelancer} on "{title}"'
+    if Target.REVIEW in wanted:
+        rows = Review.objects.filter(pk__in=wanted[Target.REVIEW]).values_list(
+            'pk', 'client__full_name', 'freelancer__full_name', 'gig__title',
+        )
+        for pk, client, freelancer, title in rows:
+            labels[(Target.REVIEW, pk)] = f'Review of {freelancer} by {client} on "{title}"'
     return labels

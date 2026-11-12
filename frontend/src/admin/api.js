@@ -36,6 +36,10 @@ export const fetchApplications = (params) => get('applications/', cleanParams(pa
 export const removeApplication = (id, reason) => post(`applications/${id}/remove/`, { reason })
 export const restoreApplication = (id, reason) => post(`applications/${id}/restore/`, { reason })
 
+export const fetchReviews = (params) => get('reviews/', cleanParams(params))
+export const removeReview = (id, reason) => post(`reviews/${id}/remove/`, { reason })
+export const restoreReview = (id, reason) => post(`reviews/${id}/restore/`, { reason })
+
 export const fetchAuditLog = (params) => get('audit-log/', cleanParams(params))
 
 export const fetchChatReports = (params) => get('chat-reports/', cleanParams(params))
