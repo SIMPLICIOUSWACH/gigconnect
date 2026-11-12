@@ -52,6 +52,7 @@ export const ACTION_LABELS = {
   verify_reject: 'Rejected ID',
   suspend_user: 'Suspended user',
   reinstate_user: 'Reinstated user',
+  delete_user: 'Deleted user',
   remove_gig: 'Removed gig',
   restore_gig: 'Restored gig',
   remove_application: 'Removed application',
@@ -60,7 +61,13 @@ export const ACTION_LABELS = {
   chat_report_resolved: 'Resolved chat report',
 }
 
-export const NEGATIVE_ACTIONS = new Set(['verify_reject', 'suspend_user', 'remove_gig', 'remove_application'])
+export const NEGATIVE_ACTIONS = new Set([
+  'verify_reject',
+  'suspend_user',
+  'remove_gig',
+  'remove_application',
+  'delete_user',
+])
 
 // Where an audit log row's target opens in the admin area.
 export function targetPath(row) {

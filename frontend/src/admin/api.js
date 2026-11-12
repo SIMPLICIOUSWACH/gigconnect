@@ -14,6 +14,10 @@ export const fetchUsers = (params) => get('users/', cleanParams(params))
 export const fetchUser = (id) => get(`users/${id}/`)
 export const suspendUser = (id, reason) => post(`users/${id}/suspend/`, { reason })
 export const reinstateUser = (id, reason) => post(`users/${id}/reinstate/`, { reason })
+// What deleting would do, and anything that stops it (it must be suspended first, and isn't an admin).
+export const fetchDeletePreview = (id) => get(`users/${id}/delete-preview/`)
+// body: { reason, confirm_email, force }. Erases the account; it can't be undone.
+export const deleteUser = (id, body) => post(`users/${id}/delete/`, body)
 
 export const fetchVerifications = (params) => get('verifications/', cleanParams(params))
 // decision: { verification_status, checklist } to approve, or { verification_status, reason_code, redo, reason }.
