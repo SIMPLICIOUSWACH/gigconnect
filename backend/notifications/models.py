@@ -32,6 +32,7 @@ class Notification(models.Model):
         REVIEW_REPLY = 'review_reply', 'A freelancer replied to your review'
         REVIEW_REMOVED = 'review_removed', 'Review removed'
         REVIEW_RESTORED = 'review_restored', 'Review restored'
+        GIG_INVITE = 'gig_invite', 'Invitation to apply'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     recipient = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='notifications')

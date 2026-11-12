@@ -24,6 +24,7 @@ class NotificationPreferenceSerializer(serializers.ModelSerializer):
             'new_match_email', 'new_match_inapp',
             'security_alert_email', 'security_alert_inapp',
             'new_message_email', 'new_message_inapp',
+            'invite_email', 'invite_inapp',
         ]
 
 

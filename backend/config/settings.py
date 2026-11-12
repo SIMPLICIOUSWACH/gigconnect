@@ -191,6 +191,11 @@ REVIEW_WINDOW_DAYS = int(os.environ.get('REVIEW_WINDOW_DAYS', '14'))
 RATING_PRIOR_MEAN = float(os.environ.get('RATING_PRIOR_MEAN', '4.0'))
 RATING_PRIOR_WEIGHT = int(os.environ.get('RATING_PRIOR_WEIGHT', '5'))
 
+# Find freelancers. A client can invite this many freelancers to apply in any 24 hours, across all their gigs.
+INVITES_PER_DAY = int(os.environ.get('INVITES_PER_DAY', '20'))
+# How many freelancers "Suggested for this gig" shows.
+SUGGESTED_FREELANCERS = int(os.environ.get('SUGGESTED_FREELANCERS', '6'))
+
 SEARCH_FALLBACK_MIN_RESULTS = int(os.environ.get('SEARCH_FALLBACK_MIN_RESULTS', '5'))
 # 0.25 rather than pg_trgm's 0.3 default: a one-transposition typo like "pyhton" vs "python"
 # only scores about 0.27-0.29, so 0.3 would miss the most common kind of typo.
