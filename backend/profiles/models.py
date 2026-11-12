@@ -105,6 +105,10 @@ class FreelancerProfile(models.Model):
     profile_colour = models.CharField(max_length=10, choices=Colour.choices, default=Colour.TEAL)
     county = models.CharField(max_length=40, choices=COUNTY_CHOICES, null=True, blank=True)
     profile_photo = models.ImageField(upload_to='profile_photos/', blank=True, null=True)
+    # The average and number of this freelancer's visible reviews, kept up to date by reviews/service.py whenever a
+    # review is written, edited, removed or restored. No reviews: rating_avg is empty, shown as "New", never as 0.
+    rating_avg = models.DecimalField(max_digits=3, decimal_places=2, null=True, blank=True)
+    rating_count = models.PositiveIntegerField(default=0)
     # write-only in every serializer — never include in a response, even to the owner
     id_number = models.CharField(max_length=20, blank=True)
     # In private storage: no URL reaches it. Admins read it through /api/admin/verifications/<id>/document/.
