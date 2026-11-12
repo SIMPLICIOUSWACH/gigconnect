@@ -10,6 +10,7 @@ import Card from '../components/Card'
 import GigCard from '../components/gigs/GigCard'
 import GigCardSkeleton from '../components/gigs/GigCardSkeleton'
 import ProfilePreviewCard from '../components/profile/ProfilePreviewCard'
+import ReviewList from '../components/reviews/ReviewList'
 
 function Avatar({ src, name }) {
   if (src) {
@@ -79,10 +80,20 @@ function FreelancerView({ profile }) {
       <div className="flex-[1_1_380px] max-w-[460px] min-w-0">
         <ProfilePreviewCard profile={card} />
       </div>
-      <Card className="flex-[999_1_420px] min-w-0">
-        <h2 className="text-section-title text-ink mb-4">Portfolio</h2>
-        <PortfolioGrid items={p.portfolio_items} />
-      </Card>
+      <div className="flex-[999_1_420px] min-w-0 space-y-7">
+        <Card>
+          <h2 className="text-section-title text-ink mb-4">Portfolio</h2>
+          <PortfolioGrid items={p.portfolio_items} />
+        </Card>
+        <Card>
+          <ReviewList
+            freelancerId={profile.id}
+            freelancerName={profile.full_name}
+            average={p.rating_avg}
+            count={p.rating_count}
+          />
+        </Card>
+      </div>
     </div>
   )
 }
