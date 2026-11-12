@@ -74,7 +74,8 @@ export default function PrivacySettings() {
             Your ID images, selfie and ID number are deleted too. Any open gigs you posted are closed, and freelancers
             waiting on them are told. Your chats stay with the other person, who sees you as &quot;Deleted user&quot;.
             This cannot be undone. You can&apos;t delete your account while a gig you run or were hired on is in
-            progress.
+            progress. An administrator can also delete a suspended account in the same way; you would be emailed the
+            reason.
           </p>
           {!confirming ? (
             <Button variant="danger" onClick={() => setConfirming(true)}>
