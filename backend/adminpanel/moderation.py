@@ -2,13 +2,17 @@
 Every change an admin can make, in one place. Each function checks the change is allowed, makes it, writes its
 AdminAction row and tells the affected user, all in one transaction: either all of that happens or none of it.
 
-The views turn ModerationError into a 400. Removing and suspending are reversible: nothing here deletes anything.
+The views turn ModerationError into a 400. Removing and suspending are reversible. Deleting an account is not: it
+erases the person's details through accounts/services.delete_account, the same code as deleting your own account.
 """
 
+from django.conf import settings
+from django.core.mail import send_mail
 from django.db import transaction
 from django.utils import timezone
 
 from accounts.models import User
+from accounts.services import delete_account
 from applications.models import Application
 from gigs.models import Gig
 from notifications.models import Notification
@@ -39,9 +43,10 @@ def clean_reason(reason, required):
     return reason
 
 
-def _record(admin, action, target_type, target_id, reason):
+def _record(admin, action, target_type, target_id, reason, target_label=''):
     return AdminAction.objects.create(
         admin=admin, action=action, target_type=target_type, target_id=target_id, reason=reason,
+        target_label=target_label,
     )
 
 
@@ -98,6 +103,65 @@ def reinstate_user(admin, user, reason=''):
             link='/login', email_preference='security_alert_email',
         )
     return action
+
+
+def mask_email(email):
+    """j***@gmail.com: enough to recognise an account in the audit log, not enough to contact the person."""
+    local, _, domain = (email or '').partition('@')
+    return f'{local[:1]}***@{domain}' if local and domain else '***'
+
+
+def _send_deletion_email(address, name, reason):
+    contact = settings.PRIVACY_CONTACT_EMAIL
+    message = (
+        f'Hi {name},\n\nYour GigConnect account has been deleted by an administrator. Reason: {reason}\n\n'
+        "Your personal details have been erased and the account can't be recovered."
+    )
+    if contact:
+        message += f'\n\nQuestions about your data: {contact}'
+    send_mail(
+        subject='GigConnect: Your account has been deleted', message=message,
+        from_email=settings.DEFAULT_FROM_EMAIL, recipient_list=[address],
+    )
+
+
+def deletion_refusal(admin, user):
+    """Why this admin can't delete this account at all, or None. The delete preview shows the same message."""
+    if user.pk == admin.pk:
+        return "You can't delete your own account."
+    if user.role == User.Role.ADMIN:
+        return "Admin accounts can't be deleted here."
+    if user.deleted_at is not None:
+        return 'This account has already been deleted.'
+    if not user.is_suspended:
+        return 'Suspend this account first. Only suspended accounts can be deleted.'
+    return None
+
+
+def delete_user(admin, user, reason, confirm_email, force=False):
+    """
+    Erase a suspended account. The admin types the account's email to confirm. In-progress work blocks it unless
+    force is set, which closes that work (accounts.services.AccountDeletionBlocked otherwise). Returns the summary.
+    """
+    refusal = deletion_refusal(admin, user)
+    if refusal:
+        raise ModerationError(refusal)
+    reason = clean_reason(reason, required=True)
+    if (confirm_email or '').strip() != user.email:
+        raise ModerationError("The email you typed doesn't match this account's email.")
+
+    # Taken before the details are erased: the email goes to the old address, the log keeps only a masked one.
+    address, name = user.email, user.full_name
+    with transaction.atomic():
+        summary = delete_account(user, force=force)
+        _record(
+            admin, Action.DELETE_USER, Target.USER, user.pk, reason,
+            target_label=f'Deleted user · {mask_email(address)}',
+        )
+        # Sent once the deletion is saved, so a deletion that fails never tells anyone it happened. A mail failure
+        # is logged and changes nothing.
+        transaction.on_commit(lambda: _send_deletion_email(address, name, reason), robust=True)
+    return summary
 
 
 # ---------------------------------------------------------------------------

@@ -1,7 +1,5 @@
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db import transaction
-from django.utils import timezone
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -9,13 +7,12 @@ from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, Ou
 
 from accounts.email import send_verification_email_on_commit
 from accounts.serializers import UserSerializer
-from applications.privacy import erase_applications, export_applications
+from accounts.services import AccountDeletionBlocked, delete_account
+from applications.privacy import export_applications
 from gigs.models import GigInteraction
 from messaging.privacy import export_messages
 from notifications import events
-from notifications.models import Notification
 from notifications.serializers import NotificationSerializer
-from profiles.id_privacy import erase_id_images
 
 from .models import NotificationPreference, UserSession
 from .serializers import AccountSettingsSerializer, NotificationPreferenceSerializer, UserSessionSerializer
@@ -152,32 +149,12 @@ class DeleteAccountView(APIView):
         if not user.check_password(password):
             return Response({'password': 'Incorrect password.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        with transaction.atomic():
-            # Browsing history is personal data and has no use once the account is gone, so it is
-            # deleted outright rather than anonymised.
-            GigInteraction.objects.filter(user=user).delete()
-            Notification.objects.filter(recipient=user).delete()
-
-            # Applications are shared with the client reviewing them, so they are emptied of
-            # personal text and closed rather than deleted. See applications/privacy.py.
-            erase_applications(user)
-
-            # Chats are kept for the other person, who sees "Deleted user" and a read-only chat. The whole
-            # conversation is deleted 12 months later by purge_old_conversations. See messaging/privacy.py.
-
-            # ID images and the plain ID number go now; the keyed hash stays, so the same ID can't simply be reused.
-            profile = getattr(user, 'freelancer_profile', None)
-            if profile is not None:
-                erase_id_images(profile)
-
-            user.full_name = 'Deleted User'
-            user.email = f'deleted-{user.id}@gigconnect.invalid'
-            user.phone = ''
-            user.is_active = False
-            user.deleted_at = timezone.now()
-            user.set_unusable_password()
-            user.save()
-
-        revoke_all_sessions(user)
-
+        # The same deletion an admin's uses (accounts/services.py). People can't force past in-progress work.
+        try:
+            delete_account(user)
+        except AccountDeletionBlocked as blocked:
+            return Response(
+                {'detail': str(blocked), 'code': 'active_work', 'active_work': blocked.work},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         return Response({'detail': 'Account deleted.'})

@@ -51,6 +51,12 @@ GigConnect admin area. For a script, pass `--noinput` and put the password in `G
 Django's own `/admin/` site is kept for debugging by a superuser (`createsuperuser`). It is not the product's
 admin area.
 
+**Deleting an account.** An admin can delete an account from its page in the admin area (the Danger zone), but only
+after suspending it. Deleting erases the person's details the same way deleting your own account does, and can't be
+undone. The admin gives a reason and types the account's email to confirm; work in progress has to be finished first,
+or closed by ticking the box. The person is emailed the reason, and the audit log keeps only a masked email. See
+"Deleting an account" in `docs/api-endpoints.md`.
+
 ### ID documents
 
 ID uploads are PDF, JPG or PNG files up to 5 MB. They are kept in `PRIVATE_MEDIA_ROOT` (default `backend/private_media/`),

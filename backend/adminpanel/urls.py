@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import chat_views, views
+from . import chat_views, delete_views, views
 
 urlpatterns = [
     path('stats/', views.StatsView.as_view(), name='admin-stats'),
@@ -9,6 +9,11 @@ urlpatterns = [
     path('users/<uuid:pk>/', views.UserDetailView.as_view(), name='admin-user-detail'),
     path('users/<uuid:pk>/suspend/', views.SuspendUserView.as_view(), name='admin-user-suspend'),
     path('users/<uuid:pk>/reinstate/', views.ReinstateUserView.as_view(), name='admin-user-reinstate'),
+    path(
+        'users/<uuid:pk>/delete-preview/', delete_views.UserDeletePreviewView.as_view(),
+        name='admin-user-delete-preview',
+    ),
+    path('users/<uuid:pk>/delete/', delete_views.DeleteUserView.as_view(), name='admin-user-delete'),
     path('verifications/', views.VerificationListView.as_view(), name='admin-verification-list'),
     path('verifications/<uuid:pk>/', views.VerificationDetailView.as_view(), name='admin-verification-detail'),
     path(

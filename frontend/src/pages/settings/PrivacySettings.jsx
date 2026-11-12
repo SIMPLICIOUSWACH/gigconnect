@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { deleteAccount, exportData } from '../../api/settings'
 import { useAuth } from '../../context/AuthContext'
 import Alert from '../../components/Alert'
@@ -15,6 +15,8 @@ export default function PrivacySettings() {
   const [password, setPassword] = useState('')
   const [confirming, setConfirming] = useState(false)
   const [error, setError] = useState('')
+  // In-progress work that stops the deletion, as the server listed it.
+  const [activeWork, setActiveWork] = useState([])
 
   const handleExport = async () => {
     const data = await exportData()
@@ -29,12 +31,19 @@ export default function PrivacySettings() {
 
   const handleDelete = async () => {
     setError('')
+    setActiveWork([])
     try {
       await deleteAccount(password)
       logout()
       navigate('/login')
     } catch (err) {
-      setError(err.response?.data?.password || 'Could not delete account.')
+      const data = err.response?.data
+      if (data?.code === 'active_work') {
+        setActiveWork(data.active_work)
+        setError(data.detail)
+      } else {
+        setError(data?.password || 'Could not delete account.')
+      }
     }
   }
 
@@ -62,8 +71,11 @@ export default function PrivacySettings() {
           <h2 className="text-section-title text-ink mb-2">Delete Account</h2>
           <p className="text-body text-muted mb-6">
             Your account will be deactivated, your personal details anonymized, and your gig viewing history deleted.
-            Your ID images, selfie and ID number are deleted too. Your chats stay with the other person, who sees you as
-            &quot;Deleted user&quot;. This cannot be undone.
+            Your ID images, selfie and ID number are deleted too. Any open gigs you posted are closed, and freelancers
+            waiting on them are told. Your chats stay with the other person, who sees you as &quot;Deleted user&quot;.
+            This cannot be undone. You can&apos;t delete your account while a gig you run or were hired on is in
+            progress. An administrator can also delete a suspended account in the same way; you would be emailed the
+            reason.
           </p>
           {!confirming ? (
             <Button variant="danger" onClick={() => setConfirming(true)}>
@@ -78,6 +90,22 @@ export default function PrivacySettings() {
                 onChange={(e) => setPassword(e.target.value)}
               />
               <Alert type="error">{error}</Alert>
+              {activeWork.length > 0 && (
+                <ul aria-label="Work in progress" className="space-y-1 text-body text-ink">
+                  {activeWork.map((item) => (
+                    <li key={item.gig_id}>
+                      <Link to={`/gigs/${item.gig_id}`} className="text-primary font-semibold hover:underline">
+                        {item.title}
+                      </Link>
+                      <span className="text-muted">
+                        {' '}
+                        · {item.as === 'client' ? 'your gig' : 'you were hired'}
+                        {item.other_party && ` · with ${item.other_party}`}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
               <div className="flex gap-3">
                 <Button variant="danger" onClick={handleDelete}>
                   Confirm delete

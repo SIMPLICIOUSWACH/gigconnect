@@ -42,7 +42,7 @@ All endpoints are prefixed with `/api/`. Auth uses JWT bearer tokens
 | POST | `/api/settings/sessions/logout-all/` | Required | Revoke every session |
 | GET/PATCH | `/api/settings/notifications/` | Required | View/update notification preferences |
 | GET | `/api/settings/export-data/` | Required | JSON export of the user's own data: account, notification preferences, gig interactions, `applications` (each with its cover letter, link, rate and status history), `notifications` and `messages_sent` (every chat message the user wrote, with the gig and who it went to) |
-| POST | `/api/settings/delete-account/` | Required | Soft-delete (anonymise + deactivate) the account. Also deletes the user's gig interactions and closes and empties their applications (see below). Chats are kept for the other person (see Chat) |
+| POST | `/api/settings/delete-account/` | Required | Erase the account (see "Deleting an account" below). `{"password"}`. Refused with 400 `code: "active_work"` and an `active_work` list while the user runs an in-progress gig or is hired on one |
 
 **Deleting a freelancer's account and their applications:** pending, under review and shortlisted
 applications become `withdrawn` with a system status event, and the cover letter, portfolio link and
@@ -290,6 +290,34 @@ after it became read-only. Run it daily (see the README); `--dry-run` only count
 recipient's "New messages" email setting is on, at most one email per chat an hour. The email names the sender and links
 to the chat, without the message text. Run it every 5 minutes; running it twice never sends twice, and `--dry-run` only
 counts.
+
+### Deleting an account
+
+Self-deletion and an admin's deletion both go through `accounts/services.delete_account`, so the effects are the
+same. The row stays, anonymised, so chats and application history still make sense; the person's details are erased
+and the account can't be recovered. In one transaction:
+
+- In-progress work blocks it: gigs the user runs as a client that are in progress, or a hire on an in-progress gig as
+  a freelancer. Users can't get past this. An admin can (`force`), which closes those gigs and tells the other person
+  ("This gig was closed because the other account was removed.").
+- The user's open gigs are closed (so `status_changed_at` is set), and every freelancer with a pending, under review
+  or shortlisted application on one is told ("This gig was closed because the client's account was removed.").
+- Gig interactions and notifications are deleted; applications are emptied and open ones withdrawn (see below).
+- The ID document and selfie files and the plain ID number are deleted; the keyed hash stays.
+- Chats stay for the other person, read-only, showing "Deleted user".
+- Name, email and phone are replaced, the password made unusable, and every session revoked.
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/admin/users/<id>/delete-preview/` | What deleting would do (counts and the `active_work` list), plus `can_delete` and `refusal` |
+| POST | `/api/admin/users/<id>/delete/` | `{"reason", "confirm_email", "force"}`. Returns `{"summary": {...}}`: gigs closed, applicants told, applications emptied, ID files deleted, chats kept read-only, notifications and gig history deleted |
+
+An admin can only delete a suspended account, never their own or another admin's, with a reason and the account's
+email typed exactly (each a 400 otherwise). The audit log gets a `delete_user` row with the reason and a masked email
+in `target_label` (`Deleted user · j***@gmail.com`), never the full one. Once the deletion is saved, the person is
+emailed at their old address: "Your GigConnect account has been deleted by an administrator. Reason: ...", with the
+privacy contact. A mail failure is logged and doesn't undo anything. In `/api/admin/users/?status=deleted`, each row's
+`deletion` gives the masked label, the date and who deleted it (an admin's name, or "themselves").
 
 ### Reported chats (`/api/admin/`, admins only)
 

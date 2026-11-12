@@ -4,7 +4,7 @@ anyone who isn't an active admin gets 403. Changes go through moderation.py, whi
 tells the affected user in the same transaction.
 """
 
-from django.db.models import Count, Q
+from django.db.models import Count, OuterRef, Q, Subquery
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, serializers
@@ -115,7 +115,16 @@ class UserListView(AdminListView):
             status=optional(serializers.ChoiceField, choices=['active', 'suspended', 'deleted']),
             verified=optional(serializers.BooleanField),
         ).values()
-        users = User.objects.select_related('freelancer_profile').order_by('-created_at')
+        deleted_by_admin = AdminAction.objects.filter(
+            action=AdminAction.Action.DELETE_USER, target_id=OuterRef('pk'),
+        ).order_by('-created_at')
+        users = (
+            User.objects.select_related('freelancer_profile').order_by('-created_at')
+            .annotate(
+                deletion_label=Subquery(deleted_by_admin.values('target_label')[:1]),
+                deleted_by_name=Subquery(deleted_by_admin.values('admin__full_name')[:1]),
+            )
+        )
         if 'search' in params:
             users = users.filter(Q(full_name__icontains=params['search']) | Q(email__icontains=params['search']))
         if 'role' in params:
