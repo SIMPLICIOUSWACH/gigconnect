@@ -21,7 +21,6 @@ from applications.models import Application
 from applications.privacy import OPEN_STATUSES, erase_applications
 from gigs.models import Gig, GigInteraction
 from messaging.models import Conversation
-from messaging.rules import read_only_reason
 from notifications.models import Notification
 from notifications.service import notify
 from profiles.id_privacy import erase_id_images
@@ -79,10 +78,10 @@ def _open_gig_applicants(gigs):
     return Application.objects.filter(gig__in=gigs, status__in=OPEN_STATUSES).select_related('freelancer', 'gig')
 
 
-def _open_conversations(user):
-    conversations = Conversation.objects.filter(client=user) | Conversation.objects.filter(freelancer=user)
-    conversations = conversations.select_related('gig', 'application', 'client', 'freelancer')
-    return [conversation for conversation in conversations if read_only_reason(conversation) is None]
+def _conversations(user):
+    """Every chat the user is in. All of them stay for the other person and are read-only from the deletion on (a
+    suspended account's chats already are)."""
+    return Conversation.objects.filter(client=user).count() + Conversation.objects.filter(freelancer=user).count()
 
 
 def _id_files(user):
@@ -103,7 +102,7 @@ def deletion_preview(user):
         'applications_emptied': Application.objects.filter(freelancer=user).count(),
         'id_files_deleted': files,
         'id_number_deleted': has_number,
-        'conversations_made_read_only': len(_open_conversations(user)),
+        'conversations_read_only': _conversations(user),
         'notifications_deleted': Notification.objects.filter(recipient=user).count(),
         'gig_history_deleted': GigInteraction.objects.filter(user=user).count(),
     }
@@ -160,7 +159,7 @@ def delete_account(user, force=False):
         if work and not force:
             raise AccountDeletionBlocked(work)
 
-        conversations = len(_open_conversations(user))
+        conversations = _conversations(user)
         in_progress_closed = _close_active_work(user) if work else 0
         open_closed, applicants = _close_open_gigs(user)
 
@@ -193,7 +192,7 @@ def delete_account(user, force=False):
         'applications_emptied': applications,
         'id_files_deleted': files,
         'id_number_deleted': has_number,
-        'conversations_made_read_only': conversations,
+        'conversations_read_only': conversations,
         'notifications_deleted': notifications,
         'gig_history_deleted': interactions,
     }

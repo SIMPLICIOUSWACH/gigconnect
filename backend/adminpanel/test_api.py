@@ -48,6 +48,8 @@ class PermissionMatrixTests(AdminApiTestCase):
             ('get', f'/api/admin/users/{user}/'),
             ('post', f'/api/admin/users/{user}/suspend/'),
             ('post', f'/api/admin/users/{user}/reinstate/'),
+            ('get', f'/api/admin/users/{user}/delete-preview/'),
+            ('post', f'/api/admin/users/{user}/delete/'),
             ('get', '/api/admin/verifications/'),
             ('get', f'/api/admin/verifications/{profile}/'),
             ('patch', f'/api/admin/verifications/{profile}/'),

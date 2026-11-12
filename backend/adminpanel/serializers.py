@@ -22,6 +22,13 @@ class PersonSerializer(serializers.Serializer):
     full_name = serializers.CharField()
 
 
+def deletion_action(user):
+    return (
+        AdminAction.objects.filter(action=AdminAction.Action.DELETE_USER, target_id=user.pk)
+        .select_related('admin').order_by('-created_at').first()
+    )
+
+
 def account_state(user):
     """active, suspended or deleted. A deleted account keeps its row (see usersettings DeleteAccountView)."""
     if user.deleted_at is not None:
@@ -36,13 +43,32 @@ def account_state(user):
 class AdminUserListSerializer(serializers.ModelSerializer):
     status = serializers.SerializerMethodField()
     verification_status = serializers.SerializerMethodField()
+    deletion = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
             'id', 'full_name', 'email', 'role', 'status', 'verification_status', 'is_email_verified',
-            'is_synthetic', 'created_at',
+            'is_synthetic', 'created_at', 'deletion',
         ]
+
+    def get_deletion(self, obj):
+        """
+        For a deleted account: what is left to recognise it by, when, and who deleted it. An admin's deletion saved a
+        masked email in the audit log; someone who deleted their own account left nothing to show.
+        """
+        if obj.deleted_at is None:
+            return None
+        if hasattr(obj, 'deletion_label'):
+            label, by = obj.deletion_label, obj.deleted_by_name
+        else:
+            action = deletion_action(obj)
+            label = action.target_label if action else ''
+            by = action.admin.full_name if action and action.admin else None
+        return {
+            'label': label or 'Deleted user', 'deleted_at': obj.deleted_at,
+            'by': by if label else 'themselves',
+        }
 
     def get_status(self, obj):
         return account_state(obj)
@@ -196,8 +222,9 @@ class AdminActionSerializer(serializers.ModelSerializer):
         ]
 
     def get_target_label(self, obj):
-        """The target's name or title, from the lookup the view builds for the whole page."""
-        return self.context.get('target_labels', {}).get((obj.target_type, obj.target_id), '')
+        """The label saved with the action if there is one, otherwise the target's name or title from the lookup the
+        view builds for the whole page."""
+        return obj.target_label or self.context.get('target_labels', {}).get((obj.target_type, obj.target_id), '')
 
 
 def target_labels(actions):
