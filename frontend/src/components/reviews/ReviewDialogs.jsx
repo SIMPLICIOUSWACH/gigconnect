@@ -45,6 +45,7 @@ function ReviewFields({ name, rating, onRating, text, onText, optional = false, 
   undoes the completion; onDone is told so the page can say so.
 */
 export function CompleteGigDialog({ gig, freelancerName, onComplete, onDone, onCancel }) {
+  const groupId = useId()
   const [rating, setRating] = useState(0)
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
@@ -86,10 +87,10 @@ export function CompleteGigDialog({ gig, freelancerName, onComplete, onDone, onC
     >
       <form onSubmit={submit} className="mt-5" noValidate>
         {freelancerName && (
-          <fieldset className="rounded-tile bg-sand p-4">
-            <legend className="float-left w-full text-label text-ink mb-2">
+          <div role="group" aria-labelledby={groupId} className="rounded-tile bg-sand p-4">
+            <p id={groupId} className="text-label text-ink mb-2">
               Rate {freelancerName} <span className="text-muted font-normal">(optional)</span>
-            </legend>
+            </p>
             <ReviewFields
               name={freelancerName}
               rating={rating}
@@ -102,7 +103,7 @@ export function CompleteGigDialog({ gig, freelancerName, onComplete, onDone, onC
             <p className="text-caption text-muted">
               You can skip this and rate from My gigs for 14 days. Ratings are public on their profile.
             </p>
-          </fieldset>
+          </div>
         )}
         {error && (
           <p role="alert" className="text-caption text-coral-ink mt-3">
