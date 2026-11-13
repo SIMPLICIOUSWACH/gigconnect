@@ -27,6 +27,7 @@ describe('draftFromUser', () => {
       skills: [],
       colour: 'teal',
       available: true,
+      remote: true,
     })
   })
 

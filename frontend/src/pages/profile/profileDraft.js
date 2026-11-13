@@ -16,6 +16,7 @@ export function draftFromUser(user) {
     skills: (p.skills || []).map((s) => ({ id: s.id, name: s.name })),
     colour: p.profile_colour || 'teal',
     available: p.is_available ?? true,
+    remote: p.open_to_remote ?? true,
   }
 }
 

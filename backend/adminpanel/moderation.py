@@ -19,6 +19,8 @@ from notifications.models import Notification
 from notifications.service import notify
 from profiles import decisions
 from profiles.models import FreelancerProfile
+from reviews.models import Review
+from reviews.service import refresh_rating
 from usersettings.sessions import revoke_all_sessions
 
 from .models import AdminAction
@@ -307,4 +309,57 @@ def decide_verification(admin, profile, approve, reason='', checklist=None, reas
                 f'{decisions.REDO_WORDS[redo]} from Settings. Everything else you sent is kept.',
                 link='/settings/verification', email_preference='status_change_email',
             )
+    return action
+
+
+# ---------------------------------------------------------------------------
+# Reviews
+# ---------------------------------------------------------------------------
+
+def _tell_about_review(review, kind, title, body, reason):
+    """Both people hear about it: the freelancer who was rated and the client who wrote it (unless deleted)."""
+    for person, link in ((review.freelancer, f'/profile/{review.freelancer_id}'), (review.client, '/gigs/mine')):
+        if person.deleted_at is None:
+            notify(person, kind, title, f'{body}{_because(reason)}', link=link, email_preference='status_change_email')
+
+
+def remove_review(admin, review, reason):
+    reason = clean_reason(reason, required=True)
+    if review.is_removed:
+        raise ModerationError('This review has already been removed.')
+
+    title = review.gig.title
+    with transaction.atomic():
+        review.moderation_status = Review.Moderation.REMOVED
+        review.removed_reason = reason
+        review.removed_at = timezone.now()
+        review.save(update_fields=['moderation_status', 'removed_reason', 'removed_at'])
+        refresh_rating(review.freelancer)  # a removed review no longer counts towards the average
+        action = _record(admin, Action.REMOVE_REVIEW, Target.REVIEW, review.pk, reason)
+        _tell_about_review(
+            review, Kind.REVIEW_REMOVED, f'The review of "{title}" was removed',
+            f'An administrator removed the review of "{title}". It is no longer shown and no longer counts towards '
+            'the rating.', reason,
+        )
+    return action
+
+
+def restore_review(admin, review, reason=''):
+    reason = clean_reason(reason, required=False)
+    if not review.is_removed:
+        raise ModerationError('This review has not been removed.')
+
+    title = review.gig.title
+    with transaction.atomic():
+        review.moderation_status = Review.Moderation.VISIBLE
+        review.removed_reason = ''
+        review.removed_at = None
+        review.save(update_fields=['moderation_status', 'removed_reason', 'removed_at'])
+        refresh_rating(review.freelancer)
+        action = _record(admin, Action.RESTORE_REVIEW, Target.REVIEW, review.pk, reason)
+        _tell_about_review(
+            review, Kind.REVIEW_RESTORED, f'The review of "{title}" is back',
+            f'An administrator restored the review of "{title}". It is shown again and counts towards the rating.',
+            reason,
+        )
     return action

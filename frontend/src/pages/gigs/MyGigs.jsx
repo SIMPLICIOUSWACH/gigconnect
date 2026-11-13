@@ -4,7 +4,10 @@ import { deleteGig, fetchMyGigs, updateGigStatus } from '../../api/gigs'
 import Alert from '../../components/Alert'
 import Button from '../../components/Button'
 import Card from '../../components/Card'
+import SuggestedFreelancers from '../../components/freelancers/SuggestedFreelancers'
 import { MessageFreelancerButton } from '../../components/messages/ChatLinks'
+import { CompleteGigDialog, RATING_NOT_SAVED, ReviewDialog } from '../../components/reviews/ReviewDialogs'
+import { starLabel } from '../../components/reviews/StarInput'
 
 const STATUS_LABELS = {
   open: { text: 'Open', className: 'bg-accent-light text-accent' },
@@ -19,7 +22,7 @@ const NEXT_STATUSES = {
     { value: 'closed', label: 'Cancel' },
   ],
   in_progress: [
-    { value: 'completed', label: 'Complete' },
+    { value: 'completed', label: 'Mark as completed' },
     { value: 'closed', label: 'Cancel' },
   ],
   completed: [],
@@ -31,6 +34,9 @@ export default function MyGigs() {
   const [error, setError] = useState('')
   const [busyId, setBusyId] = useState(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState(null)
+  // { kind: 'complete' | 'rate', gig }: the completion dialog, or rating a completed gig (or editing the review).
+  const [dialog, setDialog] = useState(null)
+  const [notice, setNotice] = useState('')
 
   const load = () => fetchMyGigs().then(setGigs).catch(() => setError('Could not load your gigs.'))
 
@@ -49,6 +55,23 @@ export default function MyGigs() {
     } finally {
       setBusyId(null)
     }
+  }
+
+  const finishCompleting = async ({ rated, ratingFailed }) => {
+    const name = dialog.gig.chats?.[0]?.freelancer_name
+    setDialog(null)
+    setNotice('')
+    await load()
+    if (ratingFailed) setError(RATING_NOT_SAVED)
+    else setNotice(rated ? `Gig completed, and your rating of ${name} was saved.` : 'Gig completed.')
+  }
+
+  const finishRating = async () => {
+    const editing = Boolean(dialog.gig.rating?.review)
+    setDialog(null)
+    setError('')
+    await load()
+    setNotice(editing ? 'Your review was updated.' : 'Thanks. Your rating was saved.')
   }
 
   const handleDelete = async (gigId) => {
@@ -77,6 +100,12 @@ export default function MyGigs() {
       {error && (
         <div className="mb-4">
           <Alert type="error">{error}</Alert>
+        </div>
+      )}
+
+      {notice && (
+        <div className="mb-4" role="status">
+          <Alert type="success">{notice}</Alert>
         </div>
       )}
 
@@ -118,6 +147,37 @@ export default function MyGigs() {
                 </p>
               )}
 
+              {!removed && gig.status === 'open' && <SuggestedFreelancers gigId={gig.id} collapsed />}
+
+              {!removed && gig.rating && (gig.rating.can_rate || gig.rating.review) && (
+                <div className="flex flex-wrap items-center gap-3 mt-4 rounded-input bg-sand px-4 py-3">
+                  {gig.rating.review ? (
+                    <>
+                      <p className="text-body text-ink">
+                        You gave {gig.rating.freelancer_name} {starLabel(gig.rating.review.rating)}.
+                        {gig.rating.review.removed && ' An administrator removed this review.'}
+                      </p>
+                      {gig.rating.can_edit && (
+                        <Button
+                          variant="secondary"
+                          className="py-1.5 px-3 text-caption"
+                          onClick={() => setDialog({ kind: 'rate', gig })}
+                        >
+                          Edit review
+                        </Button>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-body text-ink">How was working with {gig.rating.freelancer_name}?</p>
+                      <Button className="py-1.5 px-3 text-caption" onClick={() => setDialog({ kind: 'rate', gig })}>
+                        Rate {gig.rating.freelancer_name}
+                      </Button>
+                    </>
+                  )}
+                </div>
+              )}
+
               <div className="flex flex-wrap items-center gap-3 mt-4 pt-4 border-t border-border">
                 {gig.chats?.map((chat) => (
                   <MessageFreelancerButton
@@ -143,7 +203,11 @@ export default function MyGigs() {
                     variant="secondary"
                     className="py-1.5 px-3 text-caption"
                     disabled={busy}
-                    onClick={() => handleStatusChange(gig.id, opt.value)}
+                    onClick={() =>
+                      opt.value === 'completed'
+                        ? setDialog({ kind: 'complete', gig })
+                        : handleStatusChange(gig.id, opt.value)
+                    }
                   >
                     {opt.label}
                   </Button>
@@ -181,6 +245,24 @@ export default function MyGigs() {
           )
         })}
       </div>
+      {dialog?.kind === 'complete' && (
+        <CompleteGigDialog
+          gig={dialog.gig}
+          freelancerName={dialog.gig.chats?.[0]?.freelancer_name}
+          onComplete={() => updateGigStatus(dialog.gig.id, 'completed')}
+          onDone={finishCompleting}
+          onCancel={() => setDialog(null)}
+        />
+      )}
+      {dialog?.kind === 'rate' && (
+        <ReviewDialog
+          gig={dialog.gig}
+          freelancerName={dialog.gig.rating.freelancer_name}
+          review={dialog.gig.rating.review}
+          onSaved={finishRating}
+          onCancel={() => setDialog(null)}
+        />
+      )}
     </div>
   )
 }

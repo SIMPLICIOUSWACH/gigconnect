@@ -99,9 +99,13 @@ class MyGigsView(generics.ListAPIView):
         visible = Q(applications__moderation_status=Application.Moderation.VISIBLE)
         return (
             Gig.objects.filter(client=self.request.user)
-            .select_related('client', 'client__client_profile', 'category')
+            .select_related('client', 'client__client_profile', 'category', 'review')
             .prefetch_related(
                 'skills', Prefetch('conversations', queryset=Conversation.objects.select_related('freelancer')),
+                Prefetch(
+                    'applications', to_attr='hired_applications',
+                    queryset=Application.objects.filter(status=Application.Status.HIRED).select_related('freelancer'),
+                ),
             )
             .annotate(
                 application_count=Count('applications', filter=visible, distinct=True),

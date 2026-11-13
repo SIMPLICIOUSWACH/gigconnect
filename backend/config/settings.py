@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'recommendations',
     'notifications',
     'messaging',
+    'reviews',
     'adminpanel',
 ]
 
@@ -140,6 +141,7 @@ REST_FRAMEWORK = {
         'verification_resend': '5/hour',
         'selfie_challenge': '30/hour',
         'message_send': '20/min',
+        'freelancer_search': '60/min',
     },
 }
 
@@ -181,6 +183,19 @@ SHOW_SYNTHETIC = os.environ.get('SHOW_SYNTHETIC', str(DEBUG)) == 'True'
 
 # Typo-tolerant search: when full-text search returns fewer than this many gigs, results are
 # merged with trigram word-similarity matches on title/description.
+# Reviews. A client can rate, and edit their rating, for this many days after a gig is completed.
+REVIEW_WINDOW_DAYS = int(os.environ.get('REVIEW_WINDOW_DAYS', '14'))
+# "Highest rated" sorts by a Bayesian average, (C * m + sum of ratings) / (C + count), so one 5-star review doesn't
+# outrank twenty 4.8s. m is the rating a freelancer is assumed to have before any reviews, C how many reviews that
+# assumption is worth.
+RATING_PRIOR_MEAN = float(os.environ.get('RATING_PRIOR_MEAN', '4.0'))
+RATING_PRIOR_WEIGHT = int(os.environ.get('RATING_PRIOR_WEIGHT', '5'))
+
+# Find freelancers. A client can invite this many freelancers to apply in any 24 hours, across all their gigs.
+INVITES_PER_DAY = int(os.environ.get('INVITES_PER_DAY', '20'))
+# How many freelancers "Suggested for this gig" shows.
+SUGGESTED_FREELANCERS = int(os.environ.get('SUGGESTED_FREELANCERS', '6'))
+
 SEARCH_FALLBACK_MIN_RESULTS = int(os.environ.get('SEARCH_FALLBACK_MIN_RESULTS', '5'))
 # 0.25 rather than pg_trgm's 0.3 default: a one-transposition typo like "pyhton" vs "python"
 # only scores about 0.27-0.29, so 0.3 would miss the most common kind of typo.

@@ -1,14 +1,17 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { updateFreelancerProfile } from '../../api/profile'
 import { deleteAccount } from '../../api/settings'
 import PrivacySettings from './PrivacySettings'
 
 const logout = vi.fn()
-vi.mock('../../context/AuthContext', () => ({ useAuth: () => ({ logout }) }))
+let mockUser
+vi.mock('../../context/AuthContext', () => ({ useAuth: () => ({ logout, user: mockUser, refreshUser: vi.fn() }) }))
 vi.mock('../../api/settings', async (importOriginal) => ({ ...(await importOriginal()), deleteAccount: vi.fn() }))
 vi.mock('../../api/profile', async (importOriginal) => ({
   ...(await importOriginal()),
+  updateFreelancerProfile: vi.fn(() => Promise.resolve({})),
   fetchPrivacyInfo: vi.fn(() => Promise.resolve({ contact_email: '', id_image_retention_days: 90 })),
 }))
 
@@ -47,5 +50,32 @@ describe('Deleting your account', () => {
     deleteAccount.mockResolvedValue({ detail: 'Account deleted.' })
     confirmDelete()
     await vi.waitFor(() => expect(logout).toHaveBeenCalled())
+  })
+})
+
+describe('Show my profile in Find freelancers', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  function renderAs(user) {
+    mockUser = user
+    render(
+      <MemoryRouter>
+        <PrivacySettings />
+      </MemoryRouter>
+    )
+  }
+
+  it('is a switch for freelancers that saves as soon as it changes', async () => {
+    renderAs({ role: 'freelancer', profile: { search_visible: true } })
+    const toggle = screen.getByRole('switch', { name: 'Show my profile in Find freelancers' })
+    expect(toggle).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-checked', 'false')
+    await vi.waitFor(() => expect(updateFreelancerProfile).toHaveBeenCalledWith({ search_visible: false }))
+  })
+
+  it('is not shown to clients', () => {
+    renderAs({ role: 'client', profile: {} })
+    expect(screen.queryByRole('switch', { name: 'Show my profile in Find freelancers' })).not.toBeInTheDocument()
   })
 })

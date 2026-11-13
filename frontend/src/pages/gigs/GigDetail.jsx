@@ -6,6 +6,7 @@ import ApplyForm from '../../components/applications/ApplyForm'
 import StatusBadge from '../../components/applications/StatusBadge'
 import Button from '../../components/Button'
 import Card from '../../components/Card'
+import SuggestedFreelancers from '../../components/freelancers/SuggestedFreelancers'
 import { useAuth } from '../../context/AuthContext'
 import { formatDate, isApplicationClosed } from '../../utils/gigFormat'
 
@@ -108,6 +109,12 @@ export default function GigDetail() {
           }}
         />
       </Card>
+
+      {user?.id === gig.client.id && gig.status === 'open' && (
+        <Card className="mt-6">
+          <SuggestedFreelancers gigId={gig.id} />
+        </Card>
+      )}
     </div>
   )
 }
