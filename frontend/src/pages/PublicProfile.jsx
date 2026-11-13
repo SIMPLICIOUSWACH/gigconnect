@@ -9,6 +9,7 @@ import Button from '../components/Button'
 import Card from '../components/Card'
 import GigCard from '../components/gigs/GigCard'
 import GigCardSkeleton from '../components/gigs/GigCardSkeleton'
+import InviteDialog from '../components/freelancers/InviteDialog'
 import ProfilePreviewCard from '../components/profile/ProfilePreviewCard'
 import ReviewList from '../components/reviews/ReviewList'
 
@@ -182,10 +183,13 @@ export default function PublicProfile() {
   const { user } = useAuth()
   const [profile, setProfile] = useState(null)
   const [error, setError] = useState('')
+  const [inviting, setInviting] = useState(false)
+  const [notice, setNotice] = useState('')
 
   useEffect(() => {
     setProfile(null)
     setError('')
+    setNotice('')
     fetchPublicProfile(id)
       .then(setProfile)
       .catch(() => setError('Could not load this profile.'))
@@ -203,7 +207,26 @@ export default function PublicProfile() {
             <Button variant="secondary">Edit profile</Button>
           </Link>
         )}
+        {user?.role === 'client' && profile?.role === 'freelancer' && (
+          <Button onClick={() => setInviting(true)}>Invite to apply</Button>
+        )}
       </div>
+
+      {notice && (
+        <div className="mb-4" role="status">
+          <Alert type="success">{notice}</Alert>
+        </div>
+      )}
+      {inviting && (
+        <InviteDialog
+          freelancer={{ id: profile.id, full_name: profile.full_name }}
+          onClose={() => setInviting(false)}
+          onInvited={(result) => {
+            setInviting(false)
+            setNotice(result.detail)
+          }}
+        />
+      )}
 
       {error && <Alert type="error">{error}</Alert>}
       {!profile && !error && <p className="text-body text-muted">Loading…</p>}

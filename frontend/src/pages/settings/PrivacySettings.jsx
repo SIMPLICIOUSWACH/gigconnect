@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { updateFreelancerProfile } from '../../api/profile'
 import { deleteAccount, exportData } from '../../api/settings'
 import { useAuth } from '../../context/AuthContext'
 import Alert from '../../components/Alert'
@@ -10,7 +11,23 @@ import ChatPrivacyNotice from '../../components/messages/ChatPrivacyNotice'
 import IdPrivacyNotice from '../../components/verification/IdPrivacyNotice'
 
 export default function PrivacySettings() {
-  const { logout } = useAuth()
+  const { logout, user, refreshUser } = useAuth()
+  // "Show my profile in Find freelancers", for freelancers. Saved as soon as it is switched.
+  const [visible, setVisible] = useState(user?.profile?.search_visible ?? true)
+  const [visibleError, setVisibleError] = useState('')
+
+  const toggleVisible = async () => {
+    const next = !visible
+    setVisible(next)
+    setVisibleError('')
+    try {
+      await updateFreelancerProfile({ search_visible: next })
+      await refreshUser?.()
+    } catch {
+      setVisible(!next)
+      setVisibleError('Could not save this. Try again.')
+    }
+  }
   const navigate = useNavigate()
   const [password, setPassword] = useState('')
   const [confirming, setConfirming] = useState(false)
@@ -58,6 +75,41 @@ export default function PrivacySettings() {
             Download JSON
           </Button>
         </Card>
+
+        {user?.role === 'freelancer' && (
+          <Card>
+            <h2 className="text-section-title text-ink mb-2">Find freelancers</h2>
+            <div className="flex justify-between items-center gap-4">
+              <span className="flex flex-col gap-0.5">
+                <span id="search-visible-label" className="text-[15px] font-semibold text-ink">
+                  Show my profile in Find freelancers
+                </span>
+                <span className="text-body text-muted">
+                  Clients can find you by your name, skills and what you do, and invite you to apply. Your email,
+                  phone and ID are never shown. Turn this off and your profile only opens from a link or from your
+                  own applications.
+                </span>
+              </span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={visible}
+                aria-labelledby="search-visible-label"
+                onClick={toggleVisible}
+                className={`shrink-0 w-[52px] h-[30px] rounded-pill p-[3px] flex ${
+                  visible ? 'justify-end bg-primary' : 'justify-start bg-toggle-off'
+                }`}
+              >
+                <span className="w-6 h-6 rounded-full bg-white shadow-knob" />
+              </button>
+            </div>
+            {visibleError && (
+              <p role="alert" className="text-caption text-coral-ink mt-2">
+                {visibleError}
+              </p>
+            )}
+          </Card>
+        )}
 
         <Card>
           <ChatPrivacyNotice />

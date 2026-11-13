@@ -24,10 +24,10 @@ export function LogoMark() {
 }
 
 function navItems(role) {
-  const items = [
-    { to: '/dashboard', label: 'Dashboard', end: true },
-    { to: '/gigs', label: 'Find gigs', end: true },
-  ]
+  const items = [{ to: '/dashboard', label: 'Dashboard', end: true }]
+  // Clients look for people, freelancers look for work, and admins can open both.
+  if (role !== 'client') items.push({ to: '/gigs', label: 'Find gigs', end: true })
+  if (role === 'client' || role === 'admin') items.push({ to: '/freelancers', label: 'Find freelancers' })
   if (role === 'freelancer') {
     items.push({ to: '/applications', label: 'Applications' })
     items.push({ to: PROFILE_EDIT_PATH, label: 'My profile' })

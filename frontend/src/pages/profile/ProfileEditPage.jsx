@@ -124,6 +124,7 @@ export default function ProfileEditPage() {
         bio: next.bio,
         starting_price: next.price ? Number(next.price) : null,
         is_available: next.available,
+        open_to_remote: next.remote,
         profile_colour: next.colour,
         skills: next.skills.map((s) => s.id),
       })
@@ -345,6 +346,26 @@ export default function ProfileEditPage() {
                   onClick={() => set('available', !draft.available)}
                   className={`shrink-0 w-[52px] h-[30px] rounded-pill p-[3px] flex ${
                     draft.available ? 'justify-end bg-primary' : 'justify-start bg-toggle-off'
+                  }`}
+                >
+                  <span className="w-6 h-6 rounded-full bg-white shadow-knob" />
+                </button>
+              </div>
+              <div className="flex justify-between items-center gap-4">
+                <span className="flex flex-col gap-0.5">
+                  <span id="remote-label" className="text-[15px] font-semibold">
+                    Open to remote work
+                  </span>
+                  <span className="text-caption text-muted">Clients outside your county can find you too.</span>
+                </span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={draft.remote}
+                  aria-labelledby="remote-label"
+                  onClick={() => set('remote', !draft.remote)}
+                  className={`shrink-0 w-[52px] h-[30px] rounded-pill p-[3px] flex ${
+                    draft.remote ? 'justify-end bg-primary' : 'justify-start bg-toggle-off'
                   }`}
                 >
                   <span className="w-6 h-6 rounded-full bg-white shadow-knob" />

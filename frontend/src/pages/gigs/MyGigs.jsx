@@ -4,6 +4,7 @@ import { deleteGig, fetchMyGigs, updateGigStatus } from '../../api/gigs'
 import Alert from '../../components/Alert'
 import Button from '../../components/Button'
 import Card from '../../components/Card'
+import SuggestedFreelancers from '../../components/freelancers/SuggestedFreelancers'
 import { MessageFreelancerButton } from '../../components/messages/ChatLinks'
 import { CompleteGigDialog, RATING_NOT_SAVED, ReviewDialog } from '../../components/reviews/ReviewDialogs'
 import { starLabel } from '../../components/reviews/StarInput'
@@ -145,6 +146,8 @@ export default function MyGigs() {
                   {gig.removed_reason && ` Reason: ${gig.removed_reason}`}
                 </p>
               )}
+
+              {!removed && gig.status === 'open' && <SuggestedFreelancers gigId={gig.id} collapsed />}
 
               {!removed && gig.rating && (gig.rating.can_rate || gig.rating.review) && (
                 <div className="flex flex-wrap items-center gap-3 mt-4 rounded-input bg-sand px-4 py-3">
