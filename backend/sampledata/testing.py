@@ -15,12 +15,18 @@ from applications.models import Application
 from gigs.models import Category, Gig
 from profiles.models import Skill
 
-from .text import GROUP_CATEGORY, SKILL_CATEGORY_OVERRIDE
+from .text import GROUP_CATEGORY, SKILL_CATEGORY_OVERRIDE, SKILL_GROUP
 
 SKILL_SETS = [
     ['Graphic Design', 'Logo Design'], ['React', 'JavaScript'], ['Content Writing'], ['Photography', 'Video Editing'],
     ['Social Media Management', 'Digital Marketing'], ['Excel', 'Bookkeeping'], ['Carpentry'], ['Python', 'Web Development'],
 ]
+
+
+def ensure_skills():
+    """Every skill the sample data uses, since the test database only holds what the migrations add."""
+    for name, group in SKILL_GROUP.items():
+        Skill.objects.get_or_create(name=name, defaults={'category': group.title()})
 
 
 def ensure_categories():
@@ -35,6 +41,7 @@ class SampleWorld(AdminTestMixin):
     client_count = 6
 
     def build_sample_world(self):
+        ensure_skills()
         ensure_categories()
         self.clients = [
             self.make_user(f'seed-client-{n}@example.test', User.Role.CLIENT, is_synthetic=True,
