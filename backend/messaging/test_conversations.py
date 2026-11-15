@@ -69,9 +69,12 @@ class StatusChangedAtTests(ChatTestMixin, APITestCase):
         gig.title = 'A new title'
         gig.save()
         self.assertEqual(Gig.objects.get(pk=gig.pk).status_changed_at, created)
+        # Put the old time well in the past, so "later" doesn't depend on two clock readings a millisecond apart.
+        earlier = created - timedelta(hours=1)
+        Gig.objects.filter(pk=gig.pk).update(status_changed_at=earlier)
         self.client.force_authenticate(client)
         self.client.patch(f'/api/gigs/{gig.pk}/status/', {'status': 'closed'})
-        self.assertGreater(Gig.objects.get(pk=gig.pk).status_changed_at, created)
+        self.assertGreater(Gig.objects.get(pk=gig.pk).status_changed_at, created - timedelta(minutes=1))
 
     def test_completed_and_closed_gigs_are_backfilled_from_updated_at(self):
         client = self.make_user('client@example.com', User.Role.CLIENT)

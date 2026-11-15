@@ -19,6 +19,7 @@ import ProfileEditPage from './pages/profile/ProfileEditPage'
 import Dashboard from './pages/Dashboard'
 import NotificationsPage from './pages/NotificationsPage'
 import MessagesPage from './pages/MessagesPage'
+import FindFreelancers from './pages/freelancers/FindFreelancers'
 import GigForm from './pages/gigs/GigForm'
 import GigDetail from './pages/gigs/GigDetail'
 import BrowseGigs from './pages/gigs/BrowseGigs'
@@ -79,6 +80,10 @@ function App() {
             <Route element={<RoleRoute role="freelancer" />}>
               <Route path="/applications" element={<MyApplications />} />
               <Route path="/profile/edit" element={<ProfileEditPage />} />
+            </Route>
+
+            <Route element={<RoleRoute role={['client', 'admin']} />}>
+              <Route path="/freelancers" element={<FindFreelancers />} />
             </Route>
 
             <Route element={<RoleRoute role="client" />}>

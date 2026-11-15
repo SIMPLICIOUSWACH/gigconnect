@@ -150,6 +150,34 @@ class GigSkill(models.Model):
         return f'{self.gig_id}:{self.skill_id}'
 
 
+class GigInvite(models.Model):
+    """
+    A client asking a freelancer to apply to one of their open gigs. One per freelancer per gig. It sends a
+    notification and nothing else: no chat opens (that still starts on hire), and the recommender never reads these.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    gig = models.ForeignKey(Gig, on_delete=models.CASCADE, related_name='invites')
+    client = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='invites_sent')
+    freelancer = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='invites_received'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(fields=['gig', 'freelancer'], name='one_invite_per_freelancer_per_gig'),
+        ]
+        indexes = [
+            # The daily limit counts a client's recent invites.
+            models.Index(fields=['client', '-created_at'], name='invite_client_created_idx'),
+        ]
+
+    def __str__(self):
+        return f'GigInvite<{self.gig_id} -> {self.freelancer_id}>'
+
+
 class GigInteraction(models.Model):
     """One thing a visitor did with a gig. This is the training data for the collaborative filter."""
 

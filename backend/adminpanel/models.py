@@ -5,7 +5,9 @@ from django.db import models
 from django.db.models import Q
 
 # The actions that take something away from someone (AdminAction.Action values). Each needs a reason.
-NEGATIVE_ACTIONS = ('verify_reject', 'suspend_user', 'remove_gig', 'remove_application', 'delete_user')
+NEGATIVE_ACTIONS = (
+    'verify_reject', 'suspend_user', 'remove_gig', 'remove_application', 'delete_user', 'remove_review',
+)
 
 
 class AdminAction(models.Model):
@@ -24,6 +26,8 @@ class AdminAction(models.Model):
         RESTORE_GIG = 'restore_gig', 'Restored gig'
         REMOVE_APPLICATION = 'remove_application', 'Removed application'
         RESTORE_APPLICATION = 'restore_application', 'Restored application'
+        REMOVE_REVIEW = 'remove_review', 'Removed review'
+        RESTORE_REVIEW = 'restore_review', 'Restored review'
         # Opening a reported chat is logged every time, because it means reading private messages.
         CHAT_VIEWED = 'chat_viewed', 'Viewed reported chat'
         CHAT_REPORT_RESOLVED = 'chat_report_resolved', 'Resolved chat report'
@@ -34,6 +38,7 @@ class AdminAction(models.Model):
         GIG = 'gig', 'Gig'
         APPLICATION = 'application', 'Application'
         CONVERSATION = 'conversation', 'Conversation'
+        REVIEW = 'review', 'Review'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     # Kept if the admin's account is ever deleted, so the log still shows what happened.

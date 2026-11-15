@@ -194,6 +194,7 @@ describe('ProfileEditPage', () => {
       bio: 'I write product pages.',
       starting_price: null,
       is_available: true,
+      open_to_remote: true,
       profile_colour: 'teal',
       skills: ['s1'],
     })

@@ -1,6 +1,8 @@
 import uuid
 
 from django.conf import settings
+from django.contrib.postgres.indexes import GinIndex
+from django.contrib.postgres.search import SearchVectorField
 from django.db import models
 
 from .counties import COUNTY_CHOICES
@@ -102,9 +104,20 @@ class FreelancerProfile(models.Model):
     # In KES. Empty means "on request".
     starting_price = models.PositiveIntegerField(null=True, blank=True)
     is_available = models.BooleanField(default=True)
+    # Happy to work for clients anywhere, not only in their own county.
+    open_to_remote = models.BooleanField(default=True)
+    # "Show my profile in Find freelancers". Off hides the profile from the client search and from suggestions; it
+    # still opens from a link, and clients still see it on the freelancer's applications.
+    search_visible = models.BooleanField(default=True)
+    # Name, headline, skills and bio, for the client search. Kept up to date by profiles/signals.py.
+    search_vector = SearchVectorField(null=True, editable=False)
     profile_colour = models.CharField(max_length=10, choices=Colour.choices, default=Colour.TEAL)
     county = models.CharField(max_length=40, choices=COUNTY_CHOICES, null=True, blank=True)
     profile_photo = models.ImageField(upload_to='profile_photos/', blank=True, null=True)
+    # The average and number of this freelancer's visible reviews, kept up to date by reviews/service.py whenever a
+    # review is written, edited, removed or restored. No reviews: rating_avg is empty, shown as "New", never as 0.
+    rating_avg = models.DecimalField(max_digits=3, decimal_places=2, null=True, blank=True)
+    rating_count = models.PositiveIntegerField(default=0)
     # write-only in every serializer — never include in a response, even to the owner
     id_number = models.CharField(max_length=20, blank=True)
     # In private storage: no URL reaches it. Admins read it through /api/admin/verifications/<id>/document/.
@@ -138,6 +151,11 @@ class FreelancerProfile(models.Model):
     id_number_last3 = models.CharField(max_length=3, blank=True)
     # When purge_id_images (or deleting the account) removed the images and the plain number.
     id_images_purged_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [
+            GinIndex(fields=['search_vector'], name='profile_search_vector_gin'),
+        ]
 
     def __str__(self):
         return f'FreelancerProfile<{self.user.email}>'

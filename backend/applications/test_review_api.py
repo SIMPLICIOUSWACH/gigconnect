@@ -283,9 +283,10 @@ class MyGigsCountTests(ApplicationApiBase):
         self.assertNotIn('application_count', feed[0])
 
     def test_query_count_does_not_grow_with_gigs(self):
-        # The gigs with their counts, their skills, and the chats with hired freelancers (one query each).
+        # The gigs with their counts, their skills, the chats with hired freelancers and the hires themselves (one
+        # query each).
         self.make_application()
-        with self.assertNumQueries(3):
+        with self.assertNumQueries(4):
             self.client.get(self.url)
         for index in range(4):
             self.make_application(gig=self.make_gig(f'Extra {index}'))
@@ -293,5 +294,5 @@ class MyGigsCountTests(ApplicationApiBase):
         Conversation.objects.create(
             application=hired, gig=hired.gig, client=hired.gig.client, freelancer=hired.freelancer,
         )
-        with self.assertNumQueries(3):
+        with self.assertNumQueries(4):
             self.client.get(self.url)

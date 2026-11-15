@@ -247,6 +247,9 @@ What creates them, and which setting (`/api/settings/notifications/`) controls e
 | An admin suspends or reinstates an account | The person affected | Email follows `security_alert`; the in-app notice is always written |
 | A client hires a freelancer | The client: "You hired <name>. Send them a message to get started." | `new_message` |
 | A chat message arrives | The other person: one in-app notice per chat, updated as more arrive. An email only if it is still unread after 15 minutes, at most one per chat an hour | `new_message` |
+| A client rates a freelancer, or the freelancer replies | The freelancer; then the client | `status_change` |
+| An admin removes or restores a review | The freelancer and the client | Email follows `status_change`; the in-app notice is always written |
+| A client invites a freelancer to apply | The freelancer | `invite` |
 
 **Delivery.** Emails go out after the database transaction commits, and a mail failure is logged without failing the
 request. The bell checks the unread count every 30 seconds and when the tab comes back into view, so in-app
@@ -329,6 +332,102 @@ privacy contact. A mail failure is logged and doesn't undo anything. In `/api/ad
 
 Admins can't list or open chats any other way. Suspending a participant uses the usual
 `POST /api/admin/users/<id>/suspend/`.
+
+## Reviews (`/api/`)
+
+A client can rate the freelancer they hired once the gig is completed. One review per gig (the database enforces it).
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/gigs/<id>/review/` | The client's own review of their gig, with `can_edit` and `closes_at`. 404 if there is none |
+| POST | `/api/gigs/<id>/review/` | `{"rating": 1-5, "text"}`. `text` is optional, up to 1,000 characters |
+| PATCH | `/api/gigs/<id>/review/` | Change the rating or the text |
+| POST | `/api/reviews/<id>/reply/` | `{"reply"}`: the rated freelancer's one public reply, 1 to 500 characters |
+| GET | `/api/freelancers/<id>/reviews/` | A freelancer's visible reviews, newest first, paginated. Public fields only: rating, text, gig title, client name, dates, the reply, and `can_reply` for the freelancer themselves |
+
+**Who and when.** Only the gig's client can rate, only the freelancer hired on that gig, and only a completed gig.
+Anyone else gets 404 for the gig. Rating and editing are both open for `REVIEW_WINDOW_DAYS` (14) days after completion
+(`Gig.status_changed_at`); after that both answer 400. `GET /api/gigs/mine/` gives each completed gig a `rating` object
+(`can_rate`, `can_edit`, `closes_at`, the review), which is what puts "Rate <name>" in My gigs for those 14 days.
+
+**Average and count.** `rating_avg` and `rating_count` live on the freelancer's profile and are recalculated in the
+same transaction whenever a review is written, edited, removed or restored. They are on the public profile and on each
+applicant in `GET /api/gigs/<id>/applications/`. A freelancer with no reviews has `rating_avg: null`, shown as "New",
+never as 0 stars.
+
+**Sorting by rating** uses a Bayesian average, `(C * m + sum of ratings) / (C + count)`, with `m = RATING_PRIOR_MEAN`
+(4.0) and `C = RATING_PRIOR_WEIGHT` (5). One 5-star review gives 4.17 and twenty reviews averaging 4.8 give 4.64, so
+the second ranks higher, and someone new sits at 4.0 rather than at the bottom.
+
+**Notifications** (both under the "Status changes" setting): the freelancer is told "<client> rated your work on
+<gig>", and the client is told when the freelancer replies.
+
+**Moderation.** `GET /api/admin/reviews/` (filters: `moderation`, `rating`, `id`, `freelancer`, `client`),
+`POST /api/admin/reviews/<id>/remove/` with a required `{"reason"}`, and `POST /api/admin/reviews/<id>/restore/`.
+Both write to the audit log (`remove_review`, `restore_review`) and tell the freelancer and the client. A removed
+review isn't listed, can't be edited or replied to, and doesn't count towards the average.
+
+**Deleted accounts.** A deleted freelancer's reviews are hidden with their profile (404). A review written by a client
+who later deleted their account stays, with the client shown as "Deleted client".
+
+**Not used by the recommender.** Ratings don't feed training, evaluation or ranking of recommended gigs. Using them
+(for example as a weight on hires, or to order suggested freelancers) is future work: there are too few reviews to
+learn from yet, and a rating says how a job went, not which gigs suit a freelancer.
+
+## Find freelancers (`/api/`)
+
+For clients and admins. Freelancers get 403.
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/freelancers/` | Search. 12 per page. Throttled to 60 a minute |
+| GET | `/api/gigs/<id>/suggested-freelancers/` | Up to 6 freelancers for one of the client's open gigs. Owner only |
+| POST | `/api/gigs/<id>/invites/` | `{"freelancer_id"}`: invite them to apply. Owner only |
+| GET | `/api/freelancers/<id>/invitable-gigs/` | The client's open gigs, each with `invited` and `applied` for this freelancer, plus `invites_left` |
+
+**Who appears.** Freelancers whose account is active, email-verified, not suspended and not deleted, and who have
+"Show my profile in Find freelancers" on (`search_visible`, on by default; they change it with
+`PATCH /api/profile/complete/`). Synthetic seed accounts follow `SHOW_SYNTHETIC`, the same rule as gigs. A hidden
+profile still opens from a link and on the freelancer's own applications.
+
+**`GET /api/freelancers/` parameters.**
+
+| Parameter | Meaning |
+|---|---|
+| `q` | Keyword over name and headline, then skills, then bio. Full-text, topped up with trigram matches when there are too few, like the gig search |
+| `skills` | Comma-separated skill ids or names; any of them |
+| `county` | One county |
+| `remote=true` | Open to remote work (`open_to_remote`) |
+| `verified=true` | ID verified by an admin |
+| `available=true` | Available for new gigs |
+| `min_rating` | 1 to 5. Leaves out freelancers with no reviews |
+| `sort` | `best_match` (default), `rating` (the Bayesian average), `completed` (most gigs completed), `newest` |
+| `page` | Without `q` or any filter, pages past 50 answer 400 `code: "narrow_your_search"` |
+
+`best_match` ranks by the keyword match when there is a `q`, by how many of the asked skills they have when there are
+`skills`, and otherwise by: verified first, then the Bayesian rating, then most recently active.
+
+**What a card contains.** `id`, `full_name`, `profile_photo`, `profile_colour`, `verified`, `headline`, `county`,
+`skills` (the first 5) and `skills_total`, `rating_avg`, `rating_count`, `gigs_completed`, `starting_price`,
+`is_available`, `open_to_remote`. Never an email, phone number, ID number or document: the card is built field by
+field, and a test checks the response for them.
+
+**Suggested for this gig.** Ranked by the content model: the cosine similarity between the gig's text (title,
+description, skills, category) and each findable freelancer's profile (skills and bio). Each card also has
+`match_score`, `match_band` and `match_reasons`, the same labels and shared skills as applicant cards, and `invited`.
+People who already applied are left out, and nobody with a score of 0 is suggested. With recommendations switched off
+or no trained model, `results` is empty and `suggestions.reason` says why.
+
+Suggestions are content-only on purpose. The collaborative model learns which gigs a freelancer goes for from what
+freelancers did; it has nothing on which freelancers a client wants. A new open gig has no history for it to work from
+either, and ranking people by how much they resemble past applicants would mostly push forward those who are already
+busy.
+
+**Invitations.** The freelancer gets a notification, and an email if their "Invitations to apply" setting allows
+(`invite_inapp`, `invite_email`, both on by default), with a link to the gig. Limits: one invite per freelancer per
+gig, and `INVITES_PER_DAY` (20) per client in any 24 hours (429 after that). Only open gigs take invitations, only
+findable freelancers can be invited, and someone who already applied can't be. An invitation does not open a chat:
+chat still starts on hire, with the client writing first. The recommender never reads invitations.
 
 ## Seeding sample data (development only)
 

@@ -45,11 +45,19 @@ class MyGigListSerializer(GigListSerializer):
     application_count = serializers.IntegerField(read_only=True)
     pending_application_count = serializers.IntegerField(read_only=True)
     chats = serializers.SerializerMethodField()
+    rating = serializers.SerializerMethodField()
 
     class Meta(GigListSerializer.Meta):
         fields = GigListSerializer.Meta.fields + [
             'application_count', 'pending_application_count', 'moderation_status', 'removed_reason', 'chats',
+            'rating', 'status_changed_at',
         ]
+
+    def get_rating(self, obj):
+        """For a completed gig: who the client can rate, until when, and their review if they wrote one."""
+        from reviews.service import hired_freelancer, rating_state  # reviews imports gigs
+
+        return rating_state(obj, hired_freelancer(obj), getattr(obj, 'review', None))
 
     def get_chats(self, obj):
         """A chat for each freelancer hired on this gig, for the "Message <name>" buttons."""

@@ -19,6 +19,9 @@ class NotificationPreference(models.Model):
     security_alert_inapp = models.BooleanField(default=True)
     new_message_email = models.BooleanField(default=True)
     new_message_inapp = models.BooleanField(default=True)
+    # "Invitations to apply": a client asking the freelancer to apply to one of their gigs.
+    invite_email = models.BooleanField(default=True)
+    invite_inapp = models.BooleanField(default=True)
 
     def __str__(self):
         return f'NotificationPreference<{self.user.email}>'

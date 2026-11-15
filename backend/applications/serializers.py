@@ -82,6 +82,8 @@ class ApplicationDetailSerializer(ApplicationListSerializer):
             'full_name': user.full_name,
             'verification_status': profile.verification_status if profile else None,
             'verified': bool(profile and profile.verified),
+            'rating_avg': profile.rating_avg if profile else None,
+            'rating_count': profile.rating_count if profile else 0,
             'skills': [{'id': str(s.id), 'name': s.name} for s in profile.skills.all()] if profile else [],
         }
 

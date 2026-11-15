@@ -9,7 +9,9 @@ import Button from '../components/Button'
 import Card from '../components/Card'
 import GigCard from '../components/gigs/GigCard'
 import GigCardSkeleton from '../components/gigs/GigCardSkeleton'
+import InviteDialog from '../components/freelancers/InviteDialog'
 import ProfilePreviewCard from '../components/profile/ProfilePreviewCard'
+import ReviewList from '../components/reviews/ReviewList'
 
 function Avatar({ src, name }) {
   if (src) {
@@ -79,10 +81,20 @@ function FreelancerView({ profile }) {
       <div className="flex-[1_1_380px] max-w-[460px] min-w-0">
         <ProfilePreviewCard profile={card} />
       </div>
-      <Card className="flex-[999_1_420px] min-w-0">
-        <h2 className="text-section-title text-ink mb-4">Portfolio</h2>
-        <PortfolioGrid items={p.portfolio_items} />
-      </Card>
+      <div className="flex-[999_1_420px] min-w-0 space-y-7">
+        <Card>
+          <h2 className="text-section-title text-ink mb-4">Portfolio</h2>
+          <PortfolioGrid items={p.portfolio_items} />
+        </Card>
+        <Card>
+          <ReviewList
+            freelancerId={profile.id}
+            freelancerName={profile.full_name}
+            average={p.rating_avg}
+            count={p.rating_count}
+          />
+        </Card>
+      </div>
     </div>
   )
 }
@@ -171,10 +183,13 @@ export default function PublicProfile() {
   const { user } = useAuth()
   const [profile, setProfile] = useState(null)
   const [error, setError] = useState('')
+  const [inviting, setInviting] = useState(false)
+  const [notice, setNotice] = useState('')
 
   useEffect(() => {
     setProfile(null)
     setError('')
+    setNotice('')
     fetchPublicProfile(id)
       .then(setProfile)
       .catch(() => setError('Could not load this profile.'))
@@ -192,7 +207,26 @@ export default function PublicProfile() {
             <Button variant="secondary">Edit profile</Button>
           </Link>
         )}
+        {user?.role === 'client' && profile?.role === 'freelancer' && (
+          <Button onClick={() => setInviting(true)}>Invite to apply</Button>
+        )}
       </div>
+
+      {notice && (
+        <div className="mb-4" role="status">
+          <Alert type="success">{notice}</Alert>
+        </div>
+      )}
+      {inviting && (
+        <InviteDialog
+          freelancer={{ id: profile.id, full_name: profile.full_name }}
+          onClose={() => setInviting(false)}
+          onInvited={(result) => {
+            setInviting(false)
+            setNotice(result.detail)
+          }}
+        />
+      )}
 
       {error && <Alert type="error">{error}</Alert>}
       {!profile && !error && <p className="text-body text-muted">Loading…</p>}

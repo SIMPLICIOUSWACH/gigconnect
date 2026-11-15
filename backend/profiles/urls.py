@@ -1,5 +1,6 @@
 from django.urls import path
 
+from .search_views import FreelancerSearchView
 from .selfie_views import ChallengeView, SelfieView
 from .views import (
     CountyListView,
@@ -17,6 +18,7 @@ urlpatterns = [
     path('meta/privacy/', PrivacyInfoView.as_view(), name='privacy-info'),
     path('skills/', SkillListView.as_view(), name='skill-list'),
     path('profiles/<uuid:user_id>/', PublicProfileView.as_view(), name='public-profile'),
+    path('freelancers/', FreelancerSearchView.as_view(), name='freelancer-search'),
     path('profile/complete/', ProfileCompleteView.as_view(), name='profile-complete'),
     path('profile/portfolio-items/', PortfolioItemListCreateView.as_view(), name='portfolio-item-list'),
     path('profile/portfolio-items/<uuid:pk>/', PortfolioItemDetailView.as_view(), name='portfolio-item-detail'),

@@ -92,7 +92,8 @@ def seed(now=None):
     with transaction.atomic():
         client = demo_client()
         # Deleting the gigs takes their applications, conversations and messages with them.
-        Gig.objects.filter(client=client, is_demo_extra=True).delete()
+        # Only the in-progress ones: the completed sample gigs belong to the sample reviews (reviews/demo.py).
+        Gig.objects.filter(client=client, is_demo_extra=True, status=Gig.Status.IN_PROGRESS).delete()
         conversations = []
         for days_ago, (group, (title_end, lines)) in zip((6, 4, 2), CHATS.items()):
             freelancer = freelancers[group]

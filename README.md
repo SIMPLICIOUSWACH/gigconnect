@@ -234,6 +234,14 @@ Running it again replaces them. These gigs and applications are flagged `is_demo
 evaluate the recommender, so `train_recommender` on the demo sees the same world with or without them. Run it again
 after `refresh_planted_demo` or reseeding, which remove them.
 
+**Sample reviews.** `python manage.py seed_demo_reviews` (also with `RECOMMENDER_PROFILE=demo`) adds completed gigs
+for the same demo client with 15 reviews across Amina, Brian, Cynthia and five other planted freelancers, so Find
+freelancers has ratings to sort and filter by. Like the sample chats, these gigs and applications are flagged
+`is_demo_extra` and stay out of training and evaluation, and the two commands don't touch each other's rows.
+
+**Ratings and the recommender.** Ratings are not used to train, evaluate or rank recommendations; that is future work.
+"Suggested for this gig" uses the content model only. Both are explained in `docs/api-endpoints.md`.
+
 The demo admin is made with `create_admin` like any other admin. Its email starts with `planted-` because the demo
 profile refuses to start on a database that holds any other kind of account. `seed_planted --delete` removes it with
 the rest of the planted world, so run `create_admin` again after reseeding.
