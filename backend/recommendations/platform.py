@@ -9,7 +9,9 @@ Synthetic rows (flagged is_synthetic by the seed commands) are included or left 
 trained model can always say how much of what it learned from was synthetic.
 
 The gigs and applications seed_demo_conversations adds so the demo has chats to show (is_demo_extra) are always left
-out, so training and evaluation on the demo see exactly the same world as before they were added.
+out, so training and evaluation on the demo see exactly the same world as before they were added. The same goes for
+what enrich_sample_data and seed_showcase add: their gigs and applications carry the flag, and so do the showcase
+accounts themselves.
 """
 
 from accounts.models import User
@@ -19,9 +21,10 @@ from profiles.models import FreelancerProfile
 
 
 def freelancers_for_training(include_synthetic=True):
-    """Freelancer profiles of active, non-deleted accounts."""
+    """Freelancer profiles of active, non-deleted accounts, except the showcase accounts (is_demo_extra)."""
     profiles = FreelancerProfile.objects.filter(
         user__role=User.Role.FREELANCER, user__is_active=True, user__deleted_at__isnull=True,
+        user__is_demo_extra=False,
     )
     if not include_synthetic:
         profiles = profiles.filter(user__is_synthetic=False)
