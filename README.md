@@ -250,6 +250,51 @@ Each of the first three is the member of their hidden group whose top 5 recommen
 clearly. The habit only shows in the gigs the collaborative part pulls in, which are often gigs that share no skill with
 them (a content score of 0). The groups themselves are only in `datasets/synthetic_planted/ground_truth.csv`.
 
+## Sample data and the showcase accounts
+
+Three commands make the ordinary sample data feel complete and give a live demo four accounts that are filled in end to
+end. They are for the **main** database in development: all of them refuse to run when `DEBUG=False` or on the planted
+demo database, and all of them are safe to run twice.
+
+| Command | What it does |
+|---|---|
+| `enrich_sample_data` | For the 30 synthetic freelancers and 30 synthetic clients the seed commands made: a headline, a starting price, a county, a mix of availability and remote settings, a generated avatar (clients get a generated logo) and 2 to 4 portfolio items with generated covers. About 70% of the freelancers get completed gigs (a few get ten or more), each a new gig from a sample client with a hire, a chat, a status history in the right order and dates inside the last 12 months. About 80% of completed gigs are rated, mostly 4 and 5 stars, with some 3s and the odd 1 or 2, and about 30% of reviews get a reply. Every sample client ends up with a gig in each of the four statuses. |
+| `seed_showcase` | The four accounts below, with everything around them. `--reset` deletes and rebuilds only these accounts. |
+| `refresh_showcase_dates` | Moves the showcase timeline (and the enriched history) forward to today, so open gigs stay open and their deadlines are in the future. Run it the day before a presentation. |
+
+All three take `--dry-run` (do everything, print the counts, save nothing). `enrich_sample_data` also takes `--undo`,
+which removes only what it added and puts back every field it filled in, including the join dates it moved earlier. It
+fills a field only when it is empty, and it never changes a bio or a skill, because the recommender's content model
+reads them.
+
+**The showcase logins.** Set `SHOWCASE_PASSWORD` in `backend/.env` (`.env.example` shows where; pick your own) and run
+`python manage.py seed_showcase`. The password is never printed or stored in the code.
+
+| Account | Email | What it shows |
+|---|---|---|
+| Zawadi Achieng (Freelancer A) | `showcase-freelancer-a@example.test` | A Nairobi designer: complete profile, approved ID check, 4 portfolio items, 8 completed gigs, 7 reviews averaging about 4.7 with 3 replies, one hired gig with a chat, an application in every other status, an invitation and unread notifications |
+| Hassan Mwinyi (Freelancer B) | `showcase-freelancer-b@example.test` | A Mombasa developer with the same shape: 5 completed gigs, 4 reviews averaging 4.5 including a 3-star one with a polite reply, one hired gig with a chat |
+| Savanna Brew Café (Client A) | `showcase-client-a@example.test` | A Nairobi café with 2 open gigs at different applicant stages, 1 in progress with Zawadi hired, 3 completed and rated, 1 closed, and an invitation sent to Zawadi |
+| Pwani Hope Academy (Client B) | `showcase-client-b@example.test` | A Mombasa school with 1 open gig with several applicants including a shortlisted one, 1 in progress with Hassan hired, 2 completed and rated, 1 closed |
+
+The ID document and the selfie of the two freelancers are drawn placeholders with SAMPLE, NOT A REAL DOCUMENT across
+them and in the PNG's own text field. There is no real ID and no real face. Open gigs matching each freelancer's skills
+are created so the "Picked for you" list has something to show.
+
+**What this does not change.** Everything these commands make is flagged (`is_synthetic`, and `is_demo_extra` on gigs,
+applications and the showcase accounts), so the recommender never trains or is evaluated on it, and it is hidden
+wherever synthetic data is hidden (`SHOW_SYNTHETIC`). Every run takes a snapshot of what the recommender trains and is
+scored on (the training sets, the positives, the evaluation split and its fingerprint, the training weights, the gigs
+the vocabulary is fitted on and the model version) before and after, and rolls everything back with an error if any
+number differs. The commands do not retrain the model and do not read or change any recommender setting. Emails use
+`@example.test` only. Each command records what it made in a small ledger table (`SampleRecord`), which is what `--undo`
+and `--reset` read, and what `refresh_showcase_dates` uses to know which rows are its own.
+
+**Limits.** Clients have no county or verified badge of their own, so the county shows through each gig's county and
+"verified" means the verified email. The skills catalogue is not extended, so the showcase profiles use the existing
+skills (for example Graphic Design and Logo Design for the designer, React and Python for the developer). The gigs
+the seed commands made earlier are not touched, so most of them still have expired application deadlines.
+
 ## Tests
 
 ```bash
