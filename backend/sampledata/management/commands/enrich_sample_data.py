@@ -1,4 +1,5 @@
 from django.core.management.base import BaseCommand
+from django.utils import timezone
 
 from sampledata.context import Context
 from sampledata.guard import require_debug
@@ -46,6 +47,8 @@ class Command(BaseCommand):
         def work():
             for step in steps():
                 step(ctx)
+            if ctx.stats.get('completed gigs') and ctx.ledger.anchor() is None:
+                ctx.ledger.set_anchor(timezone.localdate(ctx.now))
 
         guarded(work, dry_run=dry_run, stdout=self.stdout, saved_files=ctx.saved_files)
         self.stdout.write(self.style.SUCCESS(
