@@ -106,6 +106,14 @@ def _collect_files_of(model, queryset):
     return files
 
 
+def _refresh_ratings(freelancer_ids):
+    """A freelancer's average and count are stored on their profile, so they are worked out again once reviews go."""
+    from reviews.service import refresh_rating
+
+    for freelancer in apps.get_model('accounts.User').objects.filter(pk__in=freelancer_ids):
+        refresh_rating(freelancer)
+
+
 def _restore_value(model, field_name, value):
     field = model._meta.get_field(field_name)
     if isinstance(field, models.DateTimeField) and isinstance(value, str):
@@ -129,9 +137,14 @@ def undo(batch):
             continue
         model = apps.get_model(label)
         doomed_files += _collect_files(label, ids)
+        if label == 'gigs.Gig':
+            reviews = apps.get_model('reviews.Review').objects.filter(gig_id__in=ids)
+            rated = set(reviews.values_list('freelancer_id', flat=True))
         deleted, _ = model.objects.filter(pk__in=ids).delete()
         summary[f'{label} deleted'] = len(ids)
         summary['rows removed with them'] += deleted - len(ids)
+        if label == 'gigs.Gig':
+            _refresh_ratings(rated)
 
     for record in ledger._records(Kind.CHANGED):
         model = apps.get_model(record.model_label)

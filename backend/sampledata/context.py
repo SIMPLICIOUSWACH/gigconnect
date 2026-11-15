@@ -18,6 +18,7 @@ class Context:
     now: object = field(default_factory=timezone.now)
     stats: Counter = field(default_factory=Counter)
     saved_files: list = field(default_factory=list)
+    earliest: dict = field(default_factory=dict)  # {user: the first date their sample history reaches back to}
 
     def __post_init__(self):
         self.ledger = Ledger(self.batch)
@@ -28,6 +29,11 @@ class Context:
 
     def count(self, what, number=1):
         self.stats[what] += number
+
+    def touch(self, user, when):
+        """Note that this account takes part in something dated `when`, so its join date can be made earlier."""
+        if user not in self.earliest or when < self.earliest[user]:
+            self.earliest[user] = when
 
     def save_image(self, file_field, name, data):
         """Save generated picture bytes into an image field. A dry run only counts it."""

@@ -2,6 +2,7 @@ from django.core.management.base import BaseCommand
 
 from sampledata.context import Context
 from sampledata.guard import require_debug
+from sampledata.history import enrich_history
 from sampledata.ledger import undo
 from sampledata.models import SampleRecord
 from sampledata.profiles_fill import enrich_profiles
@@ -13,7 +14,7 @@ BATCH = SampleRecord.Batch.ENRICH
 
 def steps():
     """The parts of the enrichment, in order. Each skips what it has already done."""
-    return [enrich_profiles]
+    return [enrich_profiles, enrich_history]
 
 
 class Command(BaseCommand):
