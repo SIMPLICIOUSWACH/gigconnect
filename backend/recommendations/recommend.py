@@ -53,12 +53,13 @@ class Recommendations:
 def gigs_interacted_with(user):
     """
     How many different gigs this freelancer has interacted with, counting their applications too. Rating a
-    recommended gig as relevant or not does not count, so answering the question never changes the blend.
+    recommended gig as relevant or not does not count, so answering the question never changes the blend, and
+    neither do the demo's extra chat gigs (is_demo_extra).
     """
     interacted = set(
         GigInteraction.objects.filter(user=user).exclude(type__in=GigInteraction.RELEVANCE_TYPES)
-        .values_list('gig_id', flat=True)
-    ) | set(Application.objects.filter(freelancer=user).values_list('gig_id', flat=True))
+        .exclude(gig__is_demo_extra=True).values_list('gig_id', flat=True)
+    ) | set(Application.objects.filter(freelancer=user, is_demo_extra=False).values_list('gig_id', flat=True))
     return len(interacted)
 
 

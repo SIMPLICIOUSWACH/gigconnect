@@ -14,13 +14,18 @@ export const fetchUsers = (params) => get('users/', cleanParams(params))
 export const fetchUser = (id) => get(`users/${id}/`)
 export const suspendUser = (id, reason) => post(`users/${id}/suspend/`, { reason })
 export const reinstateUser = (id, reason) => post(`users/${id}/reinstate/`, { reason })
+// What deleting would do, and anything that stops it (it must be suspended first, and isn't an admin).
+export const fetchDeletePreview = (id) => get(`users/${id}/delete-preview/`)
+// body: { reason, confirm_email, force }. Erases the account; it can't be undone.
+export const deleteUser = (id, body) => post(`users/${id}/delete/`, body)
 
 export const fetchVerifications = (params) => get('verifications/', cleanParams(params))
-export const decideVerification = (id, verificationStatus, reason = '') =>
-  api.patch(`/admin/verifications/${id}/`, { verification_status: verificationStatus, reason }).then((r) => r.data)
-// The ID document needs the admin's token, so it is fetched as a file rather than linked to.
-export const fetchVerificationDocument = (id) =>
-  api.get(`/admin/verifications/${id}/document/`, { responseType: 'blob' }).then((r) => r.data)
+// decision: { verification_status, checklist } to approve, or { verification_status, reason_code, redo, reason }.
+export const decideVerification = (id, decision) =>
+  api.patch(`/admin/verifications/${id}/`, decision).then((r) => r.data)
+// The ID document and the selfie need the admin's token, so they are fetched as files rather than linked to.
+export const fetchVerificationDocument = (id, kind = 'id') =>
+  api.get(`/admin/verifications/${id}/document/`, { params: { kind }, responseType: 'blob' }).then((r) => r.data)
 
 export const fetchGigs = (params) => get('gigs/', cleanParams(params))
 export const fetchGig = (id) => get(`gigs/${id}/`)
@@ -31,7 +36,16 @@ export const fetchApplications = (params) => get('applications/', cleanParams(pa
 export const removeApplication = (id, reason) => post(`applications/${id}/remove/`, { reason })
 export const restoreApplication = (id, reason) => post(`applications/${id}/restore/`, { reason })
 
+export const fetchReviews = (params) => get('reviews/', cleanParams(params))
+export const removeReview = (id, reason) => post(`reviews/${id}/remove/`, { reason })
+export const restoreReview = (id, reason) => post(`reviews/${id}/restore/`, { reason })
+
 export const fetchAuditLog = (params) => get('audit-log/', cleanParams(params))
+
+export const fetchChatReports = (params) => get('chat-reports/', cleanParams(params))
+// Opening a report shows the whole chat, and the server records that in the audit log every time.
+export const fetchChatReport = (id) => get(`chat-reports/${id}/`)
+export const resolveChatReport = (id, note) => post(`chat-reports/${id}/resolve/`, { note })
 
 export const fetchCategories = () => api.get('/categories/').then((r) => r.data)
 

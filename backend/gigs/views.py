@@ -1,6 +1,6 @@
 
 from django.db import transaction
-from django.db.models import Count, F, Q
+from django.db.models import Count, F, Prefetch, Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions
@@ -11,6 +11,7 @@ from rest_framework.views import APIView
 
 from accounts.permissions import IsClientRole, IsEmailVerified
 from applications.models import Application
+from messaging.models import Conversation
 from notifications import events
 
 from .feed import apply_feed_rules, hidden_from
@@ -98,8 +99,14 @@ class MyGigsView(generics.ListAPIView):
         visible = Q(applications__moderation_status=Application.Moderation.VISIBLE)
         return (
             Gig.objects.filter(client=self.request.user)
-            .select_related('client', 'client__client_profile', 'category')
-            .prefetch_related('skills')
+            .select_related('client', 'client__client_profile', 'category', 'review')
+            .prefetch_related(
+                'skills', Prefetch('conversations', queryset=Conversation.objects.select_related('freelancer')),
+                Prefetch(
+                    'applications', to_attr='hired_applications',
+                    queryset=Application.objects.filter(status=Application.Status.HIRED).select_related('freelancer'),
+                ),
+            )
             .annotate(
                 application_count=Count('applications', filter=visible, distinct=True),
                 pending_application_count=Count(

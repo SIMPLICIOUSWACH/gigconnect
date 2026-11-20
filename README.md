@@ -45,11 +45,17 @@ python manage.py create_admin --email admin@example.com --full-name "Platform Ad
 ```
 
 It asks for the password twice and checks it against the password rules. The new account has the admin role,
-verified email and phone, and `is_staff`. Admins log in on the normal login page and land on `/admin`, the
+a verified email, and `is_staff`. Admins log in on the normal login page and land on `/admin`, the
 GigConnect admin area. For a script, pass `--noinput` and put the password in `GIGCONNECT_ADMIN_PASSWORD`.
 
 Django's own `/admin/` site is kept for debugging by a superuser (`createsuperuser`). It is not the product's
 admin area.
+
+**Deleting an account.** An admin can delete an account from its page in the admin area (the Danger zone), but only
+after suspending it. Deleting erases the person's details the same way deleting your own account does, and can't be
+undone. The admin gives a reason and types the account's email to confirm; work in progress has to be finished first,
+or closed by ticking the box. The person is emailed the reason, and the audit log keeps only a masked email. See
+"Deleting an account" in `docs/api-endpoints.md`.
 
 ### ID documents
 
@@ -59,6 +65,72 @@ Back this folder up with the database. If you have older uploads, move them once
 
 ```bash
 python manage.py move_id_documents
+```
+
+### ID verification with a live selfie
+
+A freelancer uploads their ID, then takes a live selfie holding it, with the camera only (no gallery upload). Before
+the photo they see a random challenge, such as "Hold your ID next to your face and show 3 fingers", which works once
+and expires after 10 minutes, and they tick a consent box. The check only reaches the admin queue once both the ID and
+the selfie are in. Admins compare the two side by side and must tick three checks before Approve works. A rejection
+says which part to redo, and the other part is kept.
+
+What the server checks, and what it can't:
+- The selfie must be a JPEG or PNG, at most 5 MB and at least 640 x 480. It is re-encoded as a JPEG with all EXIF data
+  (location, camera, time) removed.
+- It must show exactly one face (OpenCV's Haar cascade). Faces less than a third the size of the largest are ignored,
+  so the photo on the ID card held up next to the face doesn't count as a second person.
+- The challenge must be the person's own, unused and less than 10 minutes old.
+- **The server can't prove a photo is live.** It only knows a fresh challenge was used. The admin checklist covers the
+  rest: the reviewer checks the gesture was really done.
+- Browsers only allow the camera on `https://` or `localhost`. On a phone, the site has to be on HTTPS.
+
+**Advisory face score.** When the ID is an image (not a PDF), OpenCV's YuNet finds a face in each picture and SFace
+gives a similarity score, shown to admins as "System similarity: 0.78, advisory". It never approves or rejects
+anything. Without the model files, or for a PDF ID, it says "not available". Download the models once:
+
+```bash
+python manage.py fetch_face_models
+```
+
+They come from the official [OpenCV Zoo](https://github.com/opencv/opencv_zoo) repository, go into
+`backend/face_models/` (not in git), and each download is checked against the SHA-256 published there:
+
+| File | SHA-256 | Size | Licence |
+|---|---|---|---|
+| `face_detection_yunet_2023mar.onnx` | `8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4` | 232,589 bytes | MIT (Shiqi Yu) |
+| `face_recognition_sface_2021dec.onnx` | `0ba9fbfa01b5270c96627c4ef784da859931e02f04419c829e83484087c34e79` | 38,696,353 bytes | Apache-2.0 |
+
+**Privacy settings in `backend/.env`:**
+- `ID_HASH_KEY`: a long random secret. ID numbers are also stored as a keyed hash (HMAC-SHA256) plus the last 3
+  digits, so a second account with the same ID can be spotted after the number itself is deleted. Set it once and
+  never change it, or old and new hashes won't match. `manage.py check` warns while it is unset. After setting it,
+  run `python manage.py rehash_id_numbers` once so ID numbers stored before then get a hash with the new key.
+- `PRIVACY_CONTACT_EMAIL`: shown on the privacy page and in the selfie consent text.
+
+**Deleting ID images after 90 days.** `purge_id_images` deletes the ID image, the selfie and the plain ID number 90
+days after an admin's final decision, keeping the decision, its dates, the face score and the hash. Deleting an account
+does the same at once. Run the purge daily; `--dry-run` only counts. On Windows, schedule it with Task Scheduler, for
+example from a command prompt (change the paths to yours):
+
+```bash
+schtasks /Create /SC DAILY /ST 02:00 /TN "GigConnect purge ID images" /TR "C:\gigconnect\backend\venv\Scripts\python.exe C:\gigconnect\backend\manage.py purge_id_images"
+```
+
+**Chat emails and old chats.** Two more commands keep the chat running. Both take `--dry-run`, which only counts:
+- `send_message_emails` emails people about chat messages still unread after 15 minutes (at most one email per chat an
+  hour, and only if their "New messages" email setting is on). Run it every 5 minutes. Running it twice never sends
+  the same email twice.
+- `purge_old_conversations` deletes a whole conversation 12 months after it became read-only (30 days after its gig
+  was completed or closed, or as soon as a gig or application is removed or an account is suspended or deleted). Run
+  it daily.
+
+```bash
+schtasks /Create /SC MINUTE /MO 5 /TN "GigConnect message emails" /TR "C:\gigconnect\backend\venv\Scripts\python.exe C:\gigconnect\backend\manage.py send_message_emails"
+```
+
+```bash
+schtasks /Create /SC DAILY /ST 02:15 /TN "GigConnect purge old chats" /TR "C:\gigconnect\backend\venv\Scripts\python.exe C:\gigconnect\backend\manage.py purge_old_conversations"
 ```
 
 ### Sending email
@@ -149,11 +221,26 @@ synthetic accounts, never real ones.
 
 | Account | Email | What it shows |
 |---|---|---|
-| Amina Wanjiru | `planted-amina@example.test` | A premium freelancer: higher budget, negotiable gigs from verified clients |
+| Amina Wanjiru | `planted-amina@example.test` | A premium freelancer: higher budget, negotiable gigs from premium clients (a synthetic trait) |
 | Brian Otieno | `planted-brian@example.test` | A quick_cash freelancer: short, urgent, lower budget gigs |
 | Cynthia Achieng | `planted-cynthia@example.test` | A remote_only freelancer: remote gigs |
 | David Kamau | `planted-david@example.test` | A brand-new freelancer with no applications: skill matches only (cold start) |
 | Demo Admin | `planted-admin@example.test` | The admin area at `/admin`, on the planted data |
+| Baraka Home Services | `planted-demo-client@example.test` | A client who hired Amina, Brian and Cynthia, with sample chats under Messages |
+
+**Sample chats.** `python manage.py seed_demo_conversations` (with `RECOMMENDER_PROFILE=demo`) adds the demo client,
+three in-progress gigs with Amina, Brian and Cynthia hired, and a short chat with each, the client writing first.
+Running it again replaces them. These gigs and applications are flagged `is_demo_extra` and are never used to train or
+evaluate the recommender, so `train_recommender` on the demo sees the same world with or without them. Run it again
+after `refresh_planted_demo` or reseeding, which remove them.
+
+**Sample reviews.** `python manage.py seed_demo_reviews` (also with `RECOMMENDER_PROFILE=demo`) adds completed gigs
+for the same demo client with 15 reviews across Amina, Brian, Cynthia and five other planted freelancers, so Find
+freelancers has ratings to sort and filter by. Like the sample chats, these gigs and applications are flagged
+`is_demo_extra` and stay out of training and evaluation, and the two commands don't touch each other's rows.
+
+**Ratings and the recommender.** Ratings are not used to train, evaluate or rank recommendations; that is future work.
+"Suggested for this gig" uses the content model only. Both are explained in `docs/api-endpoints.md`.
 
 The demo admin is made with `create_admin` like any other admin. Its email starts with `planted-` because the demo
 profile refuses to start on a database that holds any other kind of account. `seed_planted --delete` removes it with

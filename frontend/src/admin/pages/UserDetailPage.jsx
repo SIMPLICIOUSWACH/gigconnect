@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { errorMessage, fetchUser, reinstateUser, suspendUser } from '../api'
 import ConfirmDialog from '../components/ConfirmDialog'
+import DeleteUserDialog from '../components/DeleteUserDialog'
 import { useToast } from '../components/Toast'
 import { EmptyState, ErrorBox, Pill, RemovedPill, SkeletonBlock, dangerButton, quietButton } from '../components/ui'
 import {
@@ -34,8 +35,39 @@ function Detail({ label, children }) {
   )
 }
 
+// The last card on the page: deleting the account, which needs a suspension first.
+function DangerZone({ user, onSuspend, onDelete }) {
+  if (user.role === 'admin' || user.status === 'deleted') return null
+  return (
+    <section aria-labelledby="danger-zone" className="bg-surface rounded-card border-2 border-coral-dark p-6">
+      <h2 id="danger-zone" className="text-section-title text-coral-dark mb-2">
+        Danger zone
+      </h2>
+      {user.status === 'suspended' ? (
+        <>
+          <p className="text-body text-ink-soft mb-4">
+            Deleting erases this person&apos;s details and can&apos;t be undone. You will see what it affects before you
+            confirm.
+          </p>
+          <button type="button" className={dangerButton} onClick={onDelete}>
+            Delete account permanently
+          </button>
+        </>
+      ) : (
+        <>
+          <p className="text-body text-ink-soft mb-4">Suspend this account first to delete it.</p>
+          <button type="button" className={dangerButton} onClick={onSuspend}>
+            Suspend account
+          </button>
+        </>
+      )}
+    </section>
+  )
+}
+
 export default function UserDetailPage() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const { data: user, setData, error, loading, reload } = useAdminData(() => fetchUser(id), id)
   const [dialog, setDialog] = useState(null)
   const toast = useToast()
@@ -100,6 +132,12 @@ export default function UserDetailPage() {
         {user.status === 'suspended' && (
           <p className="mt-4 rounded-input bg-coral-light text-coral-ink px-4 py-3 text-body">
             Suspended {formatDateTime(user.suspended_at)}. Reason: {user.suspended_reason}
+          </p>
+        )}
+        {user.deletion && (
+          <p className="mt-4 rounded-input bg-sand text-ink-soft px-4 py-3 text-body">
+            {user.deletion.label} · deleted {formatDateTime(user.deletion.deleted_at)} by {user.deletion.by}. This
+            account&apos;s details were erased; what is left is read-only.
           </p>
         )}
 
@@ -189,6 +227,18 @@ export default function UserDetailPage() {
         )}
       </Section>
 
+      <DangerZone user={user} onSuspend={() => setDialog('suspend')} onDelete={() => setDialog('delete')} />
+
+      {dialog === 'delete' && (
+        <DeleteUserDialog
+          user={user}
+          onCancel={() => setDialog(null)}
+          onDeleted={() => {
+            toast(`${user.full_name}'s account was deleted.`)
+            navigate('/admin/users')
+          }}
+        />
+      )}
       <ConfirmDialog
         open={dialog === 'suspend'}
         title={`Suspend ${user.full_name}?`}

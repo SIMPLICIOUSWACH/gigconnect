@@ -26,6 +26,7 @@ from accounts.permissions import IsClientRole, IsEmailVerified, IsFreelancer
 from gigs.feed import hidden_from
 from gigs.models import Gig, GigInteraction
 from gigs.pagination import GigPagination
+from messaging.service import open_conversation_on_hire
 from notifications import events
 from recommendations.matching import EMPTY_MATCH, applicant_matches
 
@@ -103,7 +104,9 @@ class GigApplicationsView(APIView):
         status_counts["total"] = sum(status_counts.values())
 
         qs = (
-            base_qs.select_related("gig", "gig__client", "freelancer", "freelancer__freelancer_profile")
+            base_qs.select_related(
+                "gig", "gig__client", "freelancer", "freelancer__freelancer_profile", "conversation"
+            )
             .prefetch_related("events__changed_by", "freelancer__freelancer_profile__skills")
             .order_by("-created_at", "-id")
         )
@@ -228,7 +231,7 @@ class MyApplicationsView(generics.ListAPIView):
     def get_queryset(self):
         return (
             Application.objects.filter(freelancer=self.request.user)
-            .select_related("gig", "gig__client")
+            .select_related("gig", "gig__client", "conversation")
             .order_by("-created_at", "-id")
         )
 
@@ -285,6 +288,7 @@ class ApplicationDetailView(generics.RetrieveAPIView):
                 "gig__client",
                 "freelancer",
                 "freelancer__freelancer_profile",
+                "conversation",
             )
             .prefetch_related(
                 "events__changed_by",
@@ -421,6 +425,8 @@ class ApplicationStatusView(APIView):
                 gig.status = Gig.Status.IN_PROGRESS
                 gig.save(update_fields=["status", "updated_at"])
             events.application_status_changed(application)
+            if hiring:
+                open_conversation_on_hire(application)
 
         out = ApplicationDetailSerializer(application, context={"request": request})
         return Response(out.data, status=status.HTTP_200_OK)

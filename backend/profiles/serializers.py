@@ -68,7 +68,7 @@ class FreelancerProfileCompleteSerializer(serializers.ModelSerializer):
         model = FreelancerProfile
         fields = [
             'bio', 'county', 'profile_photo', 'skills',
-            'headline', 'starting_price', 'is_available', 'profile_colour',
+            'headline', 'starting_price', 'is_available', 'profile_colour', 'open_to_remote', 'search_visible',
         ]
 
     def validate_county(self, value):
@@ -90,9 +90,10 @@ class FreelancerProfileSerializer(serializers.ModelSerializer):
         model = FreelancerProfile
         fields = [
             'headline', 'bio', 'county', 'profile_photo', 'skills', 'portfolio_items',
-            'starting_price', 'is_available', 'profile_colour',
-            'verification_status', 'verified', 'gigs_completed', 'member_since',
+            'starting_price', 'is_available', 'open_to_remote', 'profile_colour',
+            'verification_status', 'verified', 'gigs_completed', 'member_since', 'rating_avg', 'rating_count',
         ]
+        read_only_fields = ['rating_avg', 'rating_count']
 
     def get_gigs_completed(self, obj):
         # Gigs the freelancer was hired for and the client then marked completed.

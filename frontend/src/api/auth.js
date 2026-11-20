@@ -20,9 +20,6 @@ export const verifyEmail = (token) => api.get(`/auth/verify-email/${token}/`).th
 export const resendVerification = (email) =>
   api.post('/auth/resend-verification/', email ? { email } : {}).then((r) => r.data)
 
-export const sendOtp = () => api.post('/auth/send-otp/').then((r) => r.data)
-
-export const verifyOtp = (code) => api.post('/auth/verify-otp/', { code }).then((r) => r.data)
 
 export const fetchSkills = () => api.get('/skills/').then((r) => r.data)
 

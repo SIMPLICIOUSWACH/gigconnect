@@ -5,7 +5,9 @@ from django.db import models
 from django.db.models import Q
 
 # The actions that take something away from someone (AdminAction.Action values). Each needs a reason.
-NEGATIVE_ACTIONS = ('verify_reject', 'suspend_user', 'remove_gig', 'remove_application')
+NEGATIVE_ACTIONS = (
+    'verify_reject', 'suspend_user', 'remove_gig', 'remove_application', 'delete_user', 'remove_review',
+)
 
 
 class AdminAction(models.Model):
@@ -19,16 +21,24 @@ class AdminAction(models.Model):
         VERIFY_REJECT = 'verify_reject', 'Rejected ID verification'
         SUSPEND_USER = 'suspend_user', 'Suspended user'
         REINSTATE_USER = 'reinstate_user', 'Reinstated user'
+        DELETE_USER = 'delete_user', 'Deleted user'
         REMOVE_GIG = 'remove_gig', 'Removed gig'
         RESTORE_GIG = 'restore_gig', 'Restored gig'
         REMOVE_APPLICATION = 'remove_application', 'Removed application'
         RESTORE_APPLICATION = 'restore_application', 'Restored application'
+        REMOVE_REVIEW = 'remove_review', 'Removed review'
+        RESTORE_REVIEW = 'restore_review', 'Restored review'
+        # Opening a reported chat is logged every time, because it means reading private messages.
+        CHAT_VIEWED = 'chat_viewed', 'Viewed reported chat'
+        CHAT_REPORT_RESOLVED = 'chat_report_resolved', 'Resolved chat report'
 
     class TargetType(models.TextChoices):
         # ID verification decisions target the freelancer's user account.
         USER = 'user', 'User'
         GIG = 'gig', 'Gig'
         APPLICATION = 'application', 'Application'
+        CONVERSATION = 'conversation', 'Conversation'
+        REVIEW = 'review', 'Review'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     # Kept if the admin's account is ever deleted, so the log still shows what happened.
@@ -39,6 +49,9 @@ class AdminAction(models.Model):
     target_type = models.CharField(max_length=20, choices=TargetType.choices)
     target_id = models.UUIDField()
     reason = models.TextField(blank=True)
+    # What the target was called when the action happened, for targets that are about to lose their details. A
+    # deleted account keeps only a masked email here ("Deleted user · j***@gmail.com"), never the full one.
+    target_label = models.CharField(max_length=200, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

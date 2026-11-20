@@ -5,6 +5,8 @@ import { ACTION_LABELS, CONFIRMED_ACTIONS, formatDateTime, statusLabel } from '.
 import Alert from '../Alert'
 import Button from '../Button'
 import Label from '../Label'
+import { MessageFreelancerButton } from '../messages/ChatLinks'
+import RatingSummary from '../reviews/RatingSummary'
 import StatusBadge from './StatusBadge'
 
 const CONSEQUENCES = {
@@ -89,6 +91,9 @@ export default function ApplicantCard({ application, onChangeStatus }) {
               </span>
             )}
           </div>
+          <p className="mt-1">
+            <RatingSummary average={applicant.rating_avg} count={applicant.rating_count} />
+          </p>
           <p className="text-caption text-muted">
             Applied {formatDateTime(application.created_at)}
             {application.proposed_rate &&
@@ -97,6 +102,12 @@ export default function ApplicantCard({ application, onChangeStatus }) {
         </div>
         <StatusBadge status={application.status} />
       </div>
+
+      {application.conversation_id && (
+        <div className="mb-4">
+          <MessageFreelancerButton conversationId={application.conversation_id} name={applicant.full_name} />
+        </div>
+      )}
 
       {applicant.skills.length > 0 && (
         <ul className="flex flex-wrap gap-2 mb-4" aria-label="Skills">

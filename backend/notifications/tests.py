@@ -1,7 +1,9 @@
+from datetime import timedelta
 from unittest import mock
 
 from django.core import mail
 from django.test import override_settings
+from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from accounts.models import User
@@ -205,6 +207,10 @@ class EndpointTests(NotificationTestCase):
         self.first = notify(self.freelancer, Kind.GIG_RESTORED, 'First', 'B')
         self.second = notify(self.freelancer, Kind.GIG_REMOVED, 'Second', 'B')
         self.theirs = notify(self.client_user, Kind.GIG_REMOVED, 'Not yours', 'B')
+        # Two rows written in the same clock tick get the same time (Windows' clock is coarse), so give them set times.
+        now = timezone.now()
+        Notification.objects.filter(pk=self.first.pk).update(created_at=now - timedelta(minutes=2))
+        Notification.objects.filter(pk=self.second.pk).update(created_at=now - timedelta(minutes=1))
 
     def test_login_is_required(self):
         self.assertEqual(self.client.get('/api/notifications/').status_code, 401)

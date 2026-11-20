@@ -19,11 +19,20 @@ class Notification(models.Model):
         APPLICATION_RESTORED = 'application_restored', 'Application restored'
         VERIFICATION_APPROVED = 'verification_approved', 'ID verification approved'
         VERIFICATION_REJECTED = 'verification_rejected', 'ID verification rejected'
+        VERIFICATION_SELFIE_NEEDED = 'verification_selfie_needed', 'ID verification needs a selfie'
         NEW_APPLICATION = 'new_application', 'New application'
         APPLICATION_WITHDRAWN = 'application_withdrawn', 'Application withdrawn'
         APPLICATION_STATUS = 'application_status', 'Application status changed'
         NEW_GIG_MATCH = 'new_gig_match', 'New gig match'
         PASSWORD_CHANGED = 'password_changed', 'Password changed'
+        CHAT_OPENED = 'chat_opened', 'Chat opened after a hire'
+        NEW_MESSAGE = 'new_message', 'New message'
+        GIG_CLOSED = 'gig_closed', 'Gig closed because an account was removed'
+        REVIEW_RECEIVED = 'review_received', 'A client rated your work'
+        REVIEW_REPLY = 'review_reply', 'A freelancer replied to your review'
+        REVIEW_REMOVED = 'review_removed', 'Review removed'
+        REVIEW_RESTORED = 'review_restored', 'Review restored'
+        GIG_INVITE = 'gig_invite', 'Invitation to apply'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     recipient = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='notifications')

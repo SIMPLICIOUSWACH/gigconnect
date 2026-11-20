@@ -22,7 +22,6 @@ class CreateAdminCommandTests(TestCase):
         self.assertTrue(admin.is_staff)
         self.assertFalse(admin.is_superuser)
         self.assertTrue(admin.is_email_verified)
-        self.assertTrue(admin.is_phone_verified)
         self.assertTrue(admin.is_profile_complete)
         self.assertTrue(admin.check_password('AdminPass123!'))
         self.assertEqual(admin.full_name, 'Platform Admin')

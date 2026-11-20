@@ -37,6 +37,21 @@ export const submitVerification = (idNumber, idDocument) =>
     headers: { 'Content-Type': 'multipart/form-data' },
   }).then((r) => r.data)
 
+// A fresh random gesture for the selfie, with the consent wording. Single use, valid ten minutes.
+export const fetchSelfieChallenge = () => api.get('/profile/verification/challenge/').then((r) => r.data)
+
+export const submitSelfie = ({ selfie, challengeId, consent }) => {
+  const body = new FormData()
+  body.append('selfie', selfie, 'selfie.jpg')
+  body.append('challenge_id', challengeId)
+  body.append('consent', consent ? 'true' : 'false')
+  return api
+    .post('/profile/verification/selfie/', body, { headers: { 'Content-Type': 'multipart/form-data' } })
+    .then((r) => r.data)
+}
+
+export const fetchPrivacyInfo = () => api.get('/meta/privacy/').then((r) => r.data)
+
 export const fetchPublicProfile = (userId) => api.get(`/profiles/${userId}/`).then((r) => r.data)
 
 // A JSON update of the freelancer profile. Unlike the form above it can send an empty skills list.

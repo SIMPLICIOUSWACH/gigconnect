@@ -3,7 +3,11 @@ from rest_framework import serializers
 from accounts.models import User
 from applications.models import Application
 from gigs.models import Gig
+from messaging.models import Conversation
+from profiles import decisions
+from profiles.id_privacy import other_accounts_with_same_id
 from profiles.models import FreelancerProfile
+from reviews.models import Review
 
 from .models import AdminAction
 
@@ -17,6 +21,13 @@ class ReasonSerializer(serializers.Serializer):
 class PersonSerializer(serializers.Serializer):
     id = serializers.UUIDField()
     full_name = serializers.CharField()
+
+
+def deletion_action(user):
+    return (
+        AdminAction.objects.filter(action=AdminAction.Action.DELETE_USER, target_id=user.pk)
+        .select_related('admin').order_by('-created_at').first()
+    )
 
 
 def account_state(user):
@@ -33,13 +44,32 @@ def account_state(user):
 class AdminUserListSerializer(serializers.ModelSerializer):
     status = serializers.SerializerMethodField()
     verification_status = serializers.SerializerMethodField()
+    deletion = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
             'id', 'full_name', 'email', 'role', 'status', 'verification_status', 'is_email_verified',
-            'is_synthetic', 'created_at',
+            'is_synthetic', 'created_at', 'deletion',
         ]
+
+    def get_deletion(self, obj):
+        """
+        For a deleted account: what is left to recognise it by, when, and who deleted it. An admin's deletion saved a
+        masked email in the audit log; someone who deleted their own account left nothing to show.
+        """
+        if obj.deleted_at is None:
+            return None
+        if hasattr(obj, 'deletion_label'):
+            label, by = obj.deletion_label, obj.deleted_by_name
+        else:
+            action = deletion_action(obj)
+            label = action.target_label if action else ''
+            by = action.admin.full_name if action and action.admin else None
+        return {
+            'label': label or 'Deleted user', 'deleted_at': obj.deleted_at,
+            'by': by if label else 'themselves',
+        }
 
     def get_status(self, obj):
         return account_state(obj)
@@ -55,7 +85,7 @@ class AdminUserDetailSerializer(AdminUserListSerializer):
 
     class Meta(AdminUserListSerializer.Meta):
         fields = AdminUserListSerializer.Meta.fields + [
-            'phone', 'is_phone_verified', 'suspended_reason', 'suspended_at', 'profile',
+            'phone', 'suspended_reason', 'suspended_at', 'profile',
         ]
 
     def get_profile(self, obj):
@@ -123,6 +153,22 @@ class AdminApplicationSerializer(serializers.ModelSerializer):
         return {'id': str(obj.gig_id), 'title': obj.gig.title, 'moderation_status': obj.gig.moderation_status}
 
 
+class AdminReviewSerializer(serializers.ModelSerializer):
+    gig = serializers.SerializerMethodField()
+    freelancer = PersonSerializer(read_only=True)
+    client = PersonSerializer(read_only=True)
+
+    class Meta:
+        model = Review
+        fields = [
+            'id', 'gig', 'freelancer', 'client', 'rating', 'text', 'freelancer_reply', 'reply_at',
+            'moderation_status', 'removed_reason', 'removed_at', 'created_at', 'updated_at',
+        ]
+
+    def get_gig(self, obj):
+        return {'id': str(obj.gig_id), 'title': obj.gig.title}
+
+
 # ---------------------------------------------------------------------------
 # Verifications
 # ---------------------------------------------------------------------------
@@ -136,22 +182,44 @@ class AdminVerificationSerializer(serializers.ModelSerializer):
     user = PersonSerializer(read_only=True)
     email = serializers.EmailField(source='user.email', read_only=True)
     has_document = serializers.SerializerMethodField()
+    document_is_pdf = serializers.SerializerMethodField()
+    has_selfie = serializers.SerializerMethodField()
+    same_id_elsewhere = serializers.SerializerMethodField()
 
     class Meta:
         model = FreelancerProfile
         fields = [
             'id', 'user', 'email', 'verification_status', 'verification_submitted_at', 'id_number', 'has_document',
+            'document_is_pdf', 'has_selfie', 'selfie_challenge', 'selfie_challenge_issued_at', 'selfie_submitted_at',
+            'selfie_consent_at', 'face_match_score', 'face_match_model', 'verification_decided_at',
+            'needs_new_id', 'needs_new_selfie', 'id_number_last3', 'same_id_elsewhere',
         ]
+
+    def get_same_id_elsewhere(self, obj):
+        """Other accounts whose ID number has the same keyed hash: probably the same ID used twice."""
+        others = other_accounts_with_same_id(obj).select_related('user')[:5]
+        return [{'id': str(other.user_id), 'full_name': other.user.full_name} for other in others]
 
     def get_has_document(self, obj):
         return bool(obj.id_document)
 
+    def get_document_is_pdf(self, obj):
+        return bool(obj.id_document) and obj.id_document.name.lower().endswith('.pdf')
+
+    def get_has_selfie(self, obj):
+        return bool(obj.selfie)
+
 
 class VerificationDecisionSerializer(ReasonSerializer):
+    """Approve with every checklist item ticked, or reject with a reason code and the part to send again."""
+
     verification_status = serializers.ChoiceField(
         choices=[FreelancerProfile.VerificationStatus.VERIFIED, FreelancerProfile.VerificationStatus.REJECTED],
         error_messages={'invalid_choice': 'Status must be either "verified" or "rejected".'},
     )
+    checklist = serializers.DictField(child=serializers.BooleanField(), required=False, default=dict)
+    reason_code = serializers.ChoiceField(choices=list(decisions.REJECTION_REASONS), required=False, default='')
+    redo = serializers.ChoiceField(choices=list(decisions.REDO_CHOICES), required=False, default='')
 
 
 # ---------------------------------------------------------------------------
@@ -171,8 +239,9 @@ class AdminActionSerializer(serializers.ModelSerializer):
         ]
 
     def get_target_label(self, obj):
-        """The target's name or title, from the lookup the view builds for the whole page."""
-        return self.context.get('target_labels', {}).get((obj.target_type, obj.target_id), '')
+        """The label saved with the action if there is one, otherwise the target's name or title from the lookup the
+        view builds for the whole page."""
+        return obj.target_label or self.context.get('target_labels', {}).get((obj.target_type, obj.target_id), '')
 
 
 def target_labels(actions):
@@ -194,4 +263,16 @@ def target_labels(actions):
         )
         for pk, name, title in rows:
             labels[(Target.APPLICATION, pk)] = f'{name} on "{title}"'
+    if Target.CONVERSATION in wanted:
+        rows = Conversation.objects.filter(pk__in=wanted[Target.CONVERSATION]).values_list(
+            'pk', 'client__full_name', 'freelancer__full_name', 'gig__title',
+        )
+        for pk, client, freelancer, title in rows:
+            labels[(Target.CONVERSATION, pk)] = f'Chat between {client} and {freelancer} on "{title}"'
+    if Target.REVIEW in wanted:
+        rows = Review.objects.filter(pk__in=wanted[Target.REVIEW]).values_list(
+            'pk', 'client__full_name', 'freelancer__full_name', 'gig__title',
+        )
+        for pk, client, freelancer, title in rows:
+            labels[(Target.REVIEW, pk)] = f'Review of {freelancer} by {client} on "{title}"'
     return labels

@@ -16,6 +16,9 @@ from accounts.models import User
 from gigs.models import Category, Gig
 
 from .models import FreelancerProfile, PortfolioItem, Skill, SkillAlias
+from .testing import add_selfie
+
+APPROVE = {'verification_status': 'verified', 'checklist': {'same_person': True, 'id_matches': True, 'challenge_done': True}}
 
 
 class ProfileCompleteTests(APITestCase):
@@ -118,13 +121,16 @@ class IdentityVerificationTests(APITestCase):
     def _submit_verification(self):
         self.client.force_authenticate(user=self.freelancer)
         id_document = SimpleUploadedFile('id.pdf', b'%PDF-1.4 fake', content_type='application/pdf')
-        return self.client.post('/api/profile/submit-verification/', {
+        response = self.client.post('/api/profile/submit-verification/', {
             'id_number': '12345678', 'id_document': id_document,
         }, format='multipart')
+        add_selfie(self.freelancer.freelancer_profile)  # the check needs the selfie too before it is pending
+        return response
 
-    def test_submit_verification_sets_pending_status(self):
+    def test_submit_verification_sets_pending_status_once_the_selfie_is_in(self):
         response = self._submit_verification()
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['verification_status'], FreelancerProfile.VerificationStatus.UNVERIFIED)
         self.freelancer.freelancer_profile.refresh_from_db()
         self.assertEqual(
             self.freelancer.freelancer_profile.verification_status,
@@ -161,7 +167,7 @@ class IdentityVerificationTests(APITestCase):
         self._submit_verification()
         profile = self.freelancer.freelancer_profile
         self.client.force_authenticate(user=self.admin)
-        response = self.client.patch(f'/api/admin/verifications/{profile.id}/', {'verification_status': 'verified'})
+        response = self.client.patch(f'/api/admin/verifications/{profile.id}/', APPROVE, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         profile.refresh_from_db()
         self.assertTrue(profile.verified)
@@ -172,9 +178,9 @@ class IdentityVerificationTests(APITestCase):
         self.client.force_authenticate(user=self.admin)
         response = self.client.patch(f'/api/admin/verifications/{profile.id}/', {'verification_status': 'rejected'})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        response = self.client.patch(
-            f'/api/admin/verifications/{profile.id}/', {'verification_status': 'rejected', 'reason': 'Blurred photo.'},
-        )
+        response = self.client.patch(f'/api/admin/verifications/{profile.id}/', {
+            'verification_status': 'rejected', 'reason_code': 'photo_unclear', 'redo': 'selfie',
+        }, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         profile.refresh_from_db()
         self.assertEqual(profile.verification_status, FreelancerProfile.VerificationStatus.REJECTED)

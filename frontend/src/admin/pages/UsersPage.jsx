@@ -76,6 +76,24 @@ export default function UsersPage() {
           data?.results.map((user) => {
             const status = ACCOUNT_STATUS[user.status]
             const verification = VERIFICATION[user.verification_status]
+            if (user.deletion) {
+              // Read-only: the details are gone, so the row says only what is left.
+              return (
+                <tr key={user.id}>
+                  <Cell className="text-ink-soft" colSpan={2}>
+                    {user.deletion.label} · deleted {formatDate(user.deletion.deleted_at)} by {user.deletion.by}
+                  </Cell>
+                  <Cell>{ROLE_LABELS[user.role]}</Cell>
+                  <Cell>
+                    <span className="text-muted">Not applicable</span>
+                  </Cell>
+                  <Cell>
+                    <Pill tone={status.tone}>{status.label}</Pill>
+                  </Cell>
+                  <Cell className="whitespace-nowrap">{formatDate(user.created_at)}</Cell>
+                </tr>
+              )
+            }
             return (
               <tr key={user.id} className="hover:bg-sand/60">
                 <Cell>

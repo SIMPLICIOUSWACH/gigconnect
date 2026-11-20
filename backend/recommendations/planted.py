@@ -15,7 +15,7 @@ The groups and their habits. A habit only ever looks at things the content model
 client, location and posting date. It never looks at a title, a description or a skill.
 
 - quick_cash: short application window or short job, and a lower budget
-- premium: a higher budget, negotiable, from a client with a verified phone (the only client verification there is)
+- premium: a higher budget, negotiable, from a premium client (a synthetic trait that exists only in the generator)
 - remote_only: remote gigs
 - client_loyal: gigs from two favourite clients, picked from the ten that post the most
 - cross_field: gigs in one neighbouring category that share none of the freelancer's skills. The category name is in
@@ -113,7 +113,7 @@ class Sizes:
 @dataclass(frozen=True)
 class PlannedClient:
     index: int
-    verified: bool
+    premium: bool  # a synthetic trait for the premium habit. Not stored in the database. See premium_client_emails.
 
 
 @dataclass(frozen=True)
@@ -176,7 +176,7 @@ def is_habit(freelancer, gig, clients):
         quick = gig.window_days <= URGENT_WINDOW or gig.job_days <= SHORT_JOB
         return quick and gig.budget_max <= LOW_BUDGET_MAX
     if group == 'premium':
-        return gig.budget_max >= HIGH_BUDGET_MIN and gig.negotiable and clients[gig.client].verified
+        return gig.budget_max >= HIGH_BUDGET_MIN and gig.negotiable and clients[gig.client].premium
     if group == 'remote_only':
         return gig.remote
     if group == 'client_loyal':
@@ -256,13 +256,17 @@ def _plan_applications(seed, sizes, freelancers, gigs, clients):
     return applications
 
 
+def _plan_clients(rng, sizes):
+    return [PlannedClient(index=index, premium=rng.random() < 0.5) for index in range(sizes.clients)]
+
+
 def plan_world(seed=42, sizes=None):
     """The whole planted world as plain data. The same seed and sizes always give the same world."""
     sizes = sizes or Sizes()
     rng = random.Random(f'planted-{seed}')
     text_rng = random.Random(f'planted-{seed}-text')  # its own stream, so text cannot depend on any habit draw
     categories = sorted(CATEGORY_SKILLS)
-    clients = [PlannedClient(index=index, verified=rng.random() < 0.5) for index in range(sizes.clients)]
+    clients = _plan_clients(rng, sizes)  # first, so the draws for everything after them never change
     gigs = _plan_gigs(rng, text_rng, sizes, categories)
     freelancers = _plan_freelancers(rng, sizes, categories)
     applications = _plan_applications(seed, sizes, freelancers, gigs, clients)
@@ -354,8 +358,8 @@ def write_world(world, now=None):
         for client in world.clients:
             user = User(
                 email=client_email(client.index), full_name=f'Planted Client {client.index}',
-                phone=f'2547{90000000 + client.index}', role=User.Role.CLIENT, is_email_verified=True,
-                is_phone_verified=client.verified, is_profile_complete=True, is_synthetic=True,
+                phone=f'+2547{90000000 + client.index}', role=User.Role.CLIENT, is_email_verified=True,
+                is_profile_complete=True, is_synthetic=True,
             )
             user.set_unusable_password()  # nobody signs in as a planted account
             user.save()  # the signals make the profile and notification settings, as for any account
@@ -367,7 +371,7 @@ def write_world(world, now=None):
         for freelancer in world.freelancers:
             user = User(
                 email=freelancer_email(freelancer.index), full_name=f'Planted Freelancer {freelancer.index}',
-                phone=f'2547{91000000 + freelancer.index}', role=User.Role.FREELANCER, is_email_verified=True,
+                phone=f'+2547{91000000 + freelancer.index}', role=User.Role.FREELANCER, is_email_verified=True,
                 is_profile_complete=True, is_synthetic=True,
             )
             user.set_unusable_password()
@@ -446,6 +450,14 @@ def write_ground_truth(world, freelancers):
     summary['written_at'] = timezone.now().isoformat()
     summary['label'] = modes.PLANTED_LABEL
     (folder / WORLD_FILE).write_text(json.dumps(summary, indent=2, default=str), encoding='utf-8')
+
+
+def premium_client_emails():
+    """The premium clients of the planted world, worked out again from the seed and sizes it was written with."""
+    summary = json.loads((modes.planted_directory() / WORLD_FILE).read_text(encoding='utf-8'))
+    sizes = Sizes(**summary['sizes'])
+    clients = _plan_clients(random.Random(f'planted-{summary["seed"]}'), sizes)
+    return frozenset(client_email(client.index) for client in clients if client.premium)
 
 
 def read_ground_truth():

@@ -52,19 +52,39 @@ export const ACTION_LABELS = {
   verify_reject: 'Rejected ID',
   suspend_user: 'Suspended user',
   reinstate_user: 'Reinstated user',
+  delete_user: 'Deleted user',
   remove_gig: 'Removed gig',
   restore_gig: 'Restored gig',
   remove_application: 'Removed application',
   restore_application: 'Restored application',
+  remove_review: 'Removed review',
+  restore_review: 'Restored review',
+  chat_viewed: 'Viewed reported chat',
+  chat_report_resolved: 'Resolved chat report',
 }
 
-export const NEGATIVE_ACTIONS = new Set(['verify_reject', 'suspend_user', 'remove_gig', 'remove_application'])
+export const NEGATIVE_ACTIONS = new Set([
+  'verify_reject',
+  'suspend_user',
+  'remove_gig',
+  'remove_application',
+  'delete_user',
+  'remove_review',
+])
 
 // Where an audit log row's target opens in the admin area.
 export function targetPath(row) {
   if (row.target_type === 'user') return `/admin/users/${row.target_id}`
   if (row.target_type === 'gig') return `/admin/gigs/${row.target_id}`
+  if (row.target_type === 'review') return `/admin/reviews?id=${row.target_id}`
+  if (row.target_type === 'conversation') return `/admin/chat-reports?status=all&conversation=${row.target_id}`
   return `/admin/applications?id=${row.target_id}`
 }
 
-export const TARGET_TYPE_LABELS = { user: 'User', gig: 'Gig', application: 'Application' }
+export const TARGET_TYPE_LABELS = {
+  user: 'User',
+  gig: 'Gig',
+  application: 'Application',
+  conversation: 'Chat',
+  review: 'Review',
+}

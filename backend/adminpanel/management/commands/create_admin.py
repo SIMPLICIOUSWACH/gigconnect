@@ -7,13 +7,14 @@ from django.core.management.base import BaseCommand, CommandError
 from django.core.validators import validate_email
 
 from accounts.models import User
+from accounts.phones import INVALID_MESSAGE, normalise_phone
 
 PASSWORD_ENV = 'GIGCONNECT_ADMIN_PASSWORD'
 
 
 class Command(BaseCommand):
     help = (
-        'Create a GigConnect admin: role admin, email and phone marked verified, and is_staff so Django\'s '
+        'Create a GigConnect admin: role admin, email marked verified, and is_staff so Django\'s '
         'own /admin/ login also accepts them. It asks for the password; with --noinput it reads '
         f'{PASSWORD_ENV} instead. Sign-up can never create an admin, so this is the only way.'
     )
@@ -26,6 +27,9 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         email = User.objects.normalize_email(options['email'].strip())
+        phone = normalise_phone(options['phone'])
+        if phone is None:
+            raise CommandError(INVALID_MESSAGE)
         try:
             validate_email(email)
         except ValidationError as error:
@@ -34,7 +38,7 @@ class Command(BaseCommand):
             raise CommandError(f'An account with the email {email} already exists.')
 
         password = self.read_password(options['noinput'])
-        user = User(email=email, full_name=options['full_name'], phone=options['phone'], role=User.Role.ADMIN)
+        user = User(email=email, full_name=options['full_name'], phone=phone, role=User.Role.ADMIN)
         try:
             validate_password(password, user)
         except ValidationError as error:
@@ -44,11 +48,10 @@ class Command(BaseCommand):
             email=email,
             password=password,
             full_name=options['full_name'],
-            phone=options['phone'],
+            phone=phone,
             role=User.Role.ADMIN,
             is_staff=True,
             is_email_verified=True,
-            is_phone_verified=True,
             is_profile_complete=True,
         )
         self.stdout.write(self.style.SUCCESS(f'Created admin {email}.'))

@@ -53,8 +53,12 @@ export function DataTable({ caption, columns, children }) {
   )
 }
 
-export function Cell({ children, className = '' }) {
-  return <td className={`px-4 py-3 text-body text-ink align-top ${className}`}>{children}</td>
+export function Cell({ children, className = '', ...props }) {
+  return (
+    <td className={`px-4 py-3 text-body text-ink align-top ${className}`} {...props}>
+      {children}
+    </td>
+  )
 }
 
 export function SkeletonRows({ columns, rows = 6 }) {

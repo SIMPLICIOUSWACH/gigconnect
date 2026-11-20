@@ -1,6 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, NavLink, Outlet } from 'react-router-dom'
-import { BarChart3, BadgeCheck, Briefcase, ExternalLink, FileText, History, LayoutDashboard, Users } from 'lucide-react'
+import {
+  BarChart3,
+  BadgeCheck,
+  Briefcase,
+  ExternalLink,
+  FileText,
+  Flag,
+  History,
+  LayoutDashboard,
+  Star,
+  Users,
+} from 'lucide-react'
 import { LogoMark } from '../components/Navbar'
 import { useAuth } from '../context/AuthContext'
 import { fetchVerifications } from './api'
@@ -13,6 +24,8 @@ const LINKS = [
   { to: '/admin/verifications', label: 'Verifications', icon: BadgeCheck, badge: true },
   { to: '/admin/gigs', label: 'Gigs', icon: Briefcase },
   { to: '/admin/applications', label: 'Applications', icon: FileText },
+  { to: '/admin/reviews', label: 'Reviews', icon: Star },
+  { to: '/admin/chat-reports', label: 'Reported chats', icon: Flag },
   { to: '/admin/audit-log', label: 'Audit log', icon: History },
   { to: '/admin/recommender', label: 'Recommender', icon: BarChart3 },
 ]

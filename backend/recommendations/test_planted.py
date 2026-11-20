@@ -183,6 +183,12 @@ class WriteWorldTests(TestCase):
         self.assertFalse(Application.objects.filter(created_at__gt=timezone.now()).exists())
         self.assertFalse(Gig.objects.filter(created_at__gt=before).exists())
 
+    def test_premium_clients_are_worked_out_again_from_the_seed(self):
+        planted.write_world(self.world)
+        expected = {planted.client_email(c.index) for c in self.world.clients if c.premium}
+        self.assertTrue(expected)
+        self.assertEqual(planted.premium_client_emails(), expected)
+
     def test_the_ground_truth_file_has_every_freelancer_and_their_group(self):
         ids = planted.write_world(self.world)
         truth = planted.read_ground_truth()

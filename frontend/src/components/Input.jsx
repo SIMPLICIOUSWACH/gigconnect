@@ -1,6 +1,6 @@
 import Label from './Label'
 
-export default function Input({ label, required, error, className = '', ...props }) {
+export default function Input({ label, required, error, hint, className = '', ...props }) {
   return (
     <label className="block">
       <Label required={required}>{label}</Label>
@@ -11,6 +11,7 @@ export default function Input({ label, required, error, className = '', ...props
         } ${className}`}
         {...props}
       />
+      {hint && <span className="block text-caption text-muted mt-1.5">{hint}</span>}
       {error && <span className="block text-caption text-red-600 mt-1.5">{error}</span>}
     </label>
   )

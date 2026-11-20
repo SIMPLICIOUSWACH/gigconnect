@@ -4,8 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .email import send_verification_email_on_commit
-from .models import OTP, User
-from .otp import issue_otp
+from .models import User
 from .serializers import RegisterSerializer, UserSerializer
 from .tokens import read_email_verification_token
 
@@ -53,27 +52,3 @@ class VerifyEmailView(APIView):
         user.is_email_verified = True
         user.save(update_fields=['is_email_verified'])
         return Response({'detail': 'Email verified successfully.'})
-
-
-class SendOTPView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-
-    def post(self, request):
-        issue_otp(request.user)
-        return Response({'detail': 'OTP sent.'})
-
-
-class VerifyOTPView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-
-    def post(self, request):
-        code = request.data.get('code', '')
-        otp = OTP.objects.filter(user=request.user, code=code, is_used=False).order_by('-created_at').first()
-        if otp is None or not otp.is_valid():
-            return Response({'detail': 'Invalid or expired code.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        otp.is_used = True
-        otp.save(update_fields=['is_used'])
-        request.user.is_phone_verified = True
-        request.user.save(update_fields=['is_phone_verified'])
-        return Response({'detail': 'Phone verified successfully.'})

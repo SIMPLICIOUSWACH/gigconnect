@@ -1,21 +1,21 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 
-from .models import OTP, User
+from .models import User
 
 
 class UserAdmin(DjangoUserAdmin):
     model = User
     ordering = ['-created_at']
-    list_display = ['email', 'full_name', 'role', 'is_email_verified', 'is_phone_verified', 'is_active']
-    list_filter = ['role', 'is_email_verified', 'is_phone_verified', 'is_active']
+    list_display = ['email', 'full_name', 'role', 'is_email_verified', 'is_active']
+    list_filter = ['role', 'is_email_verified', 'is_active']
     search_fields = ['email', 'full_name', 'phone']
     fieldsets = (
         (None, {'fields': ('email', 'password')}),
         ('Personal info', {'fields': ('full_name', 'phone', 'role')}),
         ('Status', {
             'fields': (
-                'is_email_verified', 'is_phone_verified', 'is_profile_complete',
+                'is_email_verified', 'is_profile_complete',
                 'is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions',
             )
         }),
@@ -31,4 +31,3 @@ class UserAdmin(DjangoUserAdmin):
 
 
 admin.site.register(User, UserAdmin)
-admin.site.register(OTP)

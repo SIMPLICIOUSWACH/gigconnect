@@ -7,6 +7,8 @@ const EVENTS = [
   { key: 'new_application', label: 'New application received' },
   { key: 'status_change', label: 'Application status changes' },
   { key: 'new_match', label: 'New gig match' },
+  { key: 'new_message', label: 'New messages' },
+  { key: 'invite', label: 'Invitations to apply' },
   { key: 'security_alert', label: 'Security alerts' },
 ]
 

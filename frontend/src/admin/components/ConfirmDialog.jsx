@@ -17,6 +17,9 @@ export default function ConfirmDialog({
   reasonRequired = true,
   onConfirm,
   onCancel,
+  // Extra fields shown above the reason, and a check of them that returns a message to show, or '' if all is well.
+  children,
+  validate,
 }) {
   const [reason, setReason] = useState('')
   const [error, setError] = useState('')
@@ -68,6 +71,11 @@ export default function ConfirmDialog({
   const submit = async (e) => {
     e.preventDefault()
     const text = reason.trim()
+    const problem = validate?.() || ''
+    if (problem) {
+      setError(problem)
+      return
+    }
     if (reasonRequired && !text) {
       setError('Give a reason before you confirm.')
       textarea.current?.focus()
@@ -104,6 +112,7 @@ export default function ConfirmDialog({
           </p>
         )}
         <form onSubmit={submit} className="mt-5" noValidate>
+          {children}
           <label htmlFor={reasonId} className="block text-label text-ink">
             {reasonLabel}
             {reasonRequired ? <span className="text-coral-ink"> *</span> : <span className="text-muted font-normal"> (optional)</span>}

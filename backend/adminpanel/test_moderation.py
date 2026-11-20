@@ -1,13 +1,18 @@
+import shutil
+import tempfile
 from unittest import mock
 
 from django.core import mail
+from django.core.files.base import ContentFile
 from django.db import IntegrityError, transaction
+from django.test import override_settings
 from rest_framework.test import APITestCase
 
 from accounts.models import User
 from gigs.models import Gig
 from notifications.models import Notification
 from profiles.models import FreelancerProfile
+from profiles.testing import add_selfie
 from recommendations.candidates import candidate_gigs
 from recommendations.platform import applications_for_training, gigs_for_training
 from usersettings.models import NotificationPreference, UserSession
@@ -16,6 +21,8 @@ from . import moderation
 from .models import AdminAction
 from .moderation import ModerationError
 from .testing import PASSWORD, AdminTestMixin
+
+ALL_TICKED = {'same_person': True, 'id_matches': True, 'challenge_done': True}
 
 
 class ModerationTestCase(AdminTestMixin, APITestCase):
@@ -235,12 +242,26 @@ class RemoveApplicationTests(ModerationTestCase):
 class VerificationDecisionTests(ModerationTestCase):
     def setUp(self):
         super().setUp()
-        self.profile = self.freelancer.freelancer_profile
-        self.profile.verification_status = FreelancerProfile.VerificationStatus.PENDING
-        self.profile.save(update_fields=['verification_status'])
+        self.private = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.private, ignore_errors=True)
+        override = override_settings(PRIVATE_MEDIA_ROOT=self.private)
+        override.enable()
+        self.addCleanup(override.disable)
+        profile = self.freelancer.freelancer_profile
+        profile.id_document.save('id.pdf', ContentFile(b'%PDF-1.4 synthetic'), save=True)
+        self.profile, _ = add_selfie(profile)
+        self.assertEqual(self.profile.verification_status, 'pending')
+
+    def approve(self, checklist=ALL_TICKED):
+        return moderation.decide_verification(self.admin, self.profile, approve=True, checklist=checklist)
+
+    def reject(self, reason_code='photo_unclear', redo='selfie', reason=''):
+        return moderation.decide_verification(
+            self.admin, self.profile, approve=False, reason=reason, reason_code=reason_code, redo=redo,
+        )
 
     def test_approving_records_it_against_the_freelancer(self):
-        action = moderation.decide_verification(self.admin, self.profile, approve=True)
+        action = self.approve()
         self.profile.refresh_from_db()
         self.assertEqual(self.profile.verification_status, 'verified')
         self.assertEqual(
@@ -248,16 +269,60 @@ class VerificationDecisionTests(ModerationTestCase):
         )
         self.assertEqual(Notification.objects.get(recipient=self.freelancer).kind, 'verification_approved')
 
-    def test_rejecting_needs_a_reason(self):
+    def test_approve_needs_every_checklist_item(self):
+        for missing in ('same_person', 'id_matches', 'challenge_done'):
+            with self.subTest(missing=missing), self.assertRaisesMessage(ModerationError, 'Tick every check'):
+                self.approve({**ALL_TICKED, missing: False})
         with self.assertRaises(ModerationError):
-            moderation.decide_verification(self.admin, self.profile, approve=False)
-        action = moderation.decide_verification(self.admin, self.profile, approve=False, reason='The photo is blurred.')
-        self.assertEqual((action.action, action.reason), ('verify_reject', 'The photo is blurred.'))
+            self.approve({})
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.verification_status, 'pending')
+
+    def test_approve_needs_a_selfie(self):
+        FreelancerProfile.objects.filter(pk=self.profile.pk).update(selfie='')
+        self.profile.refresh_from_db()
+        with self.assertRaisesMessage(ModerationError, 'Both the ID and the selfie'):
+            self.approve()
+
+    def test_rejecting_needs_a_reason_and_the_part_to_redo(self):
+        with self.assertRaisesMessage(ModerationError, 'Choose a reason'):
+            self.reject(reason_code='')
+        with self.assertRaisesMessage(ModerationError, 'send again'):
+            self.reject(redo='')
+        with self.assertRaisesMessage(ModerationError, 'reason'):
+            self.reject(reason_code='other', reason='  ')
+        action = self.reject(reason_code='other', redo='id', reason='The ID has expired.')
+        self.assertEqual((action.action, action.reason), ('verify_reject', 'The ID has expired.'))
+
+    def test_a_quick_reason_reads_as_a_sentence_with_any_extra_words(self):
+        action = self.reject(reason_code='face_mismatch', redo='both', reason='Different person.')
+        self.assertEqual(action.reason, "The face in the selfie doesn't match the photo on the ID. Different person.")
+
+    def test_only_the_failed_part_must_be_sent_again(self):
+        for redo, expected in (('id', (True, False)), ('selfie', (False, True)), ('both', (True, True))):
+            with self.subTest(redo=redo):
+                FreelancerProfile.objects.filter(pk=self.profile.pk).update(
+                    verification_status='pending', needs_new_id=False, needs_new_selfie=False,
+                )
+                self.profile.refresh_from_db()
+                self.reject(redo=redo)
+                self.profile.refresh_from_db()
+                self.assertEqual((self.profile.needs_new_id, self.profile.needs_new_selfie), expected)
+                self.assertEqual(self.profile.verification_status, 'rejected')
+                self.assertIsNotNone(self.profile.verification_decided_at)
+                self.assertTrue(self.profile.id_document and self.profile.selfie)  # nothing is thrown away
+
+    def test_the_freelancer_is_told_what_to_redo(self):
+        self.reject(reason_code='challenge_not_performed', redo='selfie')
+        note = Notification.objects.filter(recipient=self.freelancer, kind='verification_rejected').get()
+        self.assertIn("The challenge gesture wasn't done in the selfie.", note.body)
+        self.assertIn('take a new selfie', note.body)
+        self.assertIn('Everything else you sent is kept.', note.body)
 
     def test_only_pending_verifications_can_be_decided(self):
-        moderation.decide_verification(self.admin, self.profile, approve=True)
+        self.approve()
         with self.assertRaisesMessage(ModerationError, 'already been decided'):
-            moderation.decide_verification(self.admin, self.profile, approve=False, reason='Changed my mind.')
+            self.reject()
 
 
 class AdminActionConstraintTests(ModerationTestCase):

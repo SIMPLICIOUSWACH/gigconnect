@@ -4,6 +4,7 @@ from django.conf import settings
 from django.contrib.postgres.indexes import GinIndex
 from django.contrib.postgres.search import SearchVectorField
 from django.db import models
+from django.utils import timezone
 from django.utils.text import slugify
 
 from profiles.counties import COUNTY_CHOICES
@@ -69,7 +70,13 @@ class Gig(models.Model):
     county = models.CharField(max_length=40, choices=COUNTY_CHOICES, null=True, blank=True)
     is_remote = models.BooleanField(default=False)
     is_synthetic = models.BooleanField(default=False)
+    # Extra rows seed_demo_conversations adds to the planted demo so it has chats to show. The recommender never
+    # trains or evaluates on them, so the demo's model sees the same world with or without them.
+    is_demo_extra = models.BooleanField(default=False)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.OPEN)
+    # When the status last changed, set by save(). A chat about a completed or closed gig turns read-only 30 days
+    # after this (see messaging/rules.py).
+    status_changed_at = models.DateTimeField(null=True, blank=True)
     skills = models.ManyToManyField(Skill, through='GigSkill', related_name='gigs')
     view_count = models.PositiveIntegerField(default=0)
     # A removed gig is hidden everywhere but its owner's My gigs, where it is read-only. See gigs/feed.py.
@@ -104,10 +111,22 @@ class Gig(models.Model):
             models.Index(fields=['budget_max'], name='gig_budget_max_idx'),
         ]
 
+    @classmethod
+    def from_db(cls, db, field_names, values):
+        gig = super().from_db(db, field_names, values)
+        gig._loaded_status = gig.__dict__.get('status')
+        return gig
+
     def save(self, *args, **kwargs):
         if self.application_deadline is None:
             self.application_deadline = self.deadline
+        if self.status != getattr(self, '_loaded_status', None):
+            self.status_changed_at = timezone.now()
+            update_fields = kwargs.get('update_fields')
+            if update_fields is not None and 'status' in update_fields:
+                kwargs['update_fields'] = {*update_fields, 'status_changed_at'}
         super().save(*args, **kwargs)
+        self._loaded_status = self.status
 
     def __str__(self):
         return self.title
@@ -129,6 +148,34 @@ class GigSkill(models.Model):
 
     def __str__(self):
         return f'{self.gig_id}:{self.skill_id}'
+
+
+class GigInvite(models.Model):
+    """
+    A client asking a freelancer to apply to one of their open gigs. One per freelancer per gig. It sends a
+    notification and nothing else: no chat opens (that still starts on hire), and the recommender never reads these.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    gig = models.ForeignKey(Gig, on_delete=models.CASCADE, related_name='invites')
+    client = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='invites_sent')
+    freelancer = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='invites_received'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(fields=['gig', 'freelancer'], name='one_invite_per_freelancer_per_gig'),
+        ]
+        indexes = [
+            # The daily limit counts a client's recent invites.
+            models.Index(fields=['client', '-created_at'], name='invite_client_created_idx'),
+        ]
+
+    def __str__(self):
+        return f'GigInvite<{self.gig_id} -> {self.freelancer_id}>'
 
 
 class GigInteraction(models.Model):

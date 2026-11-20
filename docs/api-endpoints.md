@@ -7,14 +7,12 @@ All endpoints are prefixed with `/api/`. Auth uses JWT bearer tokens
 
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
-| POST | `/api/auth/register/` | None | Role-conditional registration (client or freelancer) |
+| POST | `/api/auth/register/` | None | Role-conditional registration (client or freelancer). `phone` is optional: a Kenyan mobile (`07`, `01`, `7`, `1`, `254` or `+254`), stored as `+2547XXXXXXXX` or `+2541XXXXXXXX` and never verified |
 | POST | `/api/auth/login/` | None | Returns access + refresh JWT pair |
 | POST | `/api/auth/token/refresh/` | None (refresh token) | Rotates the refresh token, returns a new access token |
 | GET | `/api/auth/me/` | Required | Returns the logged-in user + their profile |
 | GET | `/api/auth/verify-email/<token>/` | None | Confirms a signed, time-limited email verification token |
 | POST | `/api/auth/resend-verification/` | Optional | Sends a new verification link. Signed in: to your own address, with `sent` true or a 503 if it failed. Signed out: `{"email"}`, and the same answer whether or not the account exists. 5 an hour |
-| POST | `/api/auth/send-otp/` | Required | Sends a 6-digit phone OTP (5-min expiry) |
-| POST | `/api/auth/verify-otp/` | Required | Verifies the OTP, sets `is_phone_verified` |
 
 ## Profiles (`/api/`)
 
@@ -25,22 +23,26 @@ All endpoints are prefixed with `/api/`. Auth uses JWT bearer tokens
 | PATCH | `/api/profile/complete/` | Required | Update bio/photo/skills (freelancer) or company info/logo (client) |
 | GET/POST | `/api/profile/portfolio-items/` | Required (freelancer) | List / create portfolio items |
 | GET/PATCH/DELETE | `/api/profile/portfolio-items/<id>/` | Required (freelancer, owner) | Manage a single portfolio item |
-| POST | `/api/profile/submit-verification/` | Required (freelancer) | Submit ID number + document for identity verification |
-| GET | `/api/admin/verifications/` | Required (admin) | List verification requests (filterable by `?status=`) |
-| PATCH | `/api/admin/verifications/<id>/` | Required (admin) | Approve or reject a verification request |
+| POST | `/api/profile/submit-verification/` | Required (freelancer) | Upload the ID number and document. Joins the admin queue only once the selfie is in too |
+| GET | `/api/profile/verification/challenge/` | Required (freelancer) | A random single-use gesture for the selfie, valid 10 minutes, with the consent text. 30 an hour |
+| POST | `/api/profile/verification/selfie/` | Required (freelancer) | Multipart `selfie`, `challenge_id`, `consent=true`. 400 with `code: "retake"` if there isn't exactly one face, or `code: "challenge_expired"` |
+| GET | `/api/meta/privacy/` | None | `contact_email` and `id_image_retention_days` for the privacy page |
+| GET | `/api/admin/verifications/` | Required (admin) | List verification requests (filterable by `?status=`), with the challenge, the advisory face score and any other account with the same ID number |
+| PATCH | `/api/admin/verifications/<id>/` | Required (admin) | Approve with `checklist` (`same_person`, `id_matches`, `challenge_done`, all true), or reject with `reason_code`, `redo` (`id`, `selfie` or `both`) and an optional `reason` (required for `other`) |
+| GET | `/api/admin/verifications/<id>/document/` | Required (admin) | The ID document, or the selfie with `?kind=selfie`. Nobody else can read either, the owner included |
 
 ## Settings (`/api/settings/`)
 
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
-| PATCH | `/api/settings/account/` | Required | Update full_name/email/phone (resets the matching verification flag) |
+| PATCH | `/api/settings/account/` | Required | Update full_name/email/phone. Changing the email resets its verification; the phone is checked and normalised as at registration |
 | POST | `/api/settings/change-password/` | Required | Change password (blacklists all existing sessions) |
 | GET | `/api/settings/sessions/` | Required | List active sessions |
 | DELETE | `/api/settings/sessions/<id>/` | Required | Revoke a single session |
 | POST | `/api/settings/sessions/logout-all/` | Required | Revoke every session |
 | GET/PATCH | `/api/settings/notifications/` | Required | View/update notification preferences |
-| GET | `/api/settings/export-data/` | Required | JSON export of the user's own data: account, notification preferences, gig interactions and `applications` (each with its cover letter, link, rate and status history) |
-| POST | `/api/settings/delete-account/` | Required | Soft-delete (anonymise + deactivate) the account. Also deletes the user's gig interactions and closes and empties their applications (see below) |
+| GET | `/api/settings/export-data/` | Required | JSON export of the user's own data: account, notification preferences, gig interactions, `applications` (each with its cover letter, link, rate and status history), `notifications` and `messages_sent` (every chat message the user wrote, with the gig and who it went to) |
+| POST | `/api/settings/delete-account/` | Required | Erase the account (see "Deleting an account" below). `{"password"}`. Refused with 400 `code: "active_work"` and an `active_work` list while the user runs an in-progress gig or is hired on one |
 
 **Deleting a freelancer's account and their applications:** pending, under review and shortlisted
 applications become `withdrawn` with a system status event, and the cover letter, portfolio link and
@@ -243,12 +245,189 @@ What creates them, and which setting (`/api/settings/notifications/`) controls e
 | The password is changed | The account holder | `security_alert` |
 | An admin removes or restores a gig or application, or decides an ID check | The person affected | Email follows `status_change`; the in-app notice is always written |
 | An admin suspends or reinstates an account | The person affected | Email follows `security_alert`; the in-app notice is always written |
+| A client hires a freelancer | The client: "You hired <name>. Send them a message to get started." | `new_message` |
+| A chat message arrives | The other person: one in-app notice per chat, updated as more arrive. An email only if it is still unread after 15 minutes, at most one per chat an hour | `new_message` |
+| A client rates a freelancer, or the freelancer replies | The freelancer; then the client | `status_change` |
+| An admin removes or restores a review | The freelancer and the client | Email follows `status_change`; the in-app notice is always written |
+| A client invites a freelancer to apply | The freelancer | `invite` |
 
 **Delivery.** Emails go out after the database transaction commits, and a mail failure is logged without failing the
 request. The bell checks the unread count every 30 seconds and when the tab comes back into view, so in-app
 notifications appear within about half a minute. There are no WebSockets, so this is near real time, not instant.
 
 A notification's text is included in the data export and deleted with the account.
+
+## Chat (`/api/`)
+
+A client and the freelancer they hired can message each other. Hiring opens the conversation (one per hired
+application). Every endpoint is for the two participants only: anyone else, admins included, gets 404.
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/conversations/` | The user's chats, latest activity first, paginated. Each has `other`, `gig`, `hired_at`, `last_message`, `unread_count`, `read_only_reason`, `waiting_for_client` and `can_send` |
+| GET | `/api/conversations/unread-count/` | `{"unread": n}`, the number on the navbar's Messages link |
+| GET | `/api/conversations/<id>/` | One chat |
+| GET | `/api/conversations/<id>/messages/` | The latest 50, oldest first, with `has_earlier`. `?before=<message id>` for the 50 before that; `?after=<message id>` for newer ones (polling). `seen_up_to` is the user's newest message the other person has read |
+| POST | `/api/conversations/<id>/messages/` | Send `{"body"}`: 1 to 2,000 characters, plain text, trimmed. At most 20 a minute (429 after that) |
+| POST | `/api/conversations/<id>/read/` | Mark the other person's messages as read. Returns `{"marked": n}` |
+| POST | `/api/conversations/<id>/report/` | `{"reason"}` (up to 1,000 characters): flag the chat for an administrator |
+
+**The client writes first.** Until the client sends the first message, the freelancer's sends get 403 with
+`code: "waiting_for_client"`, and the app shows "Waiting for <client> to start the conversation".
+
+**Read-only chats.** Sending gets 403 with `code: "read_only"` and `read_only_reason` explains why when: the gig was
+completed or closed more than 30 days ago; an admin removed the gig or the application; either account is suspended;
+or either account was deleted. It is worked out each time, so reinstating an account opens the chat again.
+
+**Safety tip.** When a message contains a phone number, an email address, or M-Pesa or payment wording with a number,
+the send response carries `safety_tip` ("Keep payments on GigConnect so you're protected."), once per person per chat.
+It never blocks the message.
+
+**Deleted accounts.** The other person keeps the chat. The deleted person shows as "Deleted user" and the chat is
+read-only. The deleted person's messages are in their data export (`messages_sent`), which they can download first.
+
+**Keeping chats.** `purge_old_conversations` deletes a whole conversation, with its messages and reports, 12 months
+after it became read-only. Run it daily (see the README); `--dry-run` only counts.
+
+**Emails about unread messages.** `send_message_emails` emails a message that is still unread after 15 minutes, if the
+recipient's "New messages" email setting is on, at most one email per chat an hour. The email names the sender and links
+to the chat, without the message text. Run it every 5 minutes; running it twice never sends twice, and `--dry-run` only
+counts.
+
+### Deleting an account
+
+Self-deletion and an admin's deletion both go through `accounts/services.delete_account`, so the effects are the
+same. The row stays, anonymised, so chats and application history still make sense; the person's details are erased
+and the account can't be recovered. In one transaction:
+
+- In-progress work blocks it: gigs the user runs as a client that are in progress, or a hire on an in-progress gig as
+  a freelancer. Users can't get past this. An admin can (`force`), which closes those gigs and tells the other person
+  ("This gig was closed because the other account was removed.").
+- The user's open gigs are closed (so `status_changed_at` is set), and every freelancer with a pending, under review
+  or shortlisted application on one is told ("This gig was closed because the client's account was removed.").
+- Gig interactions and notifications are deleted; applications are emptied and open ones withdrawn (see below).
+- The ID document and selfie files and the plain ID number are deleted; the keyed hash stays.
+- Chats stay for the other person, read-only, showing "Deleted user".
+- Name, email and phone are replaced, the password made unusable, and every session revoked.
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/admin/users/<id>/delete-preview/` | What deleting would do (counts and the `active_work` list), plus `can_delete` and `refusal` |
+| POST | `/api/admin/users/<id>/delete/` | `{"reason", "confirm_email", "force"}`. Returns `{"summary": {...}}`: gigs closed, applicants told, applications emptied, ID files deleted, chats kept read-only, notifications and gig history deleted |
+
+An admin can only delete a suspended account, never their own or another admin's, with a reason and the account's
+email typed exactly (each a 400 otherwise). The audit log gets a `delete_user` row with the reason and a masked email
+in `target_label` (`Deleted user · j***@gmail.com`), never the full one. Once the deletion is saved, the person is
+emailed at their old address: "Your GigConnect account has been deleted by an administrator. Reason: ...", with the
+privacy contact. A mail failure is logged and doesn't undo anything. In `/api/admin/users/?status=deleted`, each row's
+`deletion` gives the masked label, the date and who deleted it (an admin's name, or "themselves").
+
+### Reported chats (`/api/admin/`, admins only)
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/admin/chat-reports/` | Reports, newest first, without messages. `?status=open` (default), `resolved` or `all`; `?conversation=<id>` for one chat |
+| GET | `/api/admin/chat-reports/<id>/` | The report, every report on that chat, and the whole conversation. Each request writes an audit log row (`chat_viewed`) |
+| POST | `/api/admin/chat-reports/<id>/resolve/` | `{"note"}` (optional): close the report. Writes `chat_report_resolved` to the audit log |
+
+Admins can't list or open chats any other way. Suspending a participant uses the usual
+`POST /api/admin/users/<id>/suspend/`.
+
+## Reviews (`/api/`)
+
+A client can rate the freelancer they hired once the gig is completed. One review per gig (the database enforces it).
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/gigs/<id>/review/` | The client's own review of their gig, with `can_edit` and `closes_at`. 404 if there is none |
+| POST | `/api/gigs/<id>/review/` | `{"rating": 1-5, "text"}`. `text` is optional, up to 1,000 characters |
+| PATCH | `/api/gigs/<id>/review/` | Change the rating or the text |
+| POST | `/api/reviews/<id>/reply/` | `{"reply"}`: the rated freelancer's one public reply, 1 to 500 characters |
+| GET | `/api/freelancers/<id>/reviews/` | A freelancer's visible reviews, newest first, paginated. Public fields only: rating, text, gig title, client name, dates, the reply, and `can_reply` for the freelancer themselves |
+
+**Who and when.** Only the gig's client can rate, only the freelancer hired on that gig, and only a completed gig.
+Anyone else gets 404 for the gig. Rating and editing are both open for `REVIEW_WINDOW_DAYS` (14) days after completion
+(`Gig.status_changed_at`); after that both answer 400. `GET /api/gigs/mine/` gives each completed gig a `rating` object
+(`can_rate`, `can_edit`, `closes_at`, the review), which is what puts "Rate <name>" in My gigs for those 14 days.
+
+**Average and count.** `rating_avg` and `rating_count` live on the freelancer's profile and are recalculated in the
+same transaction whenever a review is written, edited, removed or restored. They are on the public profile and on each
+applicant in `GET /api/gigs/<id>/applications/`. A freelancer with no reviews has `rating_avg: null`, shown as "New",
+never as 0 stars.
+
+**Sorting by rating** uses a Bayesian average, `(C * m + sum of ratings) / (C + count)`, with `m = RATING_PRIOR_MEAN`
+(4.0) and `C = RATING_PRIOR_WEIGHT` (5). One 5-star review gives 4.17 and twenty reviews averaging 4.8 give 4.64, so
+the second ranks higher, and someone new sits at 4.0 rather than at the bottom.
+
+**Notifications** (both under the "Status changes" setting): the freelancer is told "<client> rated your work on
+<gig>", and the client is told when the freelancer replies.
+
+**Moderation.** `GET /api/admin/reviews/` (filters: `moderation`, `rating`, `id`, `freelancer`, `client`),
+`POST /api/admin/reviews/<id>/remove/` with a required `{"reason"}`, and `POST /api/admin/reviews/<id>/restore/`.
+Both write to the audit log (`remove_review`, `restore_review`) and tell the freelancer and the client. A removed
+review isn't listed, can't be edited or replied to, and doesn't count towards the average.
+
+**Deleted accounts.** A deleted freelancer's reviews are hidden with their profile (404). A review written by a client
+who later deleted their account stays, with the client shown as "Deleted client".
+
+**Not used by the recommender.** Ratings don't feed training, evaluation or ranking of recommended gigs. Using them
+(for example as a weight on hires, or to order suggested freelancers) is future work: there are too few reviews to
+learn from yet, and a rating says how a job went, not which gigs suit a freelancer.
+
+## Find freelancers (`/api/`)
+
+For clients and admins. Freelancers get 403.
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/freelancers/` | Search. 12 per page. Throttled to 60 a minute |
+| GET | `/api/gigs/<id>/suggested-freelancers/` | Up to 6 freelancers for one of the client's open gigs. Owner only |
+| POST | `/api/gigs/<id>/invites/` | `{"freelancer_id"}`: invite them to apply. Owner only |
+| GET | `/api/freelancers/<id>/invitable-gigs/` | The client's open gigs, each with `invited` and `applied` for this freelancer, plus `invites_left` |
+
+**Who appears.** Freelancers whose account is active, email-verified, not suspended and not deleted, and who have
+"Show my profile in Find freelancers" on (`search_visible`, on by default; they change it with
+`PATCH /api/profile/complete/`). Synthetic seed accounts follow `SHOW_SYNTHETIC`, the same rule as gigs. A hidden
+profile still opens from a link and on the freelancer's own applications.
+
+**`GET /api/freelancers/` parameters.**
+
+| Parameter | Meaning |
+|---|---|
+| `q` | Keyword over name and headline, then skills, then bio. Full-text, topped up with trigram matches when there are too few, like the gig search |
+| `skills` | Comma-separated skill ids or names; any of them |
+| `county` | One county |
+| `remote=true` | Open to remote work (`open_to_remote`) |
+| `verified=true` | ID verified by an admin |
+| `available=true` | Available for new gigs |
+| `min_rating` | 1 to 5. Leaves out freelancers with no reviews |
+| `sort` | `best_match` (default), `rating` (the Bayesian average), `completed` (most gigs completed), `newest` |
+| `page` | Without `q` or any filter, pages past 50 answer 400 `code: "narrow_your_search"` |
+
+`best_match` ranks by the keyword match when there is a `q`, by how many of the asked skills they have when there are
+`skills`, and otherwise by: verified first, then the Bayesian rating, then most recently active.
+
+**What a card contains.** `id`, `full_name`, `profile_photo`, `profile_colour`, `verified`, `headline`, `county`,
+`skills` (the first 5) and `skills_total`, `rating_avg`, `rating_count`, `gigs_completed`, `starting_price`,
+`is_available`, `open_to_remote`. Never an email, phone number, ID number or document: the card is built field by
+field, and a test checks the response for them.
+
+**Suggested for this gig.** Ranked by the content model: the cosine similarity between the gig's text (title,
+description, skills, category) and each findable freelancer's profile (skills and bio). Each card also has
+`match_score`, `match_band` and `match_reasons`, the same labels and shared skills as applicant cards, and `invited`.
+People who already applied are left out, and nobody with a score of 0 is suggested. With recommendations switched off
+or no trained model, `results` is empty and `suggestions.reason` says why.
+
+Suggestions are content-only on purpose. The collaborative model learns which gigs a freelancer goes for from what
+freelancers did; it has nothing on which freelancers a client wants. A new open gig has no history for it to work from
+either, and ranking people by how much they resemble past applicants would mostly push forward those who are already
+busy.
+
+**Invitations.** The freelancer gets a notification, and an email if their "Invitations to apply" setting allows
+(`invite_inapp`, `invite_email`, both on by default), with a link to the gig. Limits: one invite per freelancer per
+gig, and `INVITES_PER_DAY` (20) per client in any 24 hours (429 after that). Only open gigs take invitations, only
+findable freelancers can be invited, and someone who already applied can't be. An invitation does not open a chat:
+chat still starts on hire, with the client writing first. The recommender never reads invitations.
 
 ## Seeding sample data (development only)
 
@@ -363,7 +542,7 @@ it starts with that label. It never sets the live defaults.
 - About 250 freelancers, 300 gigs and 60 clients, with 15 to 25 applications per freelancer. A hidden popularity per
   gig means the median gig has well over 5 applicants.
 - Each freelancer belongs to one of five hidden taste groups: quick_cash (short window or short job, lower budget),
-  premium (higher budget, negotiable, a client with a verified phone), remote_only, client_loyal (two favourite
+  premium (higher budget, negotiable, a premium client, which is a synthetic trait in the generator), remote_only, client_loyal (two favourite
   clients among the ten that post the most) and cross_field (one neighbouring category whose skills they do not
   have). About 40% of each freelancer's applications follow their group, 40% skill overlap and 20% chance.
 - Habits only use budget, urgency, client, location and posting date, which the content model does not read. Gig

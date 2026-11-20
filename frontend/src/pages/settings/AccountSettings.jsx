@@ -53,12 +53,14 @@ export default function AccountSettings() {
             onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
           />
           <Input
-            label="Phone"
+            label="Phone (optional)"
+            placeholder="0712345678"
+            hint="Used for M-Pesa payments later. We won't send you codes."
             value={form.phone}
             onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
           />
           <p className="text-caption text-muted">
-            Changing your email or phone will require re-verification.
+            Changing your email will require re-verification.
           </p>
           <Alert type="success">{message}</Alert>
           <Alert type="error">{error}</Alert>

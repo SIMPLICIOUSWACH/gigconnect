@@ -14,6 +14,8 @@ urlpatterns = [
     path('api/', include('applications.urls')),
     path('api/', include('recommendations.urls')),
     path('api/', include('notifications.urls')),
+    path('api/', include('messaging.urls')),
+    path('api/', include('reviews.urls')),
 ]
 
 if settings.DEBUG:

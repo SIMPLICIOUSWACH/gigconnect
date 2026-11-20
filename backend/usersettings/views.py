@@ -1,19 +1,17 @@
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db import transaction
-from django.utils import timezone
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
 
 from accounts.email import send_verification_email_on_commit
-from accounts.otp import issue_otp
 from accounts.serializers import UserSerializer
-from applications.privacy import erase_applications, export_applications
+from accounts.services import AccountDeletionBlocked, delete_account
+from applications.privacy import export_applications
 from gigs.models import GigInteraction
+from messaging.privacy import export_messages
 from notifications import events
-from notifications.models import Notification
 from notifications.serializers import NotificationSerializer
 
 from .models import NotificationPreference, UserSession
@@ -26,7 +24,7 @@ class AccountSettingsView(APIView):
 
     def patch(self, request):
         user = request.user
-        old_email, old_phone = user.email, user.phone
+        old_email = user.email
 
         serializer = AccountSettingsSerializer(user, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
@@ -37,11 +35,6 @@ class AccountSettingsView(APIView):
             user.is_email_verified = False
             user.save(update_fields=['is_email_verified'])
             outcome = send_verification_email_on_commit(user)
-
-        if user.phone != old_phone:
-            user.is_phone_verified = False
-            user.save(update_fields=['is_phone_verified'])
-            issue_otp(user)
 
         data = UserSerializer(user).data
         # Only present when the email changed: whether the new verification link could be sent.
@@ -130,6 +123,8 @@ class ExportDataView(APIView):
             'notification_preferences': NotificationPreferenceSerializer(preference).data,
             'applications': export_applications(user),
             'notifications': NotificationSerializer(user.notifications.order_by('created_at'), many=True).data,
+            # Messages the user sent. The other person's messages are theirs, so they aren't included.
+            'messages_sent': export_messages(user),
             'gig_interactions': [
                 {
                     'type': i.type,
@@ -154,24 +149,12 @@ class DeleteAccountView(APIView):
         if not user.check_password(password):
             return Response({'password': 'Incorrect password.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        with transaction.atomic():
-            # Browsing history is personal data and has no use once the account is gone, so it is
-            # deleted outright rather than anonymised.
-            GigInteraction.objects.filter(user=user).delete()
-            Notification.objects.filter(recipient=user).delete()
-
-            # Applications are shared with the client reviewing them, so they are emptied of
-            # personal text and closed rather than deleted. See applications/privacy.py.
-            erase_applications(user)
-
-            user.full_name = 'Deleted User'
-            user.email = f'deleted-{user.id}@gigconnect.invalid'
-            user.phone = ''
-            user.is_active = False
-            user.deleted_at = timezone.now()
-            user.set_unusable_password()
-            user.save()
-
-        revoke_all_sessions(user)
-
+        # The same deletion an admin's uses (accounts/services.py). People can't force past in-progress work.
+        try:
+            delete_account(user)
+        except AccountDeletionBlocked as blocked:
+            return Response(
+                {'detail': str(blocked), 'code': 'active_work', 'active_work': blocked.work},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         return Response({'detail': 'Account deleted.'})

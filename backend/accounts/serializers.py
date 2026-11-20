@@ -4,8 +4,10 @@ from rest_framework import serializers
 
 from profiles.models import ClientProfile, Skill
 from profiles.serializers import ClientProfileSerializer, FreelancerProfileSerializer
+from profiles.verification import progress
 
 from .models import User
+from .phones import clean_phone
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -25,6 +27,9 @@ class RegisterSerializer(serializers.ModelSerializer):
             'full_name', 'email', 'password', 'confirm_password', 'phone', 'role',
             'company_name', 'industry', 'skills',
         ]
+
+    def validate_phone(self, value):
+        return clean_phone(value)
 
     def validate_role(self, value):
         # Admins are made with `manage.py create_admin`, never through sign-up.
@@ -80,18 +85,30 @@ class RegisterSerializer(serializers.ModelSerializer):
 
 class UserSerializer(serializers.ModelSerializer):
     profile = serializers.SerializerMethodField()
+    verification = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
             'id', 'email', 'full_name', 'phone', 'role', 'account_status',
-            'is_email_verified', 'is_phone_verified', 'is_profile_complete',
-            'created_at', 'profile',
+            'is_email_verified', 'is_profile_complete',
+            'created_at', 'profile', 'verification',
         ]
+
+    def get_verification(self, obj):
+        """A freelancer's own ID check progress. Only here, in the serializer that describes the signed-in user."""
+        if obj.role != User.Role.FREELANCER or not hasattr(obj, 'freelancer_profile'):
+            return None
+        return progress(obj.freelancer_profile)
 
     def get_profile(self, obj):
         if obj.role == User.Role.CLIENT:
             return ClientProfileSerializer(obj.client_profile, context=self.context).data
         if obj.role == User.Role.FREELANCER:
-            return FreelancerProfileSerializer(obj.freelancer_profile, context=self.context).data
+            profile = obj.freelancer_profile
+            # Their own setting, so it is only here and not on the public profile.
+            return {
+                **FreelancerProfileSerializer(profile, context=self.context).data,
+                'search_visible': profile.search_visible,
+            }
         return None
