@@ -35,6 +35,9 @@ class User(AbstractBaseUser, PermissionsMixin):
     # Set by the seed and data-pipeline commands. The profile rows hang off the user, so this one
     # flag covers them too.
     is_synthetic = models.BooleanField(default=False)
+    # The showcase accounts seed_showcase makes for live demos. The recommender leaves them out of training and
+    # evaluation (recommendations/platform.py), so adding them changes nothing it learned or was scored on.
+    is_demo_extra = models.BooleanField(default=False)
 
     objects = UserManager()
 

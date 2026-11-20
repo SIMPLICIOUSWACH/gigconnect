@@ -7,3 +7,8 @@ select = ["E", "F", "I"]
 
 [lint.per-file-ignores]
 "*/tests.py" = ["E501"]
+"sampledata/text.py" = ["E501"]
+"sampledata/gigtext.py" = ["E501"]
+"sampledata/showcase.py" = ["E501"]
+"sampledata/test_*.py" = ["E501"]
+"sampledata/testing.py" = ["E501"]

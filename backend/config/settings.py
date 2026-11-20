@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'messaging',
     'reviews',
     'adminpanel',
+    'sampledata',
 ]
 
 MIDDLEWARE = [
@@ -180,6 +181,9 @@ NOTIFICATION_MATCH_LIMIT = 500
 # Synthetic rows (from the seed and data-pipeline commands) are shown in the public feed in dev
 # only, unless SHOW_SYNTHETIC is set explicitly.
 SHOW_SYNTHETIC = os.environ.get('SHOW_SYNTHETIC', str(DEBUG)) == 'True'
+
+# The password of the four accounts seed_showcase makes for live demos. Set it in backend/.env, never in code.
+SHOWCASE_PASSWORD = os.environ.get('SHOWCASE_PASSWORD', '')
 
 # Typo-tolerant search: when full-text search returns fewer than this many gigs, results are
 # merged with trigram word-similarity matches on title/description.
